@@ -7,7 +7,6 @@ on:
     branches: [ main ]
 
 jobs:
-  # Job 1: Controlli di base e build Docker (senza push)
   pre-checks-and-build:
     name: Pre-Checks and Docker Build Test
     runs-on: ubuntu-latest
@@ -20,13 +19,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-
-      # (Puoi aggiungere qui un linting molto leggero o commentarlo per ora)
-      # - name: Install linting dependencies
-      #   run: pip install flake8
-      # - name: Basic Lint with flake8 (non-blocking, very permissive)
-      #   run: flake8 . --count --select=E9,F821,F823 --exit-zero # --exit-zero fa sì che non fallisca il job
-      #   continue-on-error: true # Alternativa a --exit-zero, il job continua anche se flake8 trova errori
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
