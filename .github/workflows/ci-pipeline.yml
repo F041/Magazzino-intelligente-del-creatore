@@ -38,7 +38,7 @@ jobs:
           file: ./Dockerfile
           push: false # Non pushare l'immagine in questo job
           load: true # Carica l'immagine nel runner locale di Actions (utile per test futuri sull'immagine)
-          tags: ghcr.io/${{ github.repository_owner }}/magazzino-creatore:ci-build-test # Un tag temporaneo
+          tags: ghcr.io/${{ github.repository_owner }}/magazzino-creatore-selfhosted:ci-build-test
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -69,21 +69,21 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract metadata (tags, labels) for Docker
+  - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/magazzino-creatore # O il nome che preferisci
+          # Nome immagine fisso e in minuscolo per il push
+          images: ghcr.io/${{ github.repository_owner }}/magazzino-creatore-selfhosted
           tags: |
             type=sha,prefix=,suffix=,format=short
-            latest  # Aggiungi sempre il tag 'latest' per il branch main
-
+            latest
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: true # Pusha l'immagine
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
