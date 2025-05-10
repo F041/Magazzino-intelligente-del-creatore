@@ -1,15 +1,15 @@
-import io 
+import io
 import logging
 import sqlite3
 import os # Necessario? Forse no.
 import chromadb
 from datetime import datetime
-from flask import Blueprint, jsonify, request, current_app, Response, current_app 
+from flask import Blueprint, jsonify, request, current_app, Response, current_app
 from flask_login import login_required, current_user
 from google.api_core import exceptions as google_exceptions
 from typing import Optional
-import threading 
-import copy  
+import threading
+import copy
 
 
 # --- Import Servizi e Moduli App ---
@@ -55,18 +55,17 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
         base_video_collection_name = core_config.get('VIDEO_COLLECTION_NAME')
         chunk_size = core_config.get('DEFAULT_CHUNK_SIZE_WORDS')
         chunk_overlap = core_config.get('DEFAULT_CHUNK_OVERLAP_WORDS')
-        chroma_client = core_config.get('CHROMA_CLIENT') 
+        chroma_client = core_config.get('CHROMA_CLIENT')
         chroma_collection_single = core_config.get('CHROMA_VIDEO_COLLECTION')
 
         # Verifica Chroma specifica per modalità (Client/Collezione)
         chroma_client = current_app.config.get('CHROMA_CLIENT')
         chroma_collection_single = current_app.config.get('CHROMA_VIDEO_COLLECTION') # Solo per single mode
 
-        if not token_path: 
+        if not token_path:
             raise RuntimeError("Token path mancante in core_config.")
-        if not db_path_sqlite: 
+        if not db_path_sqlite:
             raise RuntimeError("DB path mancante in core_config.")
-        
         if not all([token_path, db_path_sqlite, llm_api_key, embedding_model, base_video_collection_name, (chroma_client if app_mode == 'saas' else chroma_collection_single is not None)]):
              error_details = f"Token:{token_path}, DB:{db_path_sqlite}, Key:{llm_api_key}, Model:{embedding_model}, CollName:{base_video_collection_name}, ChromaOK:{bool(chroma_client) if app_mode == 'saas' else chroma_collection_single is not None}"
              logger.error(f"[CORE YT Process] Configurazione incompleta: {error_details}")
@@ -87,12 +86,12 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
             logger.info(f"[CORE YT Process] Recuperati {yt_count} video totali da YouTube.")
         except Exception as e_yt_fetch:
             logger.error(f"[CORE YT Process] Errore API YouTube fetch per canale {channel_id}: {e_yt_fetch}")
-            if conn_sqlite: 
-                try: 
-                    conn_sqlite.close() 
-                except: 
+            if conn_sqlite:
+                try:
+                    conn_sqlite.close()
+                except:
                     pass
-            return False 
+            return False
 
         # --- 3. RECUPERA ID ESISTENTI DA SQLITE (filtrati per user) ---
         existing_video_ids = set()
@@ -435,7 +434,7 @@ def process_channel():
 
 # --- Route Riprocessa Singolo Video ---
 @videos_bp.route('/<string:video_id>/reprocess', methods=['POST'])
-@login_required 
+@login_required
 def reprocess_single_video(video_id):
     """
     Forza il riprocessamento completo di un singolo video (verifica utente,
@@ -822,7 +821,7 @@ def process_video():
         return jsonify({'success': False, 'error_code': 'TRANSCRIPT_UNEXPECTED_ERROR', 'message': f'Unexpected error retrieving transcript: {str(e)}'}), 500
 
 @videos_bp.route('/download_all_transcripts', methods=['GET'])
-@login_required 
+@login_required
 def download_all_transcripts():
     app_mode = current_app.config.get('APP_MODE', 'single')
     db_path = current_app.config.get('DATABASE_FILE')
