@@ -1,3 +1,5 @@
+![Main application page](screenshots/main.png)
+
 # Magazzino del Creatore
 
 Un'applicazione per creare una base di conoscenza interrogabile a partire dai contenuti di un creator (video YouTube, documenti, articoli RSS), utilizzando Flask per il backend, ChromaDB come database vettoriale e Google Gemini per embedding e generazione di risposte (architettura RAG).
