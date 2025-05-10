@@ -1,49 +1,10 @@
 [flake8]
-ignore =
-    E111, E114, E115, E116, E117, # Indentazione
-    E121, E122, E123, E124, E125, E126, E127, E128, E129, E131, # Indentazione
-    E201, E202, E203, # Spazi bianchi dentro parentesi/virgole
-    E211,             # Spazi bianchi prima di parentesi
-    E221, E222, E223, E224, E225, E226, E227, E228, # Spazi bianchi attorno operatori
-    E231,             # Manca spazio dopo virgola/duepunti/puntoevirgola
-    E241, E242,       # Spazi multipli attorno operatori
-    E251, E252,       # Spazi inattesi attorno keyword/parametri
-    E261, E262, E265, E266, # Spazi per commenti inline/blocco
-    E271, E272, E273, E274, E275, # Spazi multipli dopo keyword
-    E301, E302, E303, E304, E305, E306, # Linee vuote
-    E401, # Import multipli su una riga (obsoleto, di solito non problematico)
-    E402, # Import a livello di modulo non all'inizio del file
-    E501, # Linea troppo lunga
-    E701, E702, E703, E704, # Più istruzioni su una riga
-    E711, E712, E713, E714, # Confronti (es. con None, True, False)
-    E721, # Confronto di tipo diretto con type()
-    E731, # Non assegnare una lambda, usa def
-    E741, E742, E743, # Nomi ambigui per variabili/funzioni/classi
-
-    # Warning comuni (W codes)
-    W191, # Indentazione con tab (se usi spazi)
-    W291, # Spazi bianchi finali
-    W292, # Manca newline alla fine del file
-    W293, # Linea vuota contiene spazi bianchi
-    W391, # Linea vuota alla fine del file (se ce ne sono troppe)
-    W503, # Line break before binary operator (spesso in conflitto con black)
-    W504, # Line break after binary operator (idem)
-    W605  # Invalid escape sequence (per regex, ecc.)
-
-max-line-length = 120  # Aumenta il limite per E501
-
-# File o directory da escludere completamente
+ignore = E501, W292
+max-line-length = 120
 exclude =
     .git,
     __pycache__,
-    build,
-    dist,
-    *.egg-info,
-    venv,
-    env,
-    ENV
-
-# Opzioni per l'output
+    venv
 count = True
 show-source = True
 statistics = True
