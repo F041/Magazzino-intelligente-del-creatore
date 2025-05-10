@@ -1,0 +1,146 @@
+# Framework e Web Server
+Flask>=3.0.0  # O solo Flask
+Flask-Cors>=4.0.0 # O solo Flask-Cors
+Flask-Login
+gunicorn>=21.2.0 # O solo gunicorn
+Werkzeug>=3.0.0 # Spesso legato a Flask, ma diamo un po' di flessibilità
+Jinja2>=3.1.0   # Idem
+itsdangerous>=2.0.0 # Idem
+click>=8.0.0      # Idem
+
+# Google APIs & Auth
+google-api-python-client # Per YouTube Data API
+google-auth-oauthlib     # Per OAuth
+google-generativeai      # Per Gemini (embedding e generazione)
+# google-ai-generativelanguage (solitamente una dipendenza di google-generativeai)
+# google-api-core (idem)
+# google-auth (idem)
+# google-auth-httplib2 (idem)
+# googleapis-common-protos (idem)
+# grpcio (idem)
+# grpcio-status (idem)
+# proto-plus (idem)
+# protobuf (idem)
+
+# Database e Vettori
+chromadb # Lascia che pip scelga la versione più recente compatibile
+# numpy (spesso dipendenza di librerie ML/dati come chromadb, pandas)
+# pandas # Lo usi direttamente nel backend? Se sì, lascialo. Altrimenti, potrebbe essere una dipendenza.
+
+# Trascrizioni
+youtube-transcript-api
+
+# Parsing e Utility
+beautifulsoup4
+python-dotenv
+requests
+APScheduler 
+Flask-SQLAlchemy # Per APScheduler job store
+sqlalchemy # Dipendenza di Flask-SQLAlchemy
+
+# Feed RSS
+feedparser
+# markdownify (se usato, non era nel tuo file)
+
+# Documenti
+python-docx # Se non è già python-docx, ma docx, verifica il nome corretto
+pypdf       # Per i PDF
+
+# Altre potenzialmente utili (valuta se le usi direttamente)
+# PyYAML
+# tqdm
+# regex
+
+# Pydantic (se usato per validazione modelli API)
+pydantic
+
+# Condizionale per Windows (per sviluppo locale su Windows)
+windows-curses==2.3.3 ; sys_platform == 'win32'
+
+# RIMOVERE TEMPORANEAMENTE o DEFINITIVAMENTE (se non usate dal backend):
+# aider-chat==0.46.1
+# aiohttp==3.9.5 (Flask è sincrono, aiohttp di solito non serve a meno di usi specifici)
+# aiosignal==1.3.1 (idem)
+# annotated-types==0.7.0 (spesso dipendenza di Pydantic)
+# anyio==4.4.0
+# attrs==23.2.0 (dipendenza comune)
+# backoff==2.2.1
+# blinker==1.9.0 (dipendenza di Flask/Signals)
+# cachetools==5.5.2
+# certifi==2024.7.4 (dipendenza di requests)
+# cffi==1.16.0
+# charset-normalizer==3.3.2 (dipendenza di requests)
+# colorama==0.4.6
+# ConfigArgParse==1.7
+# defusedxml==0.7.1
+# diff-match-patch==20230430
+# diskcache==5.6.3
+# distro==1.9.0
+# et_xmlfile==2.0.0 (dipendenza di openpyxl)
+# filelock==3.15.4
+# flake8==7.1.0 (Linter, non serve in produzione)
+# frozenlist==1.4.1 (dipendenza di aiohttp)
+# fsspec==2024.6.1
+# gitdb==4.0.11 (dipendenza di GitPython)
+# GitPython==3.1.43 (lo usi nel backend?)
+# grep-ast==0.3.2
+# h11==0.14.0
+# httpcore==1.0.5 (dipendenza di httpx)
+# httplib2==0.22.0 (dipendenza di google-api-python-client)
+# httpx==0.27.0
+# huggingface-hub==0.24.0 (lo usi nel backend?)
+# idna==3.7 (dipendenza di requests)
+# importlib_metadata==7.2.1
+# importlib_resources==6.4.0
+# jsonschema==4.23.0 (per validazione JSON, lo usi direttamente?)
+# jsonschema-specifications==2023.12.1 (idem)
+# litellm==1.41.27 (lo usi nel backend?)
+# markdown-it-py==3.0.0
+# MarkupSafe==2.1.5 (dipendenza di Jinja2)
+# mccabe==0.7.0 (dipendenza di flake8)
+# mdurl==0.1.2 (dipendenza di markdown-it-py)
+# multidict==6.0.5 (dipendenza di aiohttp/yarl)
+# networkx==3.2.1
+# openai==1.37.0 (lo usi direttamente o era per test?)
+# openpyxl==3.1.5 (per file Excel, lo usi nel backend?)
+# packaging==24.1
+# pathspec==0.12.1
+# pillow==10.4.0 (per immagini, lo usi nel backend?)
+# prompt_toolkit==3.0.47
+# pyasn1==0.6.1 (dipendenza di google-auth)
+# pyasn1_modules==0.4.2 (idem)
+# pycodestyle==2.12.0 (dipendenza di flake8)
+# pycparser==2.22 (dipendenza di cffi)
+# pydantic_core==2.14.6 (sarà installato da pydantic)
+# pyflakes==3.2.0 (dipendenza di flake8)
+# pygame==2.6.1 # Probabilmente non serve per un backend web
+# Pygments==2.18.0
+# pypandoc==1.13 # Per conversione documenti, lo usi o era per esperimenti?
+# pyparsing==3.2.3
+# python-dateutil==2.9.0.post0
+# pytz==2025.2
+# referencing==0.35.1 (dipendenza di jsonschema)
+# requests-oauthlib==2.0.0
+# rich==13.7.1 (per output formattato nel terminale, non serve in produzione Docker)
+# rpds-py==0.19.0 (dipendenza di jsonschema)
+# rsa==4.9 (dipendenza di google-auth)
+# scipy==1.13.1 (libreria scientifica, la usi direttamente?)
+# six==1.17.0 (utility, spesso dipendenza)
+# smmap==5.0.1 (dipendenza di gitdb)
+# sniffio==1.3.1
+# sounddevice==0.4.7 # Probabilmente non serve per un backend web
+# soundfile==0.12.1 # Probabilmente non serve per un backend web
+# soupsieve==2.5 (dipendenza di beautifulsoup4)
+# tenacity==9.1.2
+# tiktoken==0.7.0 (tokenizer OpenAI, lo usi con Gemini?)
+# tokenizers==0.19.1 (libreria HuggingFace, la usi direttamente?)
+# tree-sitter==0.21.3
+# tree-sitter-languages==1.10.2
+# typing_extensions==4.12.2 (utility per type hints)
+# tzdata==2025.2 (dipendenza di pytz)
+# uritemplate==4.1.1 (dipendenza di google-api-python-client)
+# urllib3==2.2.2 (dipendenza di requests)
+# uv==0.6.14 # RIMUOVERE - è un package manager, non una libreria da installare con pip
+# wcwidth==0.2.13
+# yarl==1.9.4 (dipendenza di aiohttp)
+# zipp==3.19.2 (dipendenza di importlib_resources)

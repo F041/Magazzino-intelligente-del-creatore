@@ -1,0 +1,93 @@
+<!-- FILE: app/templates/base.html (Versione con blocco stili spostato) -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Magazzino del Creatore{% endblock %}</title>
+    <style>
+        /* Stili CSS COMUNI a tutte le pagine con sidebar */
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; display: flex; min-height: 100vh; background-color: #f4f7f6; }
+        .sidebar { width: 250px; background: #ffffff; border-right: 1px solid #dee2e6; padding: 20px 0; box-shadow: 2px 0 5px rgba(0,0,0,0.1); flex-shrink: 0; }
+        .sidebar-menu { list-style: none; padding: 0; margin: 0; }
+        .sidebar-menu li { padding: 12px 20px; cursor: pointer; transition: background-color 0.2s, border-left-color 0.2s; border-left: 4px solid transparent; }
+        .sidebar-menu li:hover { background-color: #e9ecef; }
+        .sidebar-menu li.active { background-color: #e9ecef; border-left: 4px solid #007bff; }
+        .sidebar-menu a { text-decoration: none; color: #333; display: flex; align-items: center; gap: 10px; font-weight: 500; }
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; }
+        h1 { color: #333; margin-top: 0; margin-bottom: 20px; }
+
+        /* Stili comuni per tabelle */
+        .data-table { width: 100%; border-collapse: collapse; margin-top: 20px; background-color: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        .data-table th, .data-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        .data-table th { background-color: #f8f9fa; font-weight: 600; color: #555; }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover { background-color: #f1f1f1; }
+        .data-table a { color: #0066cc; text-decoration: none; }
+        .data-table a:hover { text-decoration: underline; }
+
+        /* Stili comuni per status badge */
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: capitalize; }
+        .status-completed { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-failed { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-pending, .status-converted-and-pending, .status-saved-and-pending { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .status-processing { background-color: #d1ecf1; color: #0c5460; border-color: #bee5eb; }
+        .status-badge[class*="status-failed"] { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+        .status-unknown { background-color: #e2e3e5; color: #383d41; border-color: #d6d8db; }
+
+        /* Stili comuni per messaggi feedback */
+        .success-message { padding: 10px; margin-top: 15px; border-radius: 4px; display: block; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error-message { padding: 10px; margin-top: 15px; border-radius: 4px; display: block; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* Stili comuni bottoni azioni */
+        .action-btn { /* Classe generica per bottoni azione */
+            padding: 5px 10px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; color: white;
+            background-color: #007bff; /* <-- AGGIUNTA COLORE DEFAULT */
+        }
+        .action-btn:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+        /* Stili specifici per tipo bottone (possono sovrascrivere il default) */
+        .delete-btn { background-color: #dc3545; }
+        .delete-btn:hover { background-color: #c82333; }
+        /* Hover generico per .action-btn (se non è delete) */
+        .action-btn:not(.delete-btn):hover { background-color: #0056b3; } /* Scurisci il blu */
+
+        .action-loader { display: none; margin-left: 5px; font-style: italic; color: #555; font-size: 11px; }
+
+        /* Stili comuni per elementi non trovati */
+        .no-items-message { text-align: center; padding: 40px; color: #777; }
+
+        /* (Il blocco Jinja non è più qui dentro) */
+    </style>
+
+    <!-- Blocco Jinja per eventuali stili specifici aggiunti dai figli -->
+    <!-- Se un figlio definisce questo blocco, DEVE includere i tag <style> al suo interno -->
+    {% block head_styles %}{% endblock %}
+
+</head>
+<body>
+    <div class="sidebar">
+        <ul class="sidebar-menu">
+            <li class="{{ 'active' if request.endpoint == 'dashboard' else '' }}"><a href="{{ url_for('dashboard') }}"><span>Dashboard</span></a></li>
+            <li class="{{ 'active' if request.endpoint == 'my_videos' else '' }}"><a href="{{ url_for('my_videos') }}"><span>I tuoi video</span></a></li>
+            <li class="{{ 'active' if request.endpoint == 'my_documents' else '' }}"><a href="{{ url_for('my_documents') }}"><span>I tuoi documenti</span></a></li>
+            <li class="{{ 'active' if request.endpoint == 'my_articles' else '' }}"><a href="{{ url_for('my_articles') }}"><span>I tuoi articoli</span></a></li>
+            <li class="{{ 'active' if request.endpoint == 'automations_page' else '' }}">
+                <a href="{{ url_for('automations_page') }}"><span>Automazioni</span></a>
+            </li>
+            <li class="{{ 'active' if request.endpoint == 'chat_page' else '' }}"><a href="{{ url_for('chat_page') }}"><span>Chat</span></a></li>
+            <li class="{{ 'active' if request.endpoint == 'keys.manage_api_keys_page' else '' }}"><a href="{{ url_for('keys.manage_api_keys_page') }}"><span>Chiavi API</span></a></li>
+            
+            {# Aggiungi una linea separatrice (opzionale) #}
+            <hr style="margin: 10px 20px; border: 0; border-top: 1px solid #eee;">
+            {# NUOVO LINK LOGOUT #}
+            <li><a href="{{ url_for('logout') }}"><span>Logout</span></a></li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

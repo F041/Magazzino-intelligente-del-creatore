@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - Magazzino del Creatore{% endblock %}
+
+{% block head_styles %}
+<style>
+    /* --- CSS ESISTENTE (con modifiche sotto) --- */
+    .chat-container {
+        display: flex; flex-direction: column; height: calc(100vh - 60px);
+        max-height: 800px; width: 100%; max-width: 900px; margin: 0 auto;
+        background-color: #ffffff; border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden;
+    }
+    .chat-header { /* Rimuoviamo flex, non serve più qui */
+        padding: 10px 20px; border-bottom: 1px solid #eee;
+        background-color: #f8f9fa; flex-shrink: 0;
+    }
+    .chat-header h3 { margin: 0; font-size: 1.1em; color: #495057; font-weight: 600; text-align: center; /* Centriamo titolo ora */ }
+
+    /* --- POSIZIONAMENTO ASSOLUTO PER NUOVA ICONA EMBED --- */
+    #open-embed-modal-button {
+        position: absolute; /* Posizionamento assoluto */
+        top: 30px;  /* Distanza dall'alto */
+        right: 30px; /* Distanza da destra */
+        font-family: 'Material Symbols Outlined';
+        font-size: 28px; /* Icona leggermente più grande */
+        cursor: pointer;
+        color: #6c757d;
+        padding: 5px;
+        border-radius: 50%;
+        transition: color 0.2s, background-color 0.2s;
+        line-height: 1;
+        z-index: 10;
+    }
+    #open-embed-modal-button { /* Applica a ID bottone */
+        position: absolute;
+        top: 25px; /* Leggermente aggiustato per allineare meglio col padding di main-content */
+        right: 30px;
+        background-color: #6c757d; /* Grigio standard */
+        color: white;
+        padding: 8px 15px; /* Padding bottone */
+        border: none;
+        border-radius: 5px; /* Bordi arrotondati */
+        cursor: pointer;
+        font-size: 0.9em; /* Dimensione testo bottone */
+        font-weight: bold; /* Testo in grassetto */
+        transition: background-color 0.2s;
+        z-index: 10;
+        line-height: 1.2; /* Altezza linea normale */
+        font-family: inherit; 
+    }
+    #open-embed-modal-button:hover {
+        background-color: #5a6268; /* Grigio più scuro */
+    }
+    /* ----------------------------------------------------- */
+
+    .chat-window { /* Stili invariati */
+        flex-grow: 1; padding: 20px; overflow-y: auto; background-color: #f8f9fa;
+        display: flex; flex-direction: column; gap: 15px;
+    }
+    /* ... (Stili .message, .user-message, .bot-message, .references-* invariati) ... */
+    .message { max-width: 85%; padding: 10px 15px; border-radius: 18px; line-height: 1.5; word-wrap: break-word; position: relative; }
+    .user-message { align-self: flex-end; background-color: #007bff; color: white; border-bottom-right-radius: 5px; margin-left: auto; }
+    .bot-message { align-self: flex-start; background-color: #e9ecef; color: #333; border-bottom-left-radius: 5px; margin-right: auto; }
+    .bot-message.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .bot-message.loading { background-color: #fff3cd; color: #856404; font-style: italic;}
+    .message p { margin: 0 0 5px 0; }
+    .message p:last-child { margin-bottom: 0; }
+    .bot-message a { color: #0056b3; text-decoration: underline; }
+    .references-container { margin-top: 10px; padding-top: 8px; border-top: 1px solid #d0d0d0; font-size: 0.85em; color: #555; }
+    .references-toggle { background: none; border: none; color: #0056b3; cursor: pointer; font-size: 0.95em; padding: 0; margin-bottom: 5px; display: inline-block; }
+    .references-toggle:hover { text-decoration: underline; }
+    .references-list { list-style: none; padding-left: 15px; margin: 0; max-height: 250px; overflow-y: auto; background-color:#f1f3f5; border: 1px solid #e0e0e0; border-radius: 4px; padding: 8px; display: none; }
+    .reference-item { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #ccc; }
+    .reference-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0;}
+    .reference-item p { margin: 2px 0; line-height: 1.4; }
+    .reference-item strong { color: #333; }
+    .reference-preview { font-style: italic; color: #666; margin-top: 4px !important; font-size: 0.9em; background-color: #fff; padding: 3px; border-radius: 3px;}
+    .reference-item a { color: #0056b3; text-decoration: none; }
+    .reference-item a:hover { text-decoration: underline; }
+
+
+    .input-area { /* Stili invariati */
+        padding: 15px; border-top: 1px solid #ddd; display: flex;
+        align-items: center; background-color: #ffffff; flex-shrink: 0;
+     }
+    .input-area input[type="text"] { /* Stili invariati */
+        flex-grow: 1; padding: 10px 15px; border: 1px solid #ccc;
+        border-radius: 20px; margin-right: 10px; font-size: 1em;
+     }
+    .input-area button { /* Stili invariati */
+        padding: 10px 20px; background-color: #007bff; color: white; border: none;
+        border-radius: 20px; cursor: pointer; font-size: 1em; transition: background-color 0.2s;
+     }
+    .input-area button:hover { background-color: #0056b3; }
+    .input-area button:disabled { background-color: #6c757d; cursor: not-allowed; }
+
+    /* --- Stili Modale (ASSICURATI SIANO PRESENTI E CORRETTI) --- */
+    #modal-overlay {
+        display: none; /* <-- DEVE ESSERE none */
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(0, 0, 0, 0.6); z-index: 9990;
+    }
+    #embed-code-modal {
+        display: none; /* <-- DEVE ESSERE none */
+        position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%); width: 90%; max-width: 600px;
+        background-color: #f8f9fa; padding: 25px; border-radius: 8px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2); z-index: 9995;
+        border: 1px solid #dee2e6; box-sizing: border-box;
+    }
+    #embed-code-modal h3 { margin-top: 0; margin-bottom: 15px; color: #343a40; text-align: center;}
+    #embed-code-modal p { font-size: 0.95em; color: #495057; margin-bottom: 15px; line-height: 1.5; }
+    #embed-code-textarea { width: 100%; height: 120px; font-family: monospace; font-size: 0.9em; padding: 10px; border: 1px solid #ced4da; border-radius: 4px; resize: vertical; box-sizing: border-box; margin-bottom: 15px; background-color: #fff; }
+    .embed-modal-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+    #copy-embed-code, #close-embed-modal { padding: 10px 18px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; }
+    #copy-embed-code { background-color: #007bff; color: white; }
+    #copy-embed-code:hover { background-color: #0056b3; }
+    #close-embed-modal { background-color: #6c757d; color: white; }
+    #close-embed-modal:hover { background-color: #5a6268; }
+    
+    
+    #embed-code-modal .api-key-input-group {
+        margin-bottom: 15px;
+        text-align: left; /* Allinea label a sx */
+    }
+    #embed-code-modal label[for="embed-api-key"] {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        font-size: 0.9em;
+        color: #495057;
+    }
+    #embed-api-key {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        box-sizing: border-box;
+        font-family: monospace; /* Per chiavi */
+    }
+    #api-key-warning {
+        font-size: 0.85em;
+        color: #dc3545; /* Rosso warning */
+        margin-top: 5px;
+        display: block; /* Su nuova riga */
+    }
+    #generated-snippet-group {
+        margin-top: 20px; /* Spazio sopra lo snippet */
+        text-align: left;
+    }
+     #generated-snippet-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        font-size: 0.9em;
+     }
+
+</style>
+{% endblock %}
+
+{% block content %}
+
+<button id="open-embed-modal-button" title="Ottieni codice per incorporare la chat">
+    Incorpora Chat
+</button>
+
+<div class="chat-container">
+
+    {# --- HEADER SENZA ICONA --- #}
+    <div class="chat-header">
+        <h3>Conversa con i tuoi Contenuti</h3>
+        {# L'icona è stata spostata fuori #}
+    </div>
+    {# --------------------------- #}
+
+    <div class="chat-window" id="chat-window">
+        <!-- Messaggio iniziale -->
+        <div class="message bot-message">
+            <p>Ciao! Sono l'assistente del Magazzino del Creatore.</p>
+            <p>Fai una domanda sui contenuti che hai indicizzato (video, documenti, articoli).</p>
+        </div>
+        <!-- Messaggi aggiunti da JS -->
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Chiedi qualcosa...">
+        <button id="send-button">Invia</button>
+    </div>
+
+</div> {# Fine .chat-container #}
+
+{# --- STRUTTURA MODALE  --- #}
+<div id="modal-overlay"></div>
+<div id="embed-code-modal">
+    <h3>Incorpora la Chat sul tuo Sito</h3>
+    <p>Per permettere alla chat incorporata di accedere ai tuoi contenuti, segui questi passaggi:</p>
+    <ol style="text-align: left; font-size: 0.95em; margin-bottom: 20px;">
+        <li>Vai alla sezione <a href="{{ url_for('keys.manage_api_keys_page') }}" target="_blank">Gestione Chiavi API</a>.</li>
+        <li>Genera una nuova chiave (es. chiamala "Widget Sito Esterno").</li>
+        <li>**Copia la chiave generata.**</li>
+        <li>Torna qui e **incollala nel campo sottostante**.</li>
+    </ol>
+
+    {# --- NUOVO GRUPPO INPUT API KEY --- #}
+    <div class="api-key-input-group">
+        <label for="embed-api-key">Incolla qui la Chiave API generata:</label>
+        <input type="password" id="embed-api-key" name="embed-api-key" placeholder="sk_..." required>
+        <small id="api-key-warning" style="display: none;">Chiave API richiesta per generare lo snippet corretto.</small>
+    </div>
+    {# -------------------------------- #}
+
+    {# --- GRUPPO PER SNIPPET GENERATO --- #}
+    <div id="generated-snippet-group">
+        <label for="embed-code-textarea">5. Copia e incolla questo codice nel tuo sito:</label>
+        <textarea id="embed-code-textarea" readonly>Genera lo snippet incollando la chiave API sopra...</textarea>
+    </div>
+    {# ----------------------------------- #}
+
+    <div class="embed-modal-buttons">
+        <button id="copy-embed-code" disabled>Copia Codice</button> {# Inizialmente disabilitato #}
+        <button id="close-embed-modal">Chiudi</button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{# Script JS chat.js (invariato) #}
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+{# Script JS modale (invariato, usa lo stesso ID #open-embed-modal-button) #}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("Modal Embed JS executing (v2 - API Key)...");
+
+        const openModalButton = document.getElementById('open-embed-modal-button');
+        const embedModal = document.getElementById('embed-code-modal');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const closeModalButton = document.getElementById('close-embed-modal');
+        const copyCodeButton = document.getElementById('copy-embed-code');
+        const embedTextarea = document.getElementById('embed-code-textarea');
+        const apiKeyInput = document.getElementById('embed-api-key'); // Nuovo input
+        const apiKeyWarning = document.getElementById('api-key-warning'); // Nuovo warning
+
+        if (!openModalButton || !embedModal || !modalOverlay || !closeModalButton || !copyCodeButton || !embedTextarea || !apiKeyInput || !apiKeyWarning) {
+            console.error("Errore: Elementi del modale embed (v2) non trovati!"); return;
+        }
+
+        // Funzione per generare lo snippet
+        function generateSnippet() {
+            const apiKey = apiKeyInput.value.trim();
+            const embedJsUrl = '{{ url_for("serve_embed_js", _external=True) | safe }}';
+
+            if (!embedJsUrl) {
+                 console.error("Impossibile generare URL per embed.js");
+                 embedTextarea.value = "Errore: URL base non configurato.";
+                 copyCodeButton.disabled = true;
+                 apiKeyWarning.style.display = 'none';
+                 return;
+            }
+
+            if (!apiKey) {
+                embedTextarea.value = "Inserisci la chiave API per generare lo snippet.";
+                copyCodeButton.disabled = true;
+                apiKeyWarning.style.display = 'block'; // Mostra warning
+            } else {
+                // Sanifica l'API Key prima di metterla nell'attributo (basico)
+                const sanitizedApiKey = apiKey.replace(/"/g, '"').replace(/'/g, "\\'");
+                embedTextarea.value = `<script src="${embedJsUrl}" data-api-key="${sanitizedApiKey}" defer><\/script>`;
+                copyCodeButton.disabled = false; // Abilita copia
+                apiKeyWarning.style.display = 'none'; // Nascondi warning
+            }
+        }
+
+        // Genera snippet quando l'utente scrive/incolla nell'input API Key
+        apiKeyInput.addEventListener('input', generateSnippet);
+        // Genera anche quando si apre il modale (se l'input ha già un valore?)
+        // No, meglio che l'utente incolli ogni volta per sicurezza.
+
+        function showModal() {
+            console.log("Showing embed modal...");
+            apiKeyInput.value = ''; // Svuota campo API Key all'apertura
+            generateSnippet(); // Genera snippet iniziale (mostrerà il messaggio di inserire la chiave)
+            embedModal.style.display = 'block';
+            modalOverlay.style.display = 'block';
+        }
+
+        function closeModal() { /* ... (invariata) ... */
+            console.log("Closing embed modal...");
+            embedModal.style.display = 'none';
+            modalOverlay.style.display = 'none';
+         }
+
+        openModalButton.addEventListener('click', showModal);
+        closeModalButton.addEventListener('click', closeModal);
+        modalOverlay.addEventListener('click', closeModal);
+        
+        copyCodeButton.addEventListener('click', () => {
+             embedTextarea.select();
+            try {
+                navigator.clipboard.writeText(embedTextarea.value)
+                    .then(() => {
+                        copyCodeButton.textContent = 'Copiato!';
+                        setTimeout(() => { copyCodeButton.textContent = 'Copia Codice'; }, 2000);
+                    })
+                    .catch(err => { console.warn('Clipboard API fallita, uso execCommand fallback:', err); if(document.execCommand('copy')) { copyCodeButton.textContent = 'Copiato! (fallback)'; setTimeout(() => { copyCodeButton.textContent = 'Copia Codice'; }, 2000); } else { alert('Copia fallita. Seleziona e copia manualmente.'); copyCodeButton.textContent = 'Errore Copia'; } });
+            } catch (e) { console.warn('navigator.clipboard non supportato, uso execCommand fallback'); if(document.execCommand('copy')) { copyCodeButton.textContent = 'Copiato! (fallback)'; setTimeout(() => { copyCodeButton.textContent = 'Copia Codice'; }, 2000); } else { alert('Copia fallita. Seleziona e copia manualmente.'); copyCodeButton.textContent = 'Errore Copia'; } }
+        });
+        console.log("Modal Embed JS listeners added.");
+    });
+</script>
+{% endblock %}

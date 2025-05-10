@@ -1,0 +1,18 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    image: magazzino-creatore:latest
+    container_name: magazzino_creatore_app_selfhosted # Nome più specifico
+    ports:
+      - "5000:5000" # L'Host User può cambiare la porta host se necessario
+    volumes:
+      - ./:/app # Per codice e live reload (opzionale per produzione "pura")
+      - ./data:/app/data # Volume principale per tutti i dati persistenti
+      # Rimosso: - ./client_secrets.json:/app/client_secrets.json:ro
+      # Rimosso (se esisteva): - ./token.pickle:/app/token.pickle
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-development}
+    restart: unless-stopped

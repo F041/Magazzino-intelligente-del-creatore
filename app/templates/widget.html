@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Magazzino Creatore</title>
+    {# Includiamo gli stili specifici della chat direttamente qui o linkiamo un CSS base #}
+    <style>
+        /* Stili ESSENZIALI per il layout e i messaggi dentro l'iframe */
+        html, body { height: 100%; margin: 0; padding: 0; font-family: sans-serif; background-color: #fff; }
+        .chat-container-widget { display: flex; flex-direction: column; height: 100%; width: 100%; overflow: hidden; box-sizing: border-box; }
+        .chat-window { flex-grow: 1; padding: 15px; overflow-y: auto; background-color: #f8f9fa; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 90%; padding: 8px 12px; border-radius: 15px; line-height: 1.4; word-wrap: break-word; }
+        .user-message { align-self: flex-end; background-color: #007bff; color: white; border-bottom-right-radius: 5px; margin-left: auto; }
+        .bot-message { align-self: flex-start; background-color: #e9ecef; color: #333; border-bottom-left-radius: 5px; margin-right: auto; }
+        .bot-message.error { background-color: #f8d7da; color: #721c24; }
+        .bot-message.loading { background-color: #fff3cd; color: #856404; font-style: italic;}
+        .message p { margin: 0 0 5px 0; }
+        .message p:last-child { margin-bottom: 0; }
+        .bot-message a { color: #0056b3; text-decoration: underline; }
+        /* Stili Riferimenti (semplificati o uguali a chat.html) */
+        .references-container { margin-top: 8px; padding-top: 6px; border-top: 1px solid #d0d0d0; font-size: 0.8em; color: #555; }
+        .references-toggle { background: none; border: none; color: #0056b3; cursor: pointer; font-size: 0.9em; padding: 0; margin-bottom: 4px; }
+        .references-toggle:hover { text-decoration: underline; }
+        .references-list { list-style: none; padding-left: 10px; margin: 0; max-height: 150px; overflow-y: auto; background-color:#f1f3f5; border: 1px solid #e0e0e0; border-radius: 4px; padding: 5px; display: none; }
+        .reference-item { margin-bottom: 5px; padding-bottom: 5px; border-bottom: 1px dashed #ccc; }
+        .reference-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0;}
+        .reference-item p { margin: 1px 0; line-height: 1.3; }
+        .reference-item strong { color: #333; }
+        .reference-preview { font-style: italic; color: #666; margin-top: 3px !important; font-size: 0.9em; background-color: #fff; padding: 2px; border-radius: 3px;}
+        .reference-item a { color: #0056b3; }
+        .input-area { padding: 10px; border-top: 1px solid #ddd; display: flex; align-items: center; background-color: #ffffff; flex-shrink: 0;}
+        .input-area input[type="text"] { flex-grow: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 18px; margin-right: 8px; font-size: 0.95em; }
+        .input-area button { padding: 8px 15px; background-color: #007bff; color: white; border: none; border-radius: 18px; cursor: pointer; font-size: 0.95em; }
+        .input-area button:hover { background-color: #0056b3; }
+        .input-area button:disabled { background-color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="chat-container-widget"> {# Classe diversa per evitare conflitti se necessario #}
+        <div class="chat-window" id="chat-window">
+            {# Messaggio iniziale diverso per il widget #}
+            <div class="message bot-message">
+                <p>Ciao! Chiedi qualcosa sui contenuti del creator.</p>
+            </div>
+            {# Messaggi aggiunti da JS #}
+        </div>
+        <div class="input-area">
+            <input type="text" id="user-input" placeholder="La tua domanda...">
+            <button id="send-button">Invia</button>
+        </div>
+    </div>
+
+    {# Includiamo lo stesso script chat.js #}
+    {# Assumiamo che l'API Key necessaria per /api/search sia gestita
+       dal sito esterno o passata in qualche modo sicuro (argomento avanzato).
+       PER ORA: Il widget funzionerà solo se l'utente è GIA' loggato
+       nella web app principale sullo stesso browser (usa lo stesso cookie di sessione)
+       oppure se l'API /api/search non richiede autenticazione stringente (dipende da @require_api_key)
+       Nel nostro caso, @require_api_key richiede o sessione o API Key.
+       QUINDI, IL WIDGET AVRÀ BISOGNO DI UN MODO PER AUTENTICARSI.
+       Lo risolviamo dopo, per ora creiamo la struttura. #}
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+    {# Potrebbe servire un JS aggiuntivo specifico per il widget in futuro #}
+</body>
+</html>

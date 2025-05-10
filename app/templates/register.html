@@ -1,0 +1,81 @@
+      
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Registrazione - Magazzino del Creatore{% endblock %}</title>
+    {% block head_styles %}
+    <style>
+        /* Stili simili a login.html */
+        body { font-family: sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin:0; padding: 20px 0; } /* Aggiunto padding verticale */
+        .register-container { background-color: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 450px; text-align: center; } /* Leggermente più largo */
+        h1 { color: #333; margin-bottom: 25px; }
+        .form-group { margin-bottom: 15px; text-align: left; } /* Margine ridotto */
+        label { display: block; margin-bottom: 6px; font-weight: bold; color: #555; font-size: 0.95em;}
+        input[type="email"], input[type="password"], input[type="text"] {
+            width: 100%; padding: 10px; border: 1px solid #ced4da; /* Padding ridotto */
+            border-radius: 4px; box-sizing: border-box; font-size: 0.95em;
+        }
+        button {
+            background-color: #28a745; /* Verde per Registrazione */
+            color: white; padding: 12px 20px; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 1em;
+            width: 100%; transition: background-color 0.2s; margin-top: 10px; /* Aggiunto margine sopra */
+        }
+        button:hover { background-color: #218838; }
+        .flash-messages { list-style: none; padding: 0; margin-bottom: 20px; }
+        .flash-messages li { padding: 10px; margin-bottom: 10px; border-radius: 4px; }
+        .flash-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .login-link { margin-top: 20px; font-size: 0.9em; }
+        .login-link a { color: #007bff; text-decoration: none; }
+        .login-link a:hover { text-decoration: underline; }
+    </style>
+    {% endblock %}
+</head>
+<body>
+{% block content %}
+<div class="register-container">
+    <h1>Registra un Nuovo Account</h1>
+
+    {# Mostra messaggi flash (es. errori validazione) #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class=flash-messages>
+        {% for category, message in messages %}
+          <li class="flash-{{ category }}">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('register') }}">
+        {# {{ form.csrf_token }} #}
+        <div class="form-group">
+            <label for="name">Nome (Opzionale)</label>
+            <input type="text" id="name" name="name">
+        </div>
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <div class="form-group">
+            <label for="confirm_password">Conferma Password</label>
+            <input type="password" id="confirm_password" name="confirm_password" required>
+        </div>
+        <button type="submit">Registrati</button>
+    </form>
+
+    <p class="login-link">Hai già un account? <a href="{{ url_for('login') }}">Accedi</a></p>
+
+</div>
+{% endblock %}
+{% block scripts %}{% endblock %} {# Blocco script vuoto #}
+</body>
+</html>
+
+    

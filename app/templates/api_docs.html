@@ -1,0 +1,184 @@
+<!-- FILE: templates/api_docs.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Docs - Magazzino del Creatore</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; color: #333; }
+        .container { max-width: 900px; margin: auto; background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #0056b3; border-bottom: 2px solid #0056b3; padding-bottom: 10px; margin-bottom: 20px; }
+        h2 { color: #0056b3; margin-top: 30px; margin-bottom: 15px; }
+        h3 { color: #17a2b8; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        pre {
+            background: #e9ecef; /* Sfondo più leggero */
+            padding: 15px;
+            border: 1px solid #ced4da; /* Bordo più leggero */
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', Courier, monospace; /* Font monospace */
+            font-size: 13px; /* Dimensione font leggermente ridotta */
+            color: #212529; /* Colore testo scuro */
+            margin-bottom: 20px;
+        }
+        code { font-family: 'Courier New', Courier, monospace; background-color: #f1f1f1; padding: 2px 5px; border-radius: 3px; }
+        p { line-height: 1.6; margin-bottom: 10px; }
+        i { color: #6c757d; } /* Corsivo più scuro */
+        .endpoint { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px dashed #ccc; }
+        .endpoint:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Documentazione API - Magazzino del Creatore</h1>
+        <p>Questa pagina descrive gli endpoint API disponibili nel backend Flask.</p>
+
+        <div class="endpoint">
+            <h3>1. Processa Canale YouTube</h3>
+            <p>Avvia il recupero e l'elaborazione (trascrizioni, embedding) dei video **nuovi** di un canale YouTube specificato.</p>
+            <pre><code>POST /api/videos/channel</code></pre>
+            <strong>Content-Type:</strong> <code>application/json</code>
+            <br><br>
+            <strong>Corpo Richiesta (Body):</strong>
+            <pre>{
+    "channel_url": "https://www.youtube.com/@nomecanale_o_ID"
+}</pre>
+            <strong>Risposta Successo (200 OK):</strong>
+            <pre>{
+    "success": true,
+    "channel_id": "UC...",
+    "message": "Riepilogo dell'operazione...",
+    "results": {
+        "total_videos_on_yt": 150,
+        "existing_videos_in_db": 100,
+        "new_videos_processed_attempted": 50,
+        "sqlite_saved_count": 50,
+        "sqlite_batch_failed": false,
+        "transcript_issues": 2,
+        "embedding_issues": 1,
+        "chroma_write_issues": 0,
+        "generic_processing_errors": 0
+    }
+}</pre>
+            <strong>Risposta Errore (es. 400 Bad Request, 500 Internal Server Error):</strong>
+            <pre>{
+    "success": false,
+    "error_code": "CODICE_ERRORE", // Es. VALIDATION_ERROR, YOUTUBE_API_ERROR, DB_READ_FAILED
+    "message": "Descrizione leggibile dell'errore."
+    // "details": { ... } // Opzionale: Dettagli aggiuntivi
+}</pre>
+        </div>
+
+        <div class="endpoint">
+            <h3>2. Riprocessa Singolo Video</h3>
+            <p>Forza il riprocessamento completo (trascrizione, embedding, salvataggio) di un singolo video già presente nel database.</p>
+            <pre><code>POST /api/videos/<video_id>/reprocess</code></pre>
+            <strong>Parametri URL:</strong>
+            <ul>
+                <li><code><video_id></code>: L'ID del video YouTube da riprocessare (es. <code>dQw4w9WgXcQ</code>).</li>
+            </ul>
+            <strong>Content-Type:</strong> (Nessuno richiesto, il corpo è vuoto)
+            <br><br>
+            <strong>Risposta Successo/Fallimento Gestito (200 OK):</strong>
+            <pre>{
+    "success": true, // o false se lo stato finale non è 'completed'
+    "message": "Riprocessamento tentato per dQw4w9WgXcQ. Stato finale: completed", // o failed_...
+    "new_status": "completed", // o failed_transcript, failed_embedding, etc.
+    "error_code": "CODICE_ERRORE" // Presente solo se success è false (es. TRANSCRIPT_FAILED)
+}</pre>
+            <strong>Risposta Errore (es. 404 Not Found, 500 Internal Server Error):</strong>
+            <pre>{
+    "success": false,
+    "error_code": "CODICE_ERRORE", // Es. VIDEO_NOT_FOUND, DB_READ_FAILED, UNEXPECTED_SERVER_ERROR
+    "message": "Descrizione leggibile dell'errore."
+}</pre>
+        </div>
+
+         <div class="endpoint">
+            <h3>3. Interroga la Base di Conoscenza (RAG)</h3>
+            <p>Invia una domanda in linguaggio naturale per ottenere una risposta generata dall'LLM basata sui contenuti indicizzati.</p>
+            <pre><code>POST /api/search/</code></pre>
+            <strong>Content-Type:</strong> <code>application/json</code>
+            <br><br>
+            <strong>Corpo Richiesta (Body):</strong>
+            <pre>{
+    "query": "Qual è l'argomento del video sul machine learning?",
+    "n_results": 5 // Opzionale: numero di chunk da recuperare (default: 5)
+}</pre>
+            <strong>Risposta Successo (200 OK):</strong>
+            <pre>{
+    "success": true, // o false se la generazione è stata bloccata
+    "query": "Qual è l'argomento del video sul machine learning?",
+    "answer": "Il video spiega i concetti base del machine learning...", // Risposta LLM
+    "retrieved_results": [
+        {
+            "text": "Chunk di testo recuperato...",
+            "metadata": {
+                "video_id": "...", "video_title": "...", "channel_id": "...",
+                "published_at": "...", "chunk_index": 0, "language": "it", "caption_type": "auto"
+            },
+            "distance": 0.3456
+        },
+        // ... altri risultati ...
+    ],
+    // Se success è false a causa di blocco:
+    // "error_code": "GENERATION_BLOCKED",
+    // "details": { "block_reason": "SAFETY" }
+}</pre>
+            <strong>Risposta Errore (es. 400, 429 Too Many Requests, 500, 502 Bad Gateway):</strong>
+            <pre>{
+    "success": false,
+    "error_code": "CODICE_ERRORE", // Es. VALIDATION_ERROR, API_RATE_LIMIT_EMBEDDING, VECTORDB_QUERY_FAILED, API_ERROR_GENERATION
+    "message": "Descrizione leggibile dell'errore.",
+    "details": { ... } // Opzionale
+}</pre>
+        </div>
+
+        <div class="endpoint">
+            <h3>4. Controlla Stato Elaborazione Canale</h3>
+            <p><i>(Endpoint di supporto)</i> Restituisce lo stato attuale dell'elaborazione batch avviata da <code>/api/videos/channel</code>.</p>
+            <pre><code>GET /api/videos/progress</code></pre>
+            <strong>Risposta (200 OK):</strong>
+            <pre>{
+    "current_video": { // null se non in elaborazione
+        "title": "Titolo Video Corrente",
+        "index": 5,
+        "total": 50
+    },
+    "total_videos": 50, // Totale video DA elaborare in questo batch
+    "is_processing": true, // o false
+    "message": "Stato attuale leggibile..." // Es. "Processo video 5/50: Recupero trascrizione..."
+}</pre>
+        </div>
+
+        <!-- Endpoint deprecati o meno usati -->
+        <h2>Endpoint Legacy/Supporto</h2>
+        <p><i>Questi endpoint potrebbero essere meno utili o deprecati con l'approccio attuale.</i></p>
+
+        <div class="endpoint">
+            <h3>5. Recupera Solo Info Canale/Video (Senza Trascrizioni)</h3>
+             <p><i>Nota: Meno utile ora che <code>/api/videos/channel</code> gestisce tutto.</i></p>
+            <pre><code>POST /api/videos/channel/info</code></pre>
+             <strong>Corpo Richiesta (Body):</strong>
+            <pre>{ "channel_url": "..." }</pre>
+             <strong>Risposta Successo (200 OK):</strong>
+            <pre>{ "success": true, "channel_id": "...", "videos": [ { "video_id": "...", ... } ] }</pre>
+             <strong>Risposta Errore:</strong>
+            <pre>{ "success": false, "error": "..." }</pre>
+        </div>
+
+         <div class="endpoint">
+            <h3>6. Processa Solo Trascrizione Singolo Video</h3>
+             <p><i>Nota: Funzionalità integrata in <code>/api/videos/<video_id>/reprocess</code>.</i></p>
+            <pre><code>POST /api/videos/process</code></pre>
+             <strong>Corpo Richiesta (Body):</strong>
+            <pre>{ "video_id": "ID_DEL_VIDEO" }</pre>
+             <strong>Risposta Successo (200 OK):</strong>
+            <pre>{ "success": true, "transcript": { "text": "...", "language": "...", "type": "..." } }</pre>
+             <strong>Risposta Errore (404 se no caption, 500):</strong>
+            <pre>{ "success": false, "error": "..." }</pre>
+        </div>
+
+    </div> <!-- /container -->
+</body>
+</html>

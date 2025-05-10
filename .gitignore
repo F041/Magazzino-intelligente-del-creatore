@@ -1,0 +1,66 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Credentials and Environment Variables
+.env
+client_secrets.json
+*.pem
+*.key
+credentials.json
+token.json
+token.pickle
+.streamlit\secrets.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+log/
+
+# Database
+*.db
+*.sqlite3
+
+# Testing
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/ 
+
+## Data
+data/
+
+# Custom Scripts
+export_project.py
+
+test_embed.html

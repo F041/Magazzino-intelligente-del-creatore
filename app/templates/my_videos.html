@@ -1,0 +1,315 @@
+<!-- FILE: app/templates/my_videos.html (Modificato per estendere base.html) -->
+{% extends "base.html" %}
+
+{% block title %}I tuoi video - Magazzino del Creatore{% endblock %}
+
+{% block content %}
+    <h1>I tuoi video salvati nel Database ({{ videos|length }})</h1>
+
+    <!-- Sezione Pulsanti Azione di Massa -->
+    <div style="margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; display: flex; align-items: center; gap: 15px;">
+        {# Bottone Download Esistente #}
+        <a href="{{ url_for('videos.download_all_transcripts') }}" download="all_video_transcripts.txt" class="action-btn" style="background-color: #28a745; color: white; text-decoration: none; display: inline-block; padding: 8px 15px;">
+            Scarica Tutte le Trascrizioni (.txt)
+        </a>
+        <span style="font-size: 0.9em; color: #6c757d;">(Solo video 'completed')</span>
+
+        {# ---  BOTTONE ELIMINA TUTTO --- #}
+        {# Visibile solo se APP_MODE è 'saas' (per sicurezza) #}
+        {% if config.APP_MODE == 'saas' %}
+            <button id="delete-all-videos-btn" class="action-btn delete-btn" style="margin-left: auto;"> {# Usa delete-btn per colore rosso, margin-left: auto per spingerlo a destra #}
+                Elimina Tutti i Video Utente
+            </button>
+            {# Span per eventuale loader/messaggio specifico (opzionale) #}
+            <span id="delete-all-loader" class="action-loader">(eliminazione...)</span>
+        {% endif %}
+      
+    </div>
+    <!-- Fine Sezione Pulsanti Azione di Massa -->
+
+    <div id="reprocess-message"></div> {# Div per messaggi riprocessamento #}
+    <div id="videos-container">
+        <table class="data-table"> {# Usata classe comune .data-table #}
+            <thead>
+                <tr>
+                    <th>Titolo</th>
+                    <th>Data Pubblicazione</th>
+                    <th>Stato Processo</th>
+                    <th>Tipo Sottotitoli</th>
+                    <th>Lingua</th>
+                    <th>Anteprima Trascrizione</th>
+                    <th>Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for video in videos %}
+                <tr>
+                    <td><a href="{{ video.url }}" target="_blank">{{ video.title }}</a></td>
+                    <td>{{ video.published_at | format_date }}</td>
+                    <td id="status-{{ video.video_id | escape }}">
+                        <span class="status-badge status-{{ video.processing_status | lower | replace('_','-') }}">{{ video.processing_status }}</span>
+                    </td>
+                    <td>
+                        {% if video.captions_type %}
+                            <span class="caption-type {{ video.captions_type }}">{{ video.captions_type }}</span>
+                        {% else %}
+                            <span class="caption-type none">None</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ video.transcript_language if video.transcript_language else 'N/D' }}</td>
+                    <td>
+                        {% if video.transcript %}
+                            <div class="transcript-preview">{{ video.transcript[:150] }}{% if video.transcript|length > 150 %}...{% endif %}</div>
+                        {% else %}
+                            <div class="transcript-preview">Nessuna trascrizione disponibile</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {# {% if video.processing_status not in ['processing', 'completed'] %} #}
+                        <button class="action-btn reprocess-btn" data-video-id="{{ video.video_id }}">
+                            {# Puoi semplificare il testo se vuoi, o lasciarlo condizionale #}
+                            {% if video.processing_status == 'pending' %}Processa
+                            {% elif video.processing_status == 'completed' %}Riprocessa (Completo)
+                            {% else %}Riprocessa{% endif %}
+                        </button>
+                        <span class="action-loader reprocess-loader">(loading...)</span>
+                    {# {% endif %} #}
+                </td>       
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="no-items-message">
+                        Nessun video trovato nel database.
+                        <br>Vai alla <a href="{{ url_for('dashboard') }}">Dashboard</a> per cercare e processare video da un canale.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // --- Incolla qui lo script JS corretto per my_videos.html ---
+    // --- (quello che gestisce il pulsante Riprocessa con il loader) ---
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const messageDiv = document.getElementById('reprocess-message');
+        if(messageDiv) {
+           // Stili base per messageDiv, se non li metti nel CSS comune di base.html
+           messageDiv.style.padding = '10px';
+           messageDiv.style.marginTop = '15px';
+           messageDiv.style.borderRadius = '4px';
+           messageDiv.style.display = 'none';
+        }
+
+        // Funzione helper per nascondere il loader specifico di un pulsante
+        function hideLoader(buttonElement) {
+            const loader = buttonElement.nextElementSibling;
+            if (loader && loader.classList.contains('reprocess-loader')) {
+                loader.style.display = 'none';
+            }
+        }
+
+        document.querySelectorAll('.reprocess-btn').forEach(button => {
+            const originalButtonHTML = button.innerHTML.trim();
+
+            button.addEventListener('click', async (event) => {
+                const btn = event.target;
+                const videoId = btn.dataset.videoId;
+                const tableRow = btn.closest('tr');
+                let statusCell = null;
+                const loaderSpan = btn.nextElementSibling; // Lo span specifico del loader
+
+                if (tableRow) { statusCell = tableRow.cells[2]; }
+
+                console.log("Pulsante riprocessa cliccato! Video ID:", videoId);
+
+                if (!videoId || !statusCell) {
+                    console.error('Errore: videoId o cella dello stato non trovati per il pulsante', btn);
+                    if(messageDiv) {
+                        messageDiv.textContent = 'Errore interno: Impossibile identificare il video o la cella dello stato.';
+                        messageDiv.className = 'error-message';
+                        messageDiv.style.display = 'block';
+                    }
+                    return;
+                }
+
+                // Feedback Visivo INIZIALE
+                if (loaderSpan && loaderSpan.classList.contains('reprocess-loader')) {
+                    loaderSpan.style.display = 'inline'; // Mostra loader specifico
+                } else { console.warn("Span reprocess-loader non trovato"); }
+                btn.disabled = true;
+                btn.innerHTML = 'In corso...';
+                if(messageDiv) messageDiv.style.display = 'none';
+                if(messageDiv) messageDiv.className = '';
+                statusCell.innerHTML = `<span class="status-badge status-processing">processing</span>`;
+
+                try {
+                    // Chiamata API
+                    const response = await fetch(`/api/videos/${videoId}/reprocess`, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json' }
+                    });
+
+                    // Gestione Risposta (inclusa gestione JSON error)
+                    let data = {};
+                    let responseOk = response.ok;
+                    try { data = await response.json(); }
+                    catch (jsonError) {
+                        console.error("Errore parsing JSON:", jsonError);
+                        const statusText = response.statusText || 'Errore sconosciuto';
+                        data.message = responseOk ? `Risposta server non valida.` : `Errore server ${response.status} (${statusText}).`;
+                        data.success = false; if(responseOk) responseOk = false; data.new_status = 'unknown';
+                    }
+
+                    const returned_status = data.new_status || 'unknown';
+                    const returned_message = data.message || data.error || `Operazione terminata (Status: ${response.status})`;
+                    const is_success_operation = responseOk && (data.success !== false);
+
+                    // Aggiorna UI (Stato e Messaggio)
+                    const status_class_safe = returned_status.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+                    statusCell.innerHTML = `<span class="status-badge status-${status_class_safe}">${returned_status}</span>`;
+
+                    if(messageDiv) {
+                        messageDiv.textContent = returned_message;
+                        messageDiv.className = is_success_operation ? 'success-message' : 'error-message';
+                        messageDiv.style.display = 'block';
+                    }
+
+                    // Gestione FINALE Pulsante e Loader
+                    hideLoader(btn); // Nascondi loader specifico
+
+                    if (is_success_operation && returned_status === 'completed') {
+                        btn.remove();
+                        if (loaderSpan && loaderSpan.classList.contains('reprocess-loader')) { loaderSpan.remove(); }
+                        console.log(`Video ${videoId} completato. Pulsante rimosso.`);
+                    } else {
+                        btn.disabled = false;
+                        btn.innerHTML = originalButtonHTML; // Ripristina testo originale
+                        console.log(`Video ${videoId} non completato o errore. Pulsante riabilitato.`);
+                    }
+
+                } catch (networkError) {
+                    // Gestione Errore di Rete
+                    console.error('Errore Fetch/Network:', networkError);
+                    if(messageDiv){
+                        messageDiv.textContent = `Errore di rete o comunicazione: ${networkError.message}`;
+                        messageDiv.className = 'error-message';
+                        messageDiv.style.display = 'block';
+                    }
+                    hideLoader(btn); // Nascondi loader specifico
+                    btn.disabled = false;
+                    btn.innerHTML = originalButtonHTML;
+                }
+            }); // Fine listener click
+        }); // Fine forEach
+        // --- NUOVA LOGICA: Pulsante Elimina Tutti i Video ---
+        const deleteAllBtn = document.getElementById('delete-all-videos-btn');
+        const deleteAllLoader = document.getElementById('delete-all-loader'); // Se hai aggiunto lo span loader
+
+        // Nascondi il loader specifico inizialmente (se esiste)
+        if (deleteAllLoader) { deleteAllLoader.style.display = 'none'; }
+
+        if (deleteAllBtn) {
+            deleteAllBtn.addEventListener('click', async () => {
+                console.log("Pulsante 'Elimina Tutti i Video' cliccato.");
+
+                // 1. Conferma Utente (FONDAMENTALE!)
+                if (!confirm("ATTENZIONE!\n\nSei sicuro di voler eliminare TUTTI i video associati al tuo account?\nQuesta azione rimuoverà i dati da SQLite e tenterà di rimuovere la collezione da ChromaDB.\nL'AZIONE È IRREVERSIBILE.")) {
+                    console.log("Eliminazione di massa annullata dall'utente.");
+                    return;
+                }
+                console.log("Conferma utente ricevuta.");
+
+                // 2. Feedback UI Iniziale
+                deleteAllBtn.disabled = true;
+                deleteAllBtn.textContent = 'Eliminazione...';
+                if (deleteAllLoader) { deleteAllLoader.style.display = 'inline'; }
+                if (messageDiv) {
+                    messageDiv.textContent = 'Avvio eliminazione di massa dei video...';
+                    messageDiv.className = ''; // Neutro
+                    messageDiv.style.display = 'block';
+                }
+
+                try {
+                    // 3. Chiamata API
+                    const response = await fetch('/api/videos/all', {
+                        method: 'DELETE',
+                        headers: { 'Accept': 'application/json' }
+                    });
+
+                    let data = {};
+                    let responseOk = response.ok;
+                    try { data = await response.json(); }
+                    catch (e) {
+                         data.message = responseOk ? "Risposta server non valida." : `Errore server ${response.status}.`;
+                         data.success = false; if(responseOk) responseOk = false;
+                    }
+
+                    if (deleteAllLoader) { deleteAllLoader.style.display = 'none'; } 
+
+                    // 4. Gestione Risposta (mostra messaggio, non aggiorna stato pulsante perché l'azione è "avviata")
+                    if (responseOk && data.success) {
+                         if (messageDiv) {
+                             messageDiv.textContent = data.message || "Eliminazione di massa avviata con successo. Ricarica la pagina per vedere i risultati.";
+                             messageDiv.className = 'success-message';
+                         }
+                         // Svuota la tabella dei video nell'interfaccia per dare feedback immediato
+                         const videoTbody = document.querySelector('#videos-container tbody');
+                         if (videoTbody) {
+                             videoTbody.innerHTML = `<tr><td colspan="7" class="no-items-message">Eliminazione completata (o in corso). Nessun video da mostrare.</td></tr>`;
+                         }
+                         // Non riabilitare il bottone, l'azione è "definitiva" per questa sessione
+                         deleteAllBtn.textContent = 'Eliminati';
+                         console.log("Risposta API 'Elimina Tutto' ricevuta:", data);
+
+                    } else {
+                        // Errore API
+                        throw new Error(data.message || data.error || `Errore ${response.status}`);
+                    }
+
+                } catch (error) {
+                    if (deleteAllLoader) { deleteAllLoader.style.display = 'none'; }
+                    // Errore Fetch o Errore API gestito sopra
+                    console.error('Errore durante eliminazione di massa:', error);
+                     if (messageDiv) {
+                         messageDiv.textContent = `Errore durante l'eliminazione di massa: ${error.message}`;
+                         messageDiv.className = 'error-message';
+                     }
+                     // Riabilita il bottone in caso di errore per permettere un nuovo tentativo
+                     deleteAllBtn.disabled = false;
+                     deleteAllBtn.textContent = 'Elimina Tutti i Video Utente';
+                     if (deleteAllLoader) { deleteAllLoader.style.display = 'none'; }
+                }
+            });
+        } else {
+            // Questo log apparirà solo se APP_MODE non è 'saas'
+             console.log("Pulsante 'Elimina Tutti i Video' non trovato (probabilmente perché APP_MODE non è 'saas').");
+        }
+        const videoTbodyInitial = document.querySelector('#videos-container tbody');
+        const deleteAllBtnInitial = document.getElementById('delete-all-videos-btn');
+
+        if (deleteAllBtnInitial && videoTbodyInitial) {
+            // Seleziona tutte le righe TR dentro TBODY
+            const dataRows = videoTbodyInitial.querySelectorAll('tr');
+            // Controlla se c'è solo una riga E se quella riga contiene la classe del messaggio "no items"
+            const isTableEmpty = dataRows.length === 0 || (dataRows.length === 1 && dataRows[0].querySelector('.no-items-message'));
+
+            if (isTableEmpty) {
+                console.log("Tabella video vuota al caricamento, disabilito 'Elimina Tutti'.");
+                deleteAllBtnInitial.disabled = true;
+                deleteAllBtnInitial.style.opacity = 0.6; // Rendi visivamente disabilitato
+                deleteAllBtnInitial.style.cursor = 'not-allowed';
+            } else {
+                 console.log("Tabella video contiene dati, lascio 'Elimina Tutti' abilitato.");
+                 deleteAllBtnInitial.disabled = false;
+                 deleteAllBtnInitial.style.opacity = 1;
+                 deleteAllBtnInitial.style.cursor = 'pointer';
+            }
+        }
+
+    }); // Fine DOMContentLoaded
+</script>
+{% endblock %}

@@ -1,0 +1,58 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+*.venv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+log/
+
+# Database e Dati Utente (saranno gestiti da volumi Docker)
+# *.db
+# *.sqlite3
+ data/ 
+# token.pickle
+# token.json
+# client_secrets.json # Sarà montato come volume o gestito da secret
+
+# File specifici del progetto da non includere nell'immagine
+export_project.py
+test_embed.html
+README.md # Di solito non serve nell'immagine di produzione
+.gitignore
+Dockerfile # Il Dockerfile stesso non va copiato dentro l'immagine
+docker-compose.yml # Idem
+*.txt # Se hai altri file txt temporanei non necessari
+
+# Credenziali e variabili d'ambiente che saranno montate o passate
+.env

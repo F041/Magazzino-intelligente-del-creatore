@@ -1,0 +1,158 @@
+<!-- FILE: app/templates/my_documents.html (Modificato per estendere base.html) -->
+{% extends "base.html" %}
+
+{% block title %}I tuoi documenti - Magazzino del Creatore{% endblock %}
+
+{% block content %}
+    <h1>I tuoi documenti caricati ({{ documents|length }})</h1>
+    <!-- Div per messaggi di feedback (es. eliminazione) -->
+    <div id="action-message"></div>
+
+    <div id="documents-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nome Originale</th>
+                    <th>Nome Salvato (.md)</th>
+                    <th>Data Caricamento</th>
+                    <th>Stato</th>
+                    <th>Dimensione (kB)</th>
+                    <th>Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documents %}
+                <tr id="doc-row-{{ doc.doc_id | escape }}"> {# ID univoco per la riga #}
+                    <td>{{ doc.original_filename }}</td>
+                    <td>{{ doc.stored_filename }}</td>
+                    <td>{{ doc.uploaded_at | format_date('%d %b %Y %H:%M') }}</td>
+                    <td>
+                        <span class="status-badge status-{{ doc.processing_status | lower | replace('_', '-') }}">{{ doc.processing_status }}</span>
+                    </td>
+                    <td>
+                        {% if doc.filesize %}
+                            {{ "%.1f"|format(doc.filesize / 1024) }} kB
+                        {% else %}
+                            N/D
+                        {% endif %}
+                    </td>
+                    <td>                                           
+                        {# Pulsante Elimina (sempre visibile per ora) #}
+                        <button class="action-btn delete-btn" data-doc-id="{{ doc.doc_id }}">
+                            Elimina
+                        </button>
+                        <span class="action-loader delete-loader">(eliminazione...)</span>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="no-items-message">
+                        Nessun documento trovato nel database.
+                        <br>Vai alla <a href="{{ url_for('dashboard') }}">Dashboard</a> per caricare documenti.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log("Pagina Documenti caricata, script pronto per eliminazione.");
+
+        const messageDiv = document.getElementById('action-message');
+        if(messageDiv) {
+           messageDiv.style.padding = '10px';
+           messageDiv.style.marginTop = '15px';
+           messageDiv.style.borderRadius = '4px';
+           messageDiv.style.display = 'none';
+        }
+
+        // --- Logica Pulsante ELIMINA ---
+        const deleteButtons = document.querySelectorAll('.delete-btn');
+
+        // Funzione helper per nascondere il loader specifico di ELIMINA
+        function hideDeleteLoader(buttonElement) {
+            const loader = buttonElement.nextElementSibling; // Lo span è l'elemento fratello
+            if (loader && loader.classList.contains('delete-loader')) {
+                loader.style.display = 'none';
+            }
+        }
+
+        deleteButtons.forEach(button => {
+            const originalButtonText = button.textContent.trim(); // Memorizza testo
+
+            button.addEventListener('click', async (event) => {
+                const btn = event.target;
+                const docId = btn.dataset.docId;
+                const tableRow = btn.closest('tr');
+                const loaderSpan = btn.nextElementSibling; // Loader eliminazione
+
+                if (!docId || !tableRow) {
+                    console.error("Errore: docId o riga tabella non trovati per il pulsante", btn);
+                    if(messageDiv) {
+                        messageDiv.textContent = 'Errore interno: impossibile identificare il documento da eliminare.';
+                        messageDiv.className = 'error-message';
+                        messageDiv.style.display = 'block';
+                    }
+                    return;
+                }
+
+                // 1. Chiedi conferma
+                if (!confirm(`Sei sicuro di voler eliminare il documento con ID: ${docId}? L'azione è irreversibile.`)) {
+                    console.log("Eliminazione annullata dall'utente.");
+                    return;
+                }
+
+                // Feedback UI iniziale eliminazione
+                btn.disabled = true; btn.textContent = '...';
+                if(messageDiv) messageDiv.style.display = 'none';
+                if(messageDiv) messageDiv.className = '';
+                if (loaderSpan && loaderSpan.classList.contains('delete-loader')) { loaderSpan.style.display = 'inline'; }
+
+                try {
+                    const response = await fetch(`/api/documents/${docId}`, { method: 'DELETE', headers: { 'Accept': 'application/json' } });
+                    let data = {}; 
+                    let responseOk = response.ok;
+                    
+
+                    try { data = await response.json(); }
+                    catch (jsonError) {
+                        console.error("Errore parsing JSON delete:", jsonError);
+                        data.message = responseOk ? `Risposta server non valida.` : `Errore server ${response.status}.`;
+                        data.success = false; if(responseOk) responseOk = false;
+                    }
+
+                    // Nascondi il loader prima di mostrare il risultato
+                    hideDeleteLoader(btn); // Nascondi loader prima di aggiornare UI
+
+                    if (responseOk && data.success) {
+                        tableRow.remove(); // Rimuovi riga
+                        if(messageDiv) { /* Mostra successo */
+                            messageDiv.textContent = data.message || 'Documento eliminato con successo.';
+                            messageDiv.className = 'success-message';
+                            messageDiv.style.display = 'block';
+                        }
+                    } else {
+                        throw new Error(data.message || `Errore ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error(`Errore eliminazione doc ${docId}:`, error);
+                    hideDeleteLoader(btn); // Nascondi loader
+                    if(messageDiv) { /* Mostra errore */
+                         messageDiv.textContent = `Errore eliminazione: ${error.message}`;
+                         messageDiv.className = 'error-message';
+                         messageDiv.style.display = 'block';
+                    }
+                    btn.disabled = false;
+                    btn.textContent = originalButtonText; // Ripristina bottone
+                }
+            }); // Fine listener click
+        }); // Fine forEach deleteButtons
+        // --- FINE Logica Pulsante ELIMINA ---
+
+    }); // Fine DOMContentLoaded
+</script>
+{% endblock %}
