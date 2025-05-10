@@ -1,9 +1,5 @@
 [flake8]
-# Inizia ignorando la maggior parte dei warning (W) e degli errori di stile (E)
-# Ci concentreremo solo sugli errori "F" (PyFlakes - errori logici, nomi non definiti, ecc.)
-# e su alcuni errori di sintassi "E" che non sono puramente di stile.
 ignore =
-    # Errori di stile comuni (E codes)
     E111, E114, E115, E116, E117, # Indentazione
     E121, E122, E123, E124, E125, E126, E127, E128, E129, E131, # Indentazione
     E201, E202, E203, # Spazi bianchi dentro parentesi/virgole
@@ -21,7 +17,6 @@ ignore =
     E701, E702, E703, E704, # Più istruzioni su una riga
     E711, E712, E713, E714, # Confronti (es. con None, True, False)
     E721, # Confronto di tipo diretto con type()
-    # E722, # "do not use bare except" - LASCIAMO ATTIVO QUESTO PER ORA
     E731, # Non assegnare una lambda, usa def
     E741, E742, E743, # Nomi ambigui per variabili/funzioni/classi
 
@@ -34,18 +29,6 @@ ignore =
     W503, # Line break before binary operator (spesso in conflitto con black)
     W504, # Line break after binary operator (idem)
     W605  # Invalid escape sequence (per regex, ecc.)
-
-    # Errori PyFlakes (F codes) da considerare se ignorarli temporaneamente:
-    # F401, # 'module' imported but unused - È UTILE CORREGGERLO, ma puoi ignorarlo per ora se sono troppi
-    # F811, # redefinition of unused 'name' from line N - UTILE CORREGGERLO
-    # F821, # undefined name 'name' - ERRORE CRITICO, NON IGNORARE
-    # F822, # undefined name 'name' in __all__
-    # F823, # local variable 'name' referenced before assignment - ERRORE CRITICO, NON IGNORARE
-    # F841  # local variable 'name' is assigned to but never used - UTILE CORREGGERLO, ma puoi ignorare per ora
-
-# Manteniamo attivi gli F821 e F823 (undefined name, referenced before assignment) perché sono bug.
-# Manteniamo attivo E722 (bare except).
-# Manteniamo attivo E9 (errori di sintassi che pycodestyle potrebbe trovare e che pyflakes no).
 
 max-line-length = 120  # Aumenta il limite per E501
 
