@@ -78,7 +78,7 @@ windows-curses==2.3.3 ; sys_platform == 'win32'
 # distro==1.9.0
 # et_xmlfile==2.0.0 (dipendenza di openpyxl)
 # filelock==3.15.4
-# flake8==7.1.0 (Linter, non serve in produzione)
+flake8
 # frozenlist==1.4.1 (dipendenza di aiohttp)
 # fsspec==2024.6.1
 # gitdb==4.0.11 (dipendenza di GitPython)
