@@ -61,15 +61,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-  - name: Extract metadata (tags, labels) for Docker
-        id: meta
+      # CORREZIONE INDENTAZIONE QUI:
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta # Questo 'id' deve essere allo stesso livello di 'name' e 'uses'
         uses: docker/metadata-action@v5
-        with:
+        with:  # 'with' deve essere indentato sotto 'uses' (o 'name'/'id')
           # Nome immagine fisso e in minuscolo per il push
           images: ghcr.io/${{ github.repository_owner }}/magazzino-creatore-selfhosted
           tags: |
             type=sha,prefix=,suffix=,format=short
             latest
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
