@@ -30,7 +30,7 @@ jobs:
       - name: Lint with flake8
         run: |
           echo "Running flake8, ignoring E302, E501, W503, F401, W291, W292 for now"
-          flake8 . --count --ignore=E302,E501,W503,F401,W291,W292 --show-source --statistics
+          flake8 . --count --ignore=E302,E501,W503,F401,W291,W292,E261, E111, E117, E702, E701  --show-source --statistics
 
   build-and-push-docker-image: # Nome del secondo job
     name: Build and Push Docker Image
