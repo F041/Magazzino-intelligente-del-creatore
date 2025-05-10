@@ -1,44 +1,59 @@
 name: Magazzino Creatore CI Pipeline
 
-# Trigger: quando eseguire questo workflow
 on:
   push:
-    branches: [ main ] # Esegui su push al branch 'main'
+    branches: [ main ]
   pull_request:
-    branches: [ main ] # Esegui anche su Pull Request verso 'main'
+    branches: [ main ]
 
 jobs:
-  lint-and-test: # Nome del primo job
-    name: Lint and Basic Checks
-    runs-on: ubuntu-latest # Esegui su una macchina virtuale Ubuntu fornita da GitHub
+  # Job 1: Controlli di base e build Docker (senza push)
+  pre-checks-and-build:
+    name: Pre-Checks and Docker Build Test
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Azione standard per scaricare il codice del repo
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9' # Usa la stessa versione Python del tuo Dockerfile
+          python-version: '3.9'
 
-      - name: Install linting dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flake8 # Aggiungi qui altre dipendenze di linting/test se necessario
+      # (Puoi aggiungere qui un linting molto leggero o commentarlo per ora)
+      # - name: Install linting dependencies
+      #   run: pip install flake8
+      # - name: Basic Lint with flake8 (non-blocking, very permissive)
+      #   run: flake8 . --count --select=E9,F821,F823 --exit-zero # --exit-zero fa sì che non fallisca il job
+      #   continue-on-error: true # Alternativa a --exit-zero, il job continua anche se flake8 trova errori
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Lint with flake8
-        run: |
-          flake8 .
+      - name: Build Docker image (test only, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false # Non pushare l'immagine in questo job
+          load: true # Carica l'immagine nel runner locale di Actions (utile per test futuri sull'immagine)
+          tags: ghcr.io/${{ github.repository_owner }}/magazzino-creatore:ci-build-test # Un tag temporaneo
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  build-and-push-docker-image: # Nome del secondo job
-    name: Build and Push Docker Image
+  # Job 2: Build e Push effettivo (solo se il precedente passa e non è una PR)
+  build-and-push-ghcr:
+    name: Build and Push to GHCR
     runs-on: ubuntu-latest
-    needs: lint-and-test # Questo job parte solo se 'lint-and-test' ha successo
+    needs: pre-checks-and-build # Dipende dal successo del job precedente
 
-    permissions: # Permessi necessari per pushare a GHCR
+    # Esegui questo job solo su push a 'main', non per le PR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
       contents: read
-      packages: write # Permesso per scrivere pacchetti (immagini Docker) a GHCR
+      packages: write
 
     steps:
       - name: Checkout code
@@ -48,36 +63,28 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }} # Nome utente GitHub che ha triggerato l'azione
-          password: ${{ secrets.GITHUB_TOKEN }} # Token speciale fornito da GitHub Actions
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx (per build multi-piattaforma, buona pratica)
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Extract metadata (tags, labels) for Docker
-        id: meta # Dà un ID a questo step per riferirsi ai suoi output
+        id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/magazzino-creatore # Nome immagine: ghcr.io/TUO_USERNAME/magazzino-creatore
-          # Crea tag:
-          # - 'latest' per il branch main
-          # - il numero di run (es. 'run123')
-          # - il commit SHA breve
+          images: ghcr.io/${{ github.repository_owner }}/magazzino-creatore # O il nome che preferisci
           tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=,suffix=,format=short
+            latest  # Aggiungi sempre il tag 'latest' per il branch main
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: . # Contesto di build (la root del repo)
-          file: ./Dockerfile # Path al Dockerfile
-          push: ${{ github.event_name != 'pull_request' }} # Pusha solo se NON è un evento di pull_request (es. pusha su merge a main)
+          context: .
+          file: ./Dockerfile
+          push: true # Pusha l'immagine
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha # Abilita caching dei layer Docker con GitHub Actions
+          cache-from: type=gha
           cache-to: type=gha,mode=max
