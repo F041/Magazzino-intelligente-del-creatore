@@ -1,10 +1,9 @@
 import io
 import logging
 import sqlite3
-import os # Necessario? Forse no.
 import chromadb
 from datetime import datetime
-from flask import Blueprint, jsonify, request, current_app, Response, current_app
+from flask import Blueprint, jsonify, request, current_app, Response
 from flask_login import login_required, current_user
 from google.api_core import exceptions as google_exceptions
 from typing import Optional
@@ -42,8 +41,14 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
     conn_sqlite = None
     processed_videos_data_for_db = [] # Lista per batch insert/update
     # Contatori specifici di questa esecuzione (opzionali, ma utili per log)
-    yt_count = 0; db_existing_count = 0; to_process_count = 0; saved_ok_count = 0
-    transcript_errors = 0; embedding_errors = 0; chroma_errors = 0; generic_errors = 0
+    yt_count = 0
+    db_existing_count = 0
+    to_process_count = 0
+    saved_ok_count = 0
+    transcript_errors = 0
+    embedding_errors = 0
+    chroma_errors = 0
+    generic_errors = 0
 
     try:
         # --- 1. LEGGI CONFIG DAL DIZIONARIO PASSATO ---
@@ -60,18 +65,41 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
 
         # Verifica Chroma specifica per modalità (Client/Collezione)
         chroma_client = current_app.config.get('CHROMA_CLIENT')
-        chroma_collection_single = current_app.config.get('CHROMA_VIDEO_COLLECTION') # Solo per single mode
+        chroma_collection_single = current_app.config.get('CHROMA_VIDEO_COLLECTION')
+        # Solo per single mode
 
         if not token_path:
             raise RuntimeError("Token path mancante in core_config.")
         if not db_path_sqlite:
             raise RuntimeError("DB path mancante in core_config.")
-        if not all([token_path, db_path_sqlite, llm_api_key, embedding_model, base_video_collection_name, (chroma_client if app_mode == 'saas' else chroma_collection_single is not None)]):
-             error_details = f"Token:{token_path}, DB:{db_path_sqlite}, Key:{llm_api_key}, Model:{embedding_model}, CollName:{base_video_collection_name}, ChromaOK:{bool(chroma_client) if app_mode == 'saas' else chroma_collection_single is not None}"
-             logger.error(f"[CORE YT Process] Configurazione incompleta: {error_details}")
-             raise RuntimeError(f"Configurazione server incompleta per processamento core YouTube.")
+        if not all([
+            token_path,
+            db_path_sqlite,
+            llm_api_key,
+            embedding_model,
+            base_video_collection_name,
+            (chroma_client if app_mode == 'saas'
+             else chroma_collection_single is not None)
+        ]):
+            error_details = (
+                f"Token:{token_path}, DB:{db_path_sqlite}, "
+                f"Key:{llm_api_key}, Model:{embedding_model}, "
+                f"CollName:{base_video_collection_name}, "
+                f"ChromaOK:{bool(chroma_client) if app_mode == 'saas' else bool(chroma_collection_single)}"
+            )
+            logger.error(
+                "[CORE YT Process] Configurazione incompleta: "
+                f"{error_details}"
+            )
+            raise RuntimeError(
+                "Configurazione server incompleta per "
+                "processamento core YouTube."
+            )
 
-        logger.info(f"[CORE YT Process] Apertura connessione SQLite: {db_path_sqlite}")
+        logger.info(
+            "[CORE YT Process] Apertura connessione SQLite: "
+            f"{db_path_sqlite}"
+        )
         conn_sqlite = sqlite3.connect(db_path_sqlite, timeout=10.0)
         cursor_sqlite = conn_sqlite.cursor()
         logger.info("[CORE YT Process] Connessione SQLite aperta.")
