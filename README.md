@@ -262,6 +262,38 @@ Una volta eseguito lo script, l'applicazione dovrebbe avviarsi e potrai accedere
 **Per fermare l'applicazione (quando eseguita direttamente con Python):**
 Premi `Ctrl+C` nel terminale dove hai avviato `python -m app.main`.
 
+### Esecuzione Avanzata: Usare l'Immagine Pre-Compilata da GHCR
+
+Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le immagini stabili che vengono automaticamente costruite e pubblicate su GitHub Container Registry (GHCR) dopo ogni aggiornamento al codice principale.
+
+1.  Assicurati di avere Docker e Docker Compose installati.
+2.  Crea una directory per il tuo progetto e naviga al suo interno.
+3.  Crea la sottodirectory `data`.
+4.  Prepara il tuo file `client_secrets.json` e mettilo in `data/client_secrets.json`.
+5.  Crea un file `.env` con le tue configurazioni (vedi sezione "Configura il File d'Ambiente (`.env`)" sopra).
+6.  Crea un file `docker-compose.ghcr.yml` (o un nome simile) con il seguente contenuto:
+
+    ```yaml
+    version: '3.8'
+    services:
+      app:
+        image: ghcr.io/f041/magazzino-creatore-selfhosted:latest # Usa l'immagine da GHCR
+        container_name: magazzino_creatore_app_selfhosted
+        ports:
+          - "5000:5000" # Modifica la porta host (la prima '5000') se necessario
+        volumes:
+          - ./data:/app/data # Per i tuoi dati persistenti
+        env_file:
+          - .env
+        restart: unless-stopped
+    ```
+7.  Avvia l'applicazione:
+    ```bash
+    docker-compose -f docker-compose.ghcr.yml pull # Scarica l'ultima immagine
+    docker-compose -f docker-compose.ghcr.yml up -d
+    ```
+Questo metodo è utile se vuoi eseguire una versione specifica o se hai difficoltà a buildare l'immagine localmente.
+
 ## Utilizzo (Modalità `saas`)
 
 1.  **Registrazione/Login Flask:** Apri `http://localhost:5000`. Registra un nuovo utente o effettua il login.

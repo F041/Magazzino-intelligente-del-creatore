@@ -10,28 +10,30 @@ jobs:
   pre-checks-and-build:
     name: Pre-Checks and Docker Build Test
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-
+      - name: Set up QEMU (for multi-platform builds)
+        uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build Docker image (test only, no push)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: false
-          load: true
-          # USA L'OWNER IN MINUSCOLO
-          tags: ghcr.io/f041/magazzino-creatore-selfhosted:ci-build-test # Assumendo che 'f041' sia il tuo username minuscolo
+          load: true # 'load' è problematico con multi-piattaforma se il runner non le supporta nativamente.
+                     # Per un build di test, potresti voler buildare solo per amd64 o rimuovere 'load'
+                     # e fidarti che la build per più piattaforme passi senza caricarla.
+                     # Per ora, proviamo a lasciarlo e vediamo se dà problemi con QEMU.
+                     # Se sì, la soluzione è buildare solo amd64 qui o rimuovere 'load'.
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/f041/magazzino-creatore-selfhosted:ci-build-test
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -43,36 +45,35 @@ jobs:
     permissions:
       contents: read
       packages: write
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      - name: Set up QEMU (for multi-platform builds)
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        id: buildx # Diamo un ID per poter usare il nome del builder
+        uses: docker/setup-buildx-action@v3
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }} # github.actor dovrebbe essere già minuscolo
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # USA L'OWNER IN MINUSCOLO
-          images: ghcr.io/f041/magazzino-creatore-selfhosted # Assumendo 'f041'
+          images: ghcr.io/f041/magazzino-creatore-selfhosted
           tags: |
             type=sha,prefix=,suffix=,format=short
             latest
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          builder: ${{ steps.buildx.outputs.name }} # Specifica il builder Buildx
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
