@@ -27,11 +27,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
-          load: true # 'load' è problematico con multi-piattaforma se il runner non le supporta nativamente.
-                     # Per un build di test, potresti voler buildare solo per amd64 o rimuovere 'load'
-                     # e fidarti che la build per più piattaforme passi senza caricarla.
-                     # Per ora, proviamo a lasciarlo e vediamo se dà problemi con QEMU.
-                     # Se sì, la soluzione è buildare solo amd64 qui o rimuovere 'load'.
           platforms: linux/amd64,linux/arm64
           tags: ghcr.io/f041/magazzino-creatore-selfhosted:ci-build-test
           cache-from: type=gha
