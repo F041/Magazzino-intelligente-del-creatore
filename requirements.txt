@@ -34,13 +34,17 @@ youtube-transcript-api
 beautifulsoup4
 python-dotenv
 requests
-APScheduler 
+APScheduler
 Flask-SQLAlchemy # Per APScheduler job store
 sqlalchemy # Dipendenza di Flask-SQLAlchemy
 
 # Feed RSS
 feedparser
 # markdownify (se usato, non era nel tuo file)
+
+# Telegram
+python-telegram-bot
+telegramify-markdown
 
 # Documenti
 python-docx # Se non è già python-docx, ma docx, verifica il nome corretto
@@ -54,8 +58,13 @@ pypdf       # Per i PDF
 # Pydantic (se usato per validazione modelli API)
 pydantic
 
+# Per test
+pytest
+pytest-flask
+
 # Condizionale per Windows (per sviluppo locale su Windows)
 windows-curses==2.3.3 ; sys_platform == 'win32'
+
 
 # RIMOVERE TEMPORANEAMENTE o DEFINITIVAMENTE (se non usate dal backend):
 # aider-chat==0.46.1

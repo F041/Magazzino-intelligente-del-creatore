@@ -40,7 +40,7 @@ log/
 # Database e Dati Utente (saranno gestiti da volumi Docker)
 # *.db
 # *.sqlite3
- data/ 
+ data/
 # token.pickle
 # token.json
 # client_secrets.json # Sarà montato come volume o gestito da secret
@@ -53,6 +53,8 @@ README.md # Di solito non serve nell'immagine di produzione
 Dockerfile # Il Dockerfile stesso non va copiato dentro l'immagine
 docker-compose.yml # Idem
 *.txt # Se hai altri file txt temporanei non necessari
+run_local.bat
+run_local.sh
 
 # Credenziali e variabili d'ambiente che saranno montate o passate
 .env

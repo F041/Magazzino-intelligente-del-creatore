@@ -6,15 +6,15 @@ import requests
 from bs4 import BeautifulSoup
 import sqlite3
 import uuid
-from typing import Optional, Dict 
+from typing import Optional, Dict
 from flask_login import login_required, current_user
 import os
 import datetime
 from urllib.parse import urlparse, urljoin
 from flask import Blueprint, request, jsonify, current_app
 from google.api_core import exceptions as google_exceptions
-import threading 
-import copy      
+import threading
+import copy
 
 try:
     from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
@@ -264,9 +264,9 @@ def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_c
         # --- 2. CICLO PAGINAZIONE ---
         while True:
             # Costruisci URL pagina
-            if page_number == 1: 
+            if page_number == 1:
                 url_to_fetch = base_feed_url
-            else: 
+            else:
                 separator = '&' if '?' in base_feed_url else '?'; url_to_fetch = f"{base_feed_url}{separator}paged={page_number}"
             logger.info(f"[CORE RSS Process] --- Fetch Pagina #{page_number}: {url_to_fetch} ---")
 
@@ -281,10 +281,10 @@ def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_c
                     is_critical_error = isinstance(bozo_exception, (HTTPError, AttributeError, TypeError, ValueError)) or "document" in str(bozo_exception).lower() # Aggiungi controlli se necessario
                     if is_critical_error: # Controlla solo errori gravi sulla prima pagina
                         logger.error(f"[CORE RSS Process] Errore critico parsing prima pagina ({url_to_fetch}): {bozo_exception}. Interruzione.");
-                        if conn_sqlite: 
-                            try: 
-                                conn_sqlite.close() 
-                            except: 
+                        if conn_sqlite:
+                            try:
+                                conn_sqlite.close()
+                            except:
                                 pass
                         return False # Fallimento se la prima pagina è inaccessibile/invalida
                     else: # Warning per errori minori (es. non well-formed ma leggibile)
@@ -292,10 +292,10 @@ def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_c
 
                 if not parsed_feed.entries:
                     logger.error("[CORE RSS Process] Nessun articolo sulla prima pagina. Feed vuoto o URL errato?");
-                    if conn_sqlite: 
-                        try: 
-                            conn_sqlite.close() 
-                        except: 
+                    if conn_sqlite:
+                        try:
+                            conn_sqlite.close()
+                        except:
                             pass
                     return False # Fallimento se la prima pagina è vuota
             # === FINE BLOCCO SPOSTATO ===
@@ -306,7 +306,7 @@ def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_c
                  if isinstance(bozo_exception, HTTPError) and bozo_exception.code >= 400:
                     logger.info(f"[CORE RSS Process] Errore HTTP {bozo_exception.code} pagina {page_number}. Fine paginazione."); break
             if not parsed_feed.entries:
-                logger.info(f"[CORE RSS Process] Nessun articolo pagina {page_number}. Fine paginazione."); 
+                logger.info(f"[CORE RSS Process] Nessun articolo pagina {page_number}. Fine paginazione.");
                 break
 
             # Processamento Articoli Pagina
@@ -410,51 +410,61 @@ def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_c
 
 # --- Funzione Background per RSS ---
 def _background_rss_processing(app_context, initial_feed_url: str, user_id: Optional[str], initial_status: dict):
-    """
-    Esegue l'elaborazione del feed in un thread separato, chiamando la funzione core.
-    Aggiorna lo stato globale 'rss_processing_status' per la UI.
-    """
     global rss_processing_status, rss_status_lock
     thread_final_message = "Elaborazione background RSS terminata con stato sconosciuto."
     job_success = False
 
-    # Imposta stato iniziale UI
     with rss_status_lock:
         rss_processing_status.update(initial_status)
         rss_processing_status['is_processing'] = True
         rss_processing_status['message'] = 'Avvio elaborazione feed...'
-        rss_processing_status['error'] = None # Resetta errore precedente
+        rss_processing_status['error'] = None
     logger.info(f"BACKGROUND THREAD RSS: Avvio per URL={initial_feed_url}, user_id={user_id}")
 
     with app_context: # Esegui nel contesto app
         try:
-            # --- Chiama la Funzione Core ---
-            # La funzione core gestisce config, DB, paginazione, errori interni
-            job_success = _process_rss_feed_core(initial_feed_url, user_id)
+            # === COSTRUISCI IL DIZIONARIO core_config QUI ===
+            # Simile a come fatto in scheduler_jobs.py e videos.py
+            core_config_dict = {
+                'APP_MODE': current_app.config.get('APP_MODE', 'single'),
+                'DATABASE_FILE': current_app.config.get('DATABASE_FILE'),
+                'ARTICLES_FOLDER_PATH': current_app.config.get('ARTICLES_FOLDER_PATH'),
+                'GOOGLE_API_KEY': current_app.config.get('GOOGLE_API_KEY'), # Per embedding
+                'GEMINI_EMBEDDING_MODEL': current_app.config.get('GEMINI_EMBEDDING_MODEL'),
+                'DEFAULT_CHUNK_SIZE_WORDS': current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS'),
+                'DEFAULT_CHUNK_OVERLAP_WORDS': current_app.config.get('DEFAULT_CHUNK_OVERLAP_WORDS'),
+                'CHROMA_CLIENT': current_app.config.get('CHROMA_CLIENT'),
+                'ARTICLE_COLLECTION_NAME': current_app.config.get('ARTICLE_COLLECTION_NAME'),
+                # Aggiungi altre chiavi se _process_rss_feed_core o _index_article ne richiedono altre
+            }
+            # Verifica che i valori essenziali non siano None (opzionale ma buona pratica)
+            required_keys_rss = ['DATABASE_FILE', 'ARTICLES_FOLDER_PATH', 'GOOGLE_API_KEY', 'CHROMA_CLIENT']
+            missing_keys_rss = [k for k in required_keys_rss if not core_config_dict.get(k)]
+            if missing_keys_rss:
+                 raise RuntimeError(f"Valori mancanti nella config per il thread RSS: {', '.join(missing_keys_rss)}")
+            logger.info("BACKGROUND THREAD RSS: Dizionario 'core_config_dict' preparato.")
+            # === FINE COSTRUZIONE core_config ===
 
-            # --- Prepara Messaggio Finale per UI ---
+            # --- Chiama la Funzione Core PASSANDO core_config_dict ---
+            job_success = _process_rss_feed_core(initial_feed_url, user_id, core_config_dict) # <--- PASSALO QUI
+
             if job_success:
-                 # Potremmo prendere i contatori da _process_rss_feed_core se li restituisse,
-                 # ma per ora usiamo un messaggio generico.
                  thread_final_message = f"Processo feed {initial_feed_url} completato."
             else:
-                 thread_final_message = f"Si sono verificati errori durante il processo del feed {initial_feed_url}. Controllare i log."
+                 thread_final_message = f"Si sono verificati errori durante il processo del feed {initial_feed_url}. Controllare i log del server."
 
-        except Exception as e_thread: # Cattura errori *prima* della chiamata core o imprevisti
-            logger.exception(f"BACKGROUND THREAD RSS: ERRORE CRITICO.")
+        except Exception as e_thread:
+            # È importante loggare l'eccezione completa qui per capire cosa è successo
+            logger.exception(f"BACKGROUND THREAD RSS: ERRORE CRITICO - {e_thread}") # Modificato per loggare e_thread
             thread_final_message = f"Errore critico elaborazione feed: {e_thread}"
             job_success = False
         finally:
-            # --- AGGIORNA STATO GLOBALE UI FINALE ---
             logger.info(f"BACKGROUND THREAD RSS: Esecuzione finally.")
             with rss_status_lock:
                 rss_processing_status['is_processing'] = False
                 rss_processing_status['message'] = thread_final_message
-                # Salva l'errore solo se job_success è False (potrebbe venire dalla core o da qui)
                 rss_processing_status['error'] = None if job_success else thread_final_message
                 rss_processing_status['current_page'] = 0
-                # Non resettiamo total_articles_processed, lo lasciamo dall'ultimo aggiornamento della core
-
             logger.info(f"BACKGROUND THREAD RSS: Terminato. Successo Core Job: {job_success}. Messaggio UI: {thread_final_message}")
 
 # --- Endpoint Principale (ORA ASINCRONO) ---

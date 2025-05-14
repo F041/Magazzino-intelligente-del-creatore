@@ -44,7 +44,7 @@ class BaseConfig:
     VIDEO_COLLECTION_NAME = "video_transcripts" # Nome collezione ChromaDB
     DOCUMENT_COLLECTION_NAME = "document_content" # Potremmo usarlo per Chroma in futuro
     ARTICLE_COLLECTION_NAME = "article_content"
-    ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'} 
+    ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx'}
 
 
     # --- Impostazioni Embedding ---
@@ -54,11 +54,11 @@ class BaseConfig:
 
     # --- Impostazioni Ricerca RAG ---
     RAG_DEFAULT_N_RESULTS = 10 # o 15, 5 troppo poco
-    RAG_GENERATIVE_MODEL = "gemini-2.5-pro-exp-03-25" 
+    RAG_GENERATIVE_MODEL = "gemini-2.5-flash-preview-04-17"
     # "gemini-1.5-flash-latest" il più veloce
     # "gemini-1.5-pro" più stitico rispetto a "gemini-2.5-pro-exp-03-25" ma meglio dei flash
     # "gemini-2.0-flash" ha gli stessi limiti di 1.5-flash-latest: risposte stitiche, non fa sommari
-    # "gemini-2.5-pro-exp-03-25" ha i risultati migliori
+    # "gemini-2.5-pro-exp-03-25" ha i risultati migliori -> sostituito con gemini-2.5-flash-preview-04-17
     RAG_GENERATION_CONFIG = {
         "temperature": 0.7,
         "top_p": 0.95,
@@ -101,11 +101,64 @@ class ProductionConfig(BaseConfig):
     """Configurazione per la produzione."""
     DEBUG = False
 
+class TestConfig(DevelopmentConfig):
+    """Configurazione per i test."""
+    TESTING = True
+    SECRET_KEY = 'test_secret_key'
+    GOOGLE_API_KEY = 'test_google_api_key_placeholder' # Non verranno fatte chiamate reali
+
+    # _TEST_BASE_DIR verrà impostato dalla fixture di test
+    _TEST_BASE_DIR = None
+    _DATA_SUBDIR_IN_TEST_DIR = None
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name == '_TEST_BASE_DIR' and value is not None:
+            self._DATA_SUBDIR_IN_TEST_DIR = os.path.join(value, "data_for_tests")
+            os.makedirs(self._DATA_SUBDIR_IN_TEST_DIR, exist_ok=True)
+
+    def _get_test_data_path(self, filename):
+        if self._DATA_SUBDIR_IN_TEST_DIR is None:
+            raise ValueError("_DATA_SUBDIR_IN_TEST_DIR non è stato impostato. Assicurati che _TEST_BASE_DIR sia impostato.")
+        return os.path.join(self._DATA_SUBDIR_IN_TEST_DIR, filename)
+
+    @property
+    def DATABASE_FILE(self):
+        return self._get_test_data_path('test_magazzino.db')
+
+    @property
+    def CHROMA_PERSIST_PATH(self):
+        return self._get_test_data_path('test_chroma_db')
+
+    @property
+    def TOKEN_PATH(self):
+        return self._get_test_data_path('test_token.json')
+
+    @property
+    def UPLOAD_FOLDER_PATH(self):
+        return self._get_test_data_path('test_uploaded_docs')
+
+    @property
+    def ARTICLES_FOLDER_PATH(self):
+        return self._get_test_data_path('test_article_content')
+
+    @property
+    def CLIENT_SECRETS_PATH(self):
+        if self._TEST_BASE_DIR is None:
+             raise ValueError("_TEST_BASE_DIR non è stato impostato. Assicurati che la fixture di test lo imposti.")
+        return os.path.join(self._TEST_BASE_DIR, 'test_client_secrets.json')
+
+
+    APP_MODE = 'single'
+    # Per disabilitare lo scheduler, modifica create_app in main.py
+    # per non avviarlo se app.config['TESTING'] è True.
+
 
 # Dizionario per selezionare la configurazione
 config_by_name = dict(
     development=DevelopmentConfig,
     production=ProductionConfig,
+    test=TestConfig, # Aggiungi TestConfig al dizionario
     default=DevelopmentConfig
 )
 

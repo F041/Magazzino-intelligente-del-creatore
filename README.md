@@ -109,6 +109,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
 
 ## Setup (per Self-Hosting con Docker)
 
+
 1.  **Clona il Repository:**
     ```bash
     git clone https://github.com/F041/magazzino-creatore.git # Sostituisci con l'URL reale
@@ -264,7 +265,7 @@ Premi `Ctrl+C` nel terminale dove hai avviato `python -m app.main`.
 
 ### Esecuzione Avanzata: Usare l'Immagine Pre-Compilata da GHCR
 
-Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le immagini stabili che vengono automaticamente costruite e pubblicate su GitHub Container Registry (GHCR) dopo ogni aggiornamento al codice principale.
+Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le immagini stabili che vengono automaticamente costruite e pubblicate su GitHub Container Registry (GHCR) dopo ogni aggiornamento al codice principale. Supporta linux/amd64 che linux/arm64
 
 1.  Assicurati di avere Docker e Docker Compose installati.
 2.  Crea una directory per il tuo progetto e naviga al suo interno.
@@ -340,14 +341,14 @@ Questo metodo è utile se vuoi eseguire una versione specifica o se hai difficol
 *   [x] Eliminazione di Massa Video (SQLite + delete collection Chroma) (`saas`).
 *   [x] Pulsante "(Ri)Processa" sempre visibile in `/my-videos`.
 *   [x] Integrazione APScheduler per controlli periodici (config da `.env`).
+*   [x] Implementare gestione stato conversazione nella chat Flask.
+*   [x] Valutare uso libreria JS (Marked.js + DOMPurify) per mostrare formattazione LLM (elenchi, grassetto).
+*   [x] Rendere più fluida l'esperienza di ottenimento e inserimento della chiave per l'embed. ATTENZIONE: problema di sicurezza
+*   [X] Creare script bot separato che usi una chiave API del creator per permettere alla sua community di interrogare i suoi contenuti via Telegram.
 
 **Prossimi Passi Possibili:**
 
 **Completamento Funzionalità SAAS & Gestione Dati:**
-*   [ ] **Completare Eliminazione Singola:** (Priorità Alta)
-    *   [ ] Implementare `DELETE /api/videos/<id>` (con pulizia chunk ChromaDB).
-    *   [ ] Implementare `DELETE /api/articles/<id>` (con pulizia chunk ChromaDB e file `.txt`).
-    *   [ ] Aggiungere bottoni "Elimina" corrispondenti in `/my-videos` e `/my-articles`.
 *   [ ] **Implementare Re-indicizzazione di Massa (UI):** (Priorità Media/Alta)
     *   [ ] Creare API `POST /api/admin/reindex-all` (o simile) che avvia task background (`threading`).
     *   [ ] Implementare la funzione background che itera su tutti i contenuti dell'utente e li re-indicizza.
@@ -356,24 +357,26 @@ Questo metodo è utile se vuoi eseguire una versione specifica o se hai difficol
 
 **Miglioramenti RAG/Ricerca:**
 *   [ ] **Ottimizzare Recupero:** Sperimentare `n_results`, analizzare chunk, esplorare re-ranking/query expansion.
-*   [ ] **Cronologia Conversazione:** Implementare gestione stato conversazione nella chat Flask.
-*   [ ] **Renderizzare Markdown nelle Risposte:** Valutare uso libreria JS (Marked.js + DOMPurify) per mostrare formattazione LLM (elenchi, grassetto).
 
 **Stabilità e Qualità:**
 *   [ ] **Gestione Errori API:** Standardizzare formati JSON risposte errore.
 *   [ ] **Gestione Errori Indicizzazione:** Migliorare diagnostica/gestione errori estrazione testo e embedding.
+*   [ ] **Sviluppare Suite di Test:** (Iniziato)
+    *   [x] Setup base Pytest e prima fixture app/client.
+    *   [ ] Test per autenticazione utente (registrazione, login, logout).
+    *   [ ] Test per API principali (es. search, gestione contenuti) con mocking.
+    *   [ ] Test unitari per logiche di business critiche.
 
 **Nuove Sorgenti Dati/Funzionalità:**
 *   [ ] **Podcast:** Implementare gestione feed/audio/trascrizione.
-*   [ ] **Integrazione Bot Telegram:** (Priorità Bassa/Media) Creare script bot separato che usi una chiave API del creator per permettere alla sua community di interrogare i suoi contenuti via Telegram.
+
 
 **UI/UX:**
 *   [ ] **Feedback Processi Background:** Migliorare ulteriormente il feedback per operazioni lunghe (re-indicizzazione).
-*   [ ] **Gestione API Key Widget:** Rendere più fluida l'esperienza di ottenimento e inserimento della chiave per l'embed.
 
 **DevOps e Deployment:**
 *   [x] **Dockerizzazione:** Creati `Dockerfile` e `docker-compose.yml` per esecuzione self-hosted.
-*   [ ] **CI/CD:** Impostare pipeline.
+*   [x] **CI/CD:** Impostare pipeline.
 *   [ ] **Valutare DB Esterno:** Considerare PostgreSQL/Supabase per deployment `saas` su larga scala (o per istanze self-hosted che richiedono maggiore robustezza/concorrenza, specialmente se si separa lo scheduler).
 
 **Funzionalità Rimosse/Archiviate:**

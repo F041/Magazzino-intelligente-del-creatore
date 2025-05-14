@@ -14,7 +14,7 @@ from .utils import generate_api_key
 from flask import ( Flask, jsonify, redirect, request, session, url_for,
                    render_template, current_app, flash, send_from_directory, Response, stream_with_context )
 from flask_cors import CORS
-from flask_login import LoginManager, login_required, login_user, logout_user, current_user 
+from flask_login import LoginManager, login_required, login_user, logout_user, current_user
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -241,7 +241,7 @@ def init_db(config):
                 name TEXT,              -- Nome opzionale
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )''')
-        logger.debug("Tabella 'users' verificata/creata.")  
+        logger.debug("Tabella 'users' verificata/creata.")
 
         # --- Tabella api_keys ---
         cursor.execute('''
@@ -294,7 +294,7 @@ def init_db(config):
         conn.commit()
         # Aggiorna messaggio log finale
         logger.info(f"Database '{db_path}' inizializzato/aggiornato. Verificate/Aggiunte colonne 'user_id'. Tabella 'users' verificata/creata.")
-    
+
     except sqlite3.Error as e:
         logger.error(f"Errore SQLite durante init_db ({db_path}): {e}")
         if conn: conn.rollback()
@@ -335,14 +335,29 @@ def create_app(config_object=AppConfig):
     r"/embed.js": {"origins": "*"} # Script Embed
     })
 
-    # Configura Logging di Flask (usa config appena caricata)
-    log_level = logging.DEBUG if app.config.get('DEBUG') else logging.INFO
-    logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s') # Configura root logger
-    # Se vuoi formattare specificamente il logger di Flask:
-    # handler = logging.StreamHandler(sys.stdout)
-    # handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    # app.logger.addHandler(handler)
-    # app.logger.setLevel(log_level)
+    # --- Configura Logging di Flask ---
+    # Determina il livello di log in base a FLASK_DEBUG o DEBUG nella config
+    is_debug_mode = app.config.get('FLASK_DEBUG', app.config.get('DEBUG', False))
+    log_level = logging.DEBUG if is_debug_mode else logging.INFO
+
+    # Configura il root logger o il logger dell'app
+    # Rimuovi la vecchia basicConfig se presente qui per evitare conflitti
+    # logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    # Invece, configura il logger dell'app o il logger root in modo più controllato
+    # Se vuoi che TUTTI i logger (inclusi quelli delle librerie) siano a DEBUG:
+    logging.getLogger().setLevel(log_level) # Imposta il root logger
+    # Oppure, solo per il logger della tua app (se usi logger = logging.getLogger(__name__) nei moduli):
+    # logging.getLogger('app').setLevel(log_level) # 'app' è il nome del tuo package principale
+
+    # Aggiungi un handler se non ne hai già uno configurato da Gunicorn o altrove
+    # (Gunicorn di solito gestisce l'output su stdout/stderr)
+    # Se i log non appaiono, potresti dover aggiungere esplicitamente un handler:
+    if not logging.getLogger().hasHandlers(): # Controlla se il root logger ha già handler
+        handler = logging.StreamHandler(sys.stdout) # O sys.stderr
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logging.getLogger().addHandler(handler)
+
     logger.info(f"Logging configurato a livello: {logging.getLevelName(log_level)}")
 
 
@@ -365,7 +380,7 @@ def create_app(config_object=AppConfig):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False # Best practice
     db_sqlalchemy.init_app(app)
 
-    # Configura APScheduler 
+    # Configura APScheduler
     jobstores = {'default': SQLAlchemyJobStore(url=app.config['SQLALCHEMY_DATABASE_URI'])}
     scheduler = BackgroundScheduler(jobstores=jobstores, app=app, timezone="Europe/Rome")
 
@@ -452,13 +467,13 @@ def create_app(config_object=AppConfig):
         app.register_blueprint(search_bp, url_prefix='/api/search')
         from .api.routes.documents import documents_bp
         app.register_blueprint(documents_bp, url_prefix='/api/documents')
-        from .api.routes.rss import rss_bp 
-        app.register_blueprint(rss_bp, url_prefix='/api/rss') 
-        from .api.routes.keys import keys_bp       
+        from .api.routes.rss import rss_bp
+        app.register_blueprint(rss_bp, url_prefix='/api/rss')
+        from .api.routes.keys import keys_bp
         app.register_blueprint(keys_bp, url_prefix='/keys')
         logger.info("Blueprint Keys (gestione e API) registrato con prefisso /keys.")
         from .api.routes.monitoring import monitoring_bp
-        app.register_blueprint(monitoring_bp, url_prefix='/api/monitoring') 
+        app.register_blueprint(monitoring_bp, url_prefix='/api/monitoring')
         logger.info("Blueprint Monitoring registrato con prefisso /api/monitoring.")
     except ImportError as e:
          logger.critical(f"Errore importazione/registrazione blueprint: {e}", exc_info=True)
@@ -570,14 +585,14 @@ def create_app(config_object=AppConfig):
                 logger.info(f"Utente {user.email} loggato con successo.")
                 next_page = request.args.get('next')
                 if not next_page: # Se 'next' non esiste, vai alla dashboard
-                 next_page = url_for('dashboard')     
-                 return redirect(next_page)           
+                 next_page = url_for('dashboard')
+                 return redirect(next_page)
             else:
                 flash('Email o password non validi.', 'error')
                 return redirect(url_for('login'))
 
         return render_template('login.html')
-    
+
     @app.route('/logout')
     @login_required # Assicura che solo utenti loggati possano fare logout
     def logout():
@@ -653,10 +668,10 @@ def create_app(config_object=AppConfig):
 
         # Se il metodo è GET, mostra il template
         return render_template('register.html')
-    
-    
+
+
     @app.route('/dashboard')
-    @login_required 
+    @login_required
     def dashboard():
         return render_template('dashboard.html')
 
@@ -665,7 +680,7 @@ def create_app(config_object=AppConfig):
     def my_videos():
         db_path = current_app.config.get('DATABASE_FILE')
         app_mode = current_app.config.get('APP_MODE', 'single')
-        
+
         current_user_id = current_user.id if current_user.is_authenticated else None
 
         if app_mode == 'saas' and not current_user_id:
@@ -679,9 +694,9 @@ def create_app(config_object=AppConfig):
              logger.info(f"/my-videos: Modalità SINGLE, mostro tutti i video.")
              current_user_id = None # Assicura sia None in single mode per la query
 
-        videos_from_db = []        
+        videos_from_db = []
         try:
-            if not db_path: raise ValueError("Percorso DB non configurato")           
+            if not db_path: raise ValueError("Percorso DB non configurato")
             conn = sqlite3.connect(db_path); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
             sql_query = 'SELECT * FROM videos'
             params = []
@@ -702,11 +717,11 @@ def create_app(config_object=AppConfig):
     @app.route('/my-documents')
     @login_required
     def my_documents():
-        """Mostra la pagina con l'elenco dei documenti caricati."""        
+        """Mostra la pagina con l'elenco dei documenti caricati."""
         app_mode = current_app.config.get('APP_MODE', 'single') # Leggi APP_MODE
-        current_user_id = current_user.id if current_user.is_authenticated else None       
+        current_user_id = current_user.id if current_user.is_authenticated else None
 
-        if app_mode == 'saas' and not current_user_id: 
+        if app_mode == 'saas' and not current_user_id:
              return redirect(url_for('login'))
         elif app_mode == 'saas': logger.info(f"/my-documents: Modalità SAAS, filtro per user '{current_user_id}'")
         else: logger.info(f"/my-documents: Modalità SINGLE, mostro tutti i documenti."); current_user_id = None
@@ -736,13 +751,13 @@ def create_app(config_object=AppConfig):
     @app.route('/my-articles')
     @login_required
     def my_articles():
-        """Mostra la pagina con l'elenco degli articoli aggiunti da feed."""        
+        """Mostra la pagina con l'elenco degli articoli aggiunti da feed."""
         app_mode = current_app.config.get('APP_MODE', 'single') # Leggi APP_MODE
         current_user_id = current_user.id if current_user.is_authenticated else None
-        
+
 
         # Ottieni User ID Fittizio se in SAAS
-        if app_mode == 'saas' and not current_user_id: 
+        if app_mode == 'saas' and not current_user_id:
             return redirect(url_for('login'))
         elif app_mode == 'saas': logger.info(f"/my-articles: Modalità SAAS, filtro per user '{current_user_id}'")
         else: logger.info(f"/my-articles: Modalità SINGLE, mostro tutti gli articoli."); current_user_id = None
@@ -782,7 +797,7 @@ def create_app(config_object=AppConfig):
         logger.info(f"Accesso alla pagina /chat da utente {current_user.id}")
         # Non servono dati specifici da passare al template per ora
         return render_template('chat.html')
-    
+
     @app.route('/widget')
     def widget_content():
         logger.info("Richiesta per /widget (contenuto iframe).")
@@ -815,51 +830,47 @@ def create_app(config_object=AppConfig):
                                initial_type=source_type,
                                initial_url=source_url)
 
-    from .scheduler_jobs import check_monitored_sources_job
+    if not app.config.get('TESTING', False):
+        logger.info("Modalità NON TESTING: Configurazione e avvio APScheduler...")
+        job_id = 'check_monitored_sources_job'
+        if not scheduler.get_job(job_id):
+            from .scheduler_jobs import check_monitored_sources_job
+            schedule_unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
+            schedule_value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
+            trigger_args = {schedule_unit: schedule_value}
+            logger.debug(f"Configurazione job scheduler: trigger ogni {schedule_value} {schedule_unit}.")
+            scheduler.add_job(
+                func=check_monitored_sources_job,
+                trigger='interval',
+                **trigger_args,
+                id=job_id,
+                name='Controllo Periodico Sorgenti Monitorate',
+                replace_existing=True,
+                misfire_grace_time=300
+            )
+            logger.info(f"Job '{job_id}' aggiunto allo scheduler con intervallo: {schedule_value} {schedule_unit}.")
+        else:
+            logger.info(f"Job '{job_id}' già presente nello scheduler.")
 
-    job_id = 'check_monitored_sources_job'
-    if not scheduler.get_job(job_id):
-        # --- LETTURA VALORI DA CONFIG ---
-        # Ora leggiamo i valori validati dall'oggetto config dell'app
-        schedule_unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
-        schedule_value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
-        logger.info(f"Configurazione scheduler letta: trigger ogni {schedule_value} {schedule_unit}.")
-        # -------------------------------
-
-        # --- CREAZIONE DIZIONARIO PER IL TRIGGER ---
-        # Creiamo un dizionario con la chiave corretta ('days', 'hours', o 'minutes')
-        trigger_args = {schedule_unit: schedule_value}
-        logger.debug(f"Argomenti trigger per scheduler.add_job: {trigger_args}")
-        # -----------------------------------------
-
-        scheduler.add_job(
-            func=check_monitored_sources_job,
-            trigger='interval',
-            # --- USA IL DIZIONARIO trigger_args ---
-            # Sostituisce la riga 'days=1' o 'minutes=1', ecc.
-            **trigger_args,
-            # ------------------------------------
-            id=job_id,
-            name='Controllo Periodico Sorgenti Monitorate',
-            replace_existing=True,
-            misfire_grace_time=300
-        )
-        logger.info(f"Job '{job_id}' aggiunto allo scheduler con intervallo: {schedule_value} {schedule_unit}.") # Log aggiornato
+        if not scheduler.running:
+            try:
+                scheduler.start()
+                logger.info("APScheduler avviato.")
+                atexit.register(lambda: shutdown_scheduler(scheduler))
+            except Exception as e_sched_start_final:
+                logger.error(f"Impossibile avviare APScheduler: {e_sched_start_final}", exc_info=True)
+        else:
+            logger.info("APScheduler già in esecuzione.")
     else:
-        logger.info(f"Job '{job_id}' già presente.")
+        logger.info("Modalità TESTING: APScheduler NON avviato.")
+        if scheduler.running: # Aggiunto controllo e shutdown se per caso fosse partito
+            logger.warning("APScheduler era in esecuzione in modalità TESTING, tentativo di shutdown.")
+            try:
+                scheduler.shutdown(wait=False)
+                logger.info("APScheduler fermato esplicitamente per i test.")
+            except Exception as e_sched_stop_test:
+                logger.error(f"Errore fermando APScheduler in modalità test: {e_sched_stop_test}")
 
-
-    # Avvia lo scheduler e registra shutdown (come prima)
-    if not scheduler.running:
-        try:
-            scheduler.start()
-            logger.info("APScheduler avviato.")
-            atexit.register(lambda: shutdown_scheduler(scheduler))
-        except Exception as e_sched_start:
-             logger.error(f"Impossibile avviare APScheduler: {e_sched_start}", exc_info=True)
-    else:
-        logger.info("APScheduler già in esecuzione.")
-    # === FINE AGGIUNTA JOB E AVVIO ===
 
     return app
 
@@ -871,8 +882,9 @@ if __name__ == '__main__':
     app_instance = create_app(AppConfig)
 
     # Verifica che l'istanza sia valida prima di usarla
-    if app_instance: 
+    if app_instance:
         host = os.getenv('FLASK_RUN_HOST', '127.0.0.1')
+        print(f"DEBUG: Valore di 'host' letto da os.getenv: '{host}'")
         port = int(os.getenv('FLASK_RUN_PORT', 5000))
         use_debug = app_instance.config.get('DEBUG', False) # DEBUG viene da AppConfig
 
