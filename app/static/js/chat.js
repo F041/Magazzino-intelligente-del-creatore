@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let chatHistory = [];
     const MAX_HISTORY_MESSAGES_TO_SEND = 6;
+    const MAX_LOCAL_HISTORY_ITEMS = 50;
 
     const chatWindow = document.getElementById('chat-window');
     const userInput = document.getElementById('user-input');
@@ -19,6 +20,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!chatWindow || !userInput || !sendButton) {
         console.error("Errore critico: Elementi base della chat (finestra, input, bottone) non trovati nel DOM!");
         return;
+    }
+
+    function manageChatHistory(newEntry) {
+        chatHistory.push(newEntry);
+        if (chatHistory.length > MAX_LOCAL_HISTORY_ITEMS) { 
+            chatHistory = chatHistory.slice(-MAX_LOCAL_HISTORY_ITEMS); 
+            console.log(`Cronologia locale troncata a ${MAX_LOCAL_HISTORY_ITEMS} messaggi.`); 
+        }
     }
 
 
@@ -109,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         enableUI(false);
         let currentStatusMessageElement = addMessage("Elaborazione in corso...", 'bot', null, false, true);
 
-        chatHistory.push({ role: "user", content: query });
+        manageChatHistory({ role: "user", content: query });
 
         const payload = {
             query: query,
@@ -208,16 +217,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                         const reason = eventData.answer.split(":", 2)[1] || "Ragione sconosciuta";
                                         addMessage(`⚠️ Risposta bloccata (${reason}). Riprova.`, 'bot', null, true);
                                     } else {
-                                        // --- MODIFICA QUI PER MARKDOWN ---
+        
                                         // 1. Converti Markdown in HTML usando Marked.js
                                         const rawHtml = marked.parse(eventData.answer);
                                         // 2. Sanifica l'HTML usando DOMPurify
                                         const sanitizedHtml = DOMPurify.sanitize(rawHtml);
                                         // 3. Passa l'HTML sanificato ad addMessage
                                         addMessage(sanitizedHtml, 'bot', eventData.retrieved_results);
-                                        // --- FINE MODIFICA ---
-                                        chatHistory.push({ role: "assistant", content: eventData.answer }); // Salviamo il markdown originale nella history
-                                    }
+   
+                                        manageChatHistory({ role: "assistant", content: eventData.answer });                                    }
                                 } else {
                                     addMessage(eventData.message || `Errore: ${eventData.error_code || 'Sconosciuto'}`, 'bot', null, true);
                                 }

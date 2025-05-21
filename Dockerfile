@@ -25,8 +25,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copia il resto dell'applicazione
 COPY . .
 
-# (Resto del Dockerfile invariato)
-# ...
 ENV FLASK_RUN_PORT 5000
 ENV FLASK_RUN_HOST 0.0.0.0
 CMD ["gunicorn", "--workers", "2", "--bind", "0.0.0.0:5000", "app.main:create_app()"]

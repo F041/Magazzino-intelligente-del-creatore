@@ -321,6 +321,17 @@ Questo metodo è utile se vuoi eseguire una versione specifica o se hai difficol
 *   **Cambio `APP_MODE`:** Passare da `single` a `saas` o viceversa **richiede la re-indicizzazione** di tutti i contenuti per popolare le collezioni ChromaDB corrette per la nuova modalità. Usa i pulsanti "Riprocessa" o implementa uno script/bottone di re-indicizzazione di massa.
 *   **Sicurezza:** Non committare `.env`, `client_secrets.json`, `token.pickle`, `*.db`, `data/`. La `FLASK_SECRET_KEY` deve essere robusta. `OAUTHLIB_INSECURE_TRANSPORT=1` solo per sviluppo. Le API Key sono sensibili.
 
+## Deploy Rapido
+
+Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla tua piattaforma preferita:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/F041/Magazzino-intelligente-del-creatore)   [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/F041/Magazzino-intelligente-del-creatore)   [![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/F041/Magazzino-intelligente-del-creatore)   [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/from-repo?repo=F041/Magazzino-intelligente-del-creatore)
+
+**Note Importanti:**
+*   Dopo il deploy, dovrai configurare le variabili d'ambiente richieste (vedi `.env.example`).
+*   Per Heroku, la gestione dei dati persistenti (SQLite, file caricati) richiede una configurazione aggiuntiva di add-on (es. Postgres, S3).
+*   Per Render e DigitalOcean, consulta la loro documentazione per configurare dischi persistenti se necessario.
+
 ## TODO e Prossimi Passi
 
 **Funzionalità Completate Recentemente:**
@@ -363,8 +374,8 @@ Questo metodo è utile se vuoi eseguire una versione specifica o se hai difficol
 *   [ ] **Gestione Errori Indicizzazione:** Migliorare diagnostica/gestione errori estrazione testo e embedding.
 *   [ ] **Sviluppare Suite di Test:** (Iniziato)
     *   [x] Setup base Pytest e prima fixture app/client.
-    *   [ ] Test per autenticazione utente (registrazione, login, logout).
-    *   [ ] Test per API principali (es. search, gestione contenuti) con mocking.
+    *   [x] Test per autenticazione utente (registrazione, login, logout).
+    *   [x] Test per API principali (es. search, gestione contenuti) con mocking.
     *   [ ] Test unitari per logiche di business critiche.
 
 **Nuove Sorgenti Dati/Funzionalità:**

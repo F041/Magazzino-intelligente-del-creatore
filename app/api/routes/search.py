@@ -20,12 +20,12 @@ except ImportError:
 logger = logging.getLogger(__name__)
 search_bp = Blueprint('search', __name__)
 
-# Funzione Helper SSE (rimane invariata)
+# Funzione Helper SSE
 def format_sse_event(data_dict: dict, event_type: str = 'status') -> str:
     json_data = json.dumps(data_dict)
     return f"event: {event_type}\ndata: {json_data}\n\n"
 
-# Decoratore @require_api_key (rimane invariato)
+# Decoratore @require_api_key
 def require_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -115,8 +115,6 @@ Per formulare la tua risposta, considera attentamente:
 **Risposta:**"""
     return prompt
 
-
-# --- MODIFICA QUI: Rinominiamo la funzione e aggiungiamo la logica per il tipo di risposta ---
 @search_bp.route('/', methods=['POST'])
 @require_api_key
 def handle_search_request(*args, **kwargs): # Nome più generico
@@ -125,7 +123,7 @@ def handle_search_request(*args, **kwargs): # Nome più generico
     # Il bot Telegram (requests) di default imposta 'Accept: */*' o application/json se specifichiamo
     accept_header = request.headers.get('Accept', '')
 
-    # ---- NUOVA VARIABILE ----
+
     is_sse_request = 'text/event-stream' in accept_header.lower()
 
     logger.info(f"Richiesta di ricerca ricevuta. Accept Header: '{accept_header}', SSE Richiesto: {is_sse_request}")

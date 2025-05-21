@@ -1,0 +1,8 @@
+build:
+  docker:
+    web: Dockerfile
+# release: # Se hai comandi da eseguire dopo il build ma prima del deploy (es. migrazioni DB)
+  # image: web
+  # command:
+run:
+  web: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 0 app.main:create_app() # Comando per avviare la tua app

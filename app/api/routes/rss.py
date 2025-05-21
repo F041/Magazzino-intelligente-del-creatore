@@ -490,9 +490,16 @@ def process_rss_feed():
             return jsonify({'success': False, 'error_code': 'ALREADY_PROCESSING', 'message': 'Un processo RSS è già attivo.'}), 409
 
     # --- Valida Input ---
-    if not request.is_json: return jsonify(...), 400 # Errore content type
-    data = request.get_json(); initial_feed_url = data.get('rss_url')
-    if not initial_feed_url or not is_valid_url(initial_feed_url): return jsonify(...), 400 # Errore URL
+    if not request.is_json: 
+        return jsonify({'success': False, 'error_code': 'INVALID_CONTENT_TYPE', 'message': 'La richiesta deve essere JSON.'}), 400
+    data = request.get_json()
+    initial_feed_url = data.get('rss_url') # Prendi l'URL prima di validarlo
+    
+    if not initial_feed_url: # Controlla prima se manca
+        return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': 'Parametro "rss_url" mancante nel corpo JSON.'}), 400
+    
+    if not is_valid_url(initial_feed_url): # Poi controlla se è un URL valido
+        return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': f"L'URL fornito '{initial_feed_url}' non e un URL valido."}), 400
 
     # --- Avvia Thread ---
     try:

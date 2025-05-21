@@ -1,0 +1,324 @@
+/* ==========================================================================
+   Variabili CSS
+   ========================================================================== */
+
+:root {
+    /* Palette Colori */
+    --color-primary: #007bff;
+    --color-secondary: #6c757d;
+    --color-background-main: #f4f7f6;
+    --color-background-secondary: #ffffff;
+    --color-text-main: #333;
+    --color-text-secondary: #555; /* Usato anche per alcuni bordi/ombre */
+    --color-border: #dee2e6;
+    --color-border-light: #eee;
+    --color-success: #28a745;
+    --color-error: #dc3545;
+    --color-warning: #ffc107;
+    --color-info: #17a2b8;
+
+    /* Spaziatura (basata su multipli di 8px) */
+    --spacing-unit: 8px;
+    --spacing-xs: calc(0.5 * var(--spacing-unit)); /* 4px */
+    --spacing-sm: var(--spacing-unit); /* 8px */
+    --spacing-md: calc(1.5 * var(--spacing-unit)); /* 12px */
+    --spacing-lg: calc(2 * var(--spacing-unit)); /* 16px */
+    --spacing-xl: calc(3 * var(--spacing-unit)); /* 24px */
+    --spacing-xxl: calc(4 * var(--spacing-unit)); /* 32px */
+    --spacing-xxxl: calc(5 * var(--spacing-unit)); /* 40px */
+
+    /* Altro */
+    --border-radius-sm: 4px;
+    --border-radius-md: 8px;
+    --border-radius-lg: 12px;
+    --box-shadow-sm: 0 2px 5px rgba(0,0,0,0.1);
+    --box-shadow-md: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+
+/* ==========================================================================
+   Stili Base
+   ========================================================================== */
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif; /* Tipografia approvata */
+    display: flex;
+    min-height: 100vh;
+    background-color: var(--color-background-main);
+    color: var(--color-text-main); /* Colore testo base */
+}
+
+h1 {
+    color: var(--color-text-main);
+    margin-top: 0;
+    margin-bottom: var(--spacing-lg); /* Utilizzo variabile spaziatura */
+}
+
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+
+.sidebar {
+    width: 250px;
+    background: var(--color-background-secondary);
+    border-right: 1px solid var(--color-border);
+    padding: var(--spacing-lg) 0;
+    box-shadow: var(--box-shadow-sm);
+    flex-shrink: 0;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-menu li {
+    padding: var(--spacing-md) var(--spacing-lg);
+    cursor: pointer;
+    transition: background-color 0.2s, border-left-color 0.2s;
+    border-left: 4px solid transparent;
+}
+
+.sidebar-menu li:hover {
+    background-color: var(--color-background-main); /* Utilizzo variabile per hover */
+}
+
+.sidebar-menu li.active {
+    background-color: var(--color-background-main); /* Utilizzo variabile per active */
+    border-left: 4px solid var(--color-primary);
+}
+
+.sidebar-menu a {
+    text-decoration: none;
+    color: var(--color-text-main);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-weight: 500;
+}
+
+.main-content {
+    flex-grow: 1;
+    padding: var(--spacing-xxxl);
+    overflow-y: auto;
+}
+
+
+/* ==========================================================================
+   Componenti
+   ========================================================================== */
+
+/* Tabelle */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--spacing-lg);
+    background-color: var(--color-background-secondary);
+    box-shadow: var(--box-shadow-md);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+}
+
+.data-table th, .data-table td {
+    padding: var(--spacing-md) var(--spacing-lg);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.data-table th {
+    background-color: var(--color-background-main); /* Utilizzo variabile per sfondo header tabella */
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.data-table tr:last-child td {
+    border-bottom: none;
+}
+
+.data-table tr:hover {
+    background-color: #e9ecef; /* Utilizzo un grigio chiaro per hover tabella */
+}
+
+.data-table a {
+    color: var(--color-primary); /* Utilizzo variabile per link */
+    text-decoration: none;
+}
+
+.data-table a:hover {
+    text-decoration: underline;
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: var(--spacing-xs) var(--spacing-sm); /* Utilizzo variabile spaziatura */
+    border-radius: var(--border-radius-lg);
+    font-size: 11px; /* Considerare se standardizzare le dimensioni font */
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.status-completed {
+    background-color: #d4edda; /* Potrebbe essere sostituito con una variabile basata su --color-success */
+    color: #155724; /* Potrebbe essere sostituito con una variabile basata su --color-success */
+    border: 1px solid #c3e6cb; /* Potrebbe essere sostituito con una variabile basata su --color-success */
+}
+
+.status-failed {
+    background-color: var(--color-error);
+    color: #721c24; /* Potrebbe essere sostituito con una variabile basata su --color-error */
+    border: 1px solid #f5c6cb; /* Potrebbe essere sostituito con una variabile basata su --color-error */
+}
+
+.status-pending, .status-converted-and-pending, .status-saved-and-pending {
+    background-color: #fff3cd; /* Potrebbe essere sostituito con una variabile basata su --color-warning */
+    color: #856404; /* Potrebbe essere sostituito con una variabile basata su --color-warning */
+    border: 1px solid #ffeeba; /* Potrebbe essere sostituito con una variabile basata su --color-warning */
+}
+
+.status-processing {
+    background-color: #d1ecf1; /* Potrebbe essere sostituito con una variabile basata su --color-info */
+    color: #0c5460; /* Potrebbe essere sostituito con una variabile basata su --color-info */
+    border-color: #bee5eb; /* Potrebbe essere sostituito con una variabile basata su --color-info */
+}
+
+.status-badge[class*="status-failed"] {
+     /* Già coperto da .status-failed sopra, ma mantenuto per sicurezza se ci fossero altre classi */
+    background-color: var(--color-error);
+    color: #721c24;
+    border-color: #f5c6cb;
+}
+
+.status-unknown {
+    background-color: #e2e3e5; /* Potrebbe essere sostituito con una variabile basata su un grigio neutro */
+    color: #383d41; /* Potrebbe essere sostituito con una variabile basata su un grigio neutro */
+    border-color: #d6d8db; /* Potrebbe essere sostituito con una variabile basata su un grigio neutro */
+}
+
+/* Messaggi Feedback */
+.success-message {
+    padding: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    display: block;
+    background-color: color-mix(in srgb, var(--color-success) 20%, transparent); /* Sfondo leggero basato sul colore successo */
+    color: color-mix(in srgb, var(--color-success) 80%, black); /* Testo più scuro basato sul colore successo */
+    border: 1px solid color-mix(in srgb, var(--color-success) 40%, transparent); /* Bordo basato sul colore successo */
+}
+
+.error-message {
+    padding: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    border-radius: var(--border-radius-sm);
+    display: block;
+    background-color: color-mix(in srgb, var(--color-error) 20%, transparent); /* Sfondo leggero basato sul colore errore */
+    color: color-mix(in srgb, var(--color-error) 80%, black); /* Testo più scuro basato sul colore errore */
+    border: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent); /* Bordo basato sul colore errore */
+}
+
+/* Bottoni Azioni */
+.action-btn { /* Classe generica per bottoni azione */
+    padding: var(--spacing-xs) var(--spacing-sm); /* Utilizzo variabile spaziatura */
+    font-size: 12px; /* Considerare se standardizzare le dimensioni font */
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: white;
+    background-color: var(--color-primary);
+}
+
+.action-btn:disabled {
+    background-color: var(--color-secondary);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* Stili specifici per tipo bottone (possono sovrascrivere il default) */
+.delete-btn {
+    background-color: var(--color-error);
+}
+
+.delete-btn:hover {
+    background-color: #c82333; /* Potrebbe essere sostituito con una variabile per hover errore */
+}
+
+/* Hover generico per .action-btn (se non è delete) */
+.action-btn:not(.delete-btn):hover {
+    background-color: #0056b3; /* Potrebbe essere sostituito con una variabile per hover primario */
+}
+
+.action-loader {
+    display: none;
+    margin-left: var(--spacing-xs); /* Utilizzo variabile spaziatura */
+    font-style: italic;
+    color: var(--color-text-secondary);
+    font-size: 11px; /* Considerare se standardizzare le dimensioni font */
+}
+
+/* Elementi non trovati */
+.no-items-message {
+    text-align: center;
+    padding: var(--spacing-xxxl); /* Utilizzo variabile spaziatura */
+    color: #777; /* Potrebbe essere sostituito con una variabile per testo terziario */
+}
+
+/* Stili comuni per Form e Input */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+    display: block; /* Rende gli input block per un layout più prevedibile */
+    width: 100%;
+    padding: var(--spacing-sm); /* Utilizzo variabile spaziatura */
+    margin-bottom: var(--spacing-md); /* Spazio sotto l'input */
+    font-size: 1em;
+    font-family: inherit; /* Eredita il font base */
+    color: var(--color-text-main);
+    background-color: var(--color-background-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    box-sizing: border-box; /* Include padding e border nel width */
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--color-primary);
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Ombra leggera al focus */
+}
+
+label {
+    display: block; /* Rende le label block per posizionarle sopra l'input */
+    margin-bottom: var(--spacing-xs); /* Spazio sotto la label */
+    font-weight: 500;
+    color: var(--color-text-main);
+}
+
+/* Stili per placeholder */
+input::placeholder,
+textarea::placeholder {
+    color: var(--color-text-secondary);
+    opacity: 1; /* Assicura che il colore sia visibile */
+}
+
+/* Stili per stati di validazione (opzionale, da implementare dove necessario) */
+/*
+.is-valid { border-color: var(--color-success); }
+.is-valid:focus { border-color: var(--color-success); box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25); }
+.is-invalid { border-color: var(--color-error); }
+.is-invalid:focus { border-color: var(--color-error); box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25); }
+*/
+
+/* (Il blocco Jinja non è più qui dentro - rimosso in un passaggio precedente) */

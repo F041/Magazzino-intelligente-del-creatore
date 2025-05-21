@@ -6,12 +6,12 @@ from werkzeug.utils import secure_filename
 from flask_login import login_required, current_user
 import os
 import uuid
-import threading 
+import threading
 import sqlite3
-import docx 
+import docx
 from typing import Optional
-from pypdf import PdfReader 
-# from markdownify import markdownify as md 
+from pypdf import PdfReader
+# from markdownify import markdownify as md
 # Opzionale, se estraiamo HTML e vogliamo MD
 from google.api_core import exceptions as google_exceptions
 
@@ -189,7 +189,7 @@ def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str
     return final_status
 
 
-# --- Endpoint Upload 
+# --- Endpoint Upload
 @documents_bp.route('/upload', methods=['POST'])
 @login_required
 def upload_documents():
@@ -258,9 +258,27 @@ def upload_documents():
                         logger.info(f"File '{original_filename}' salvato come MD: {stored_md_filename}")
 
                         # INSERT SQLite (con user_id)
-                        cursor.execute("""
-                        INSERT INTO documents (..., user_id, processing_status) VALUES (?, ..., ?, ?)
-                        """, (..., current_user_id, 'pending')) # Passa l'ID reale
+                        # Assicurati che l'ordine delle colonne qui corrisponda all'ordine dei '?'
+                        # e che l'ordine dei valori nella tupla corrisponda ai '?'.
+                        sql_insert_doc = """
+                            INSERT INTO documents (
+                                doc_id, original_filename, stored_filename, filepath,
+                                filesize, mimetype, user_id, processing_status
+                                -- uploaded_at ha un default CURRENT_TIMESTAMP
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """
+                        values_to_insert = (
+                            doc_id,
+                            original_filename,
+                            stored_md_filename,
+                            md_filepath,
+                            md_filesize,
+                            original_mimetype, # Avevi file.mimetype, assicurati che original_mimetype sia definito
+                            current_user_id,   # Può essere None se APP_MODE è 'single'
+                            'pending'          # Stato iniziale prima dell'indicizzazione
+                        )
+
+                        cursor.execute(sql_insert_doc, values_to_insert)
                         logger.info(f"Record DB inserito per doc_id: {doc_id} (UserID: {current_user_id if current_user_id else 'None'}, stato pending)")
 
                         # AVVIA INDICIZZAZIONE (con user_id)

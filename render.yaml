@@ -1,0 +1,39 @@
+services:
+  - type: web # Tipo di servizio web
+    name: magazzino-creatore # Nome del servizio su Render
+    env: docker # Specifica che usi Docker
+    dockerfilePath: ./Dockerfile # Path al tuo Dockerfile
+    # dockerCommand: "" # Opzionale: se il CMD nel Dockerfile non è sufficiente
+    healthCheckPath: / # Un endpoint base per l'health check
+    envVars: # Incoraggia l'utente a impostare queste variabili nella dashboard di Render
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_APP
+        value: app.main:create_app() # O come avvii la tua app
+      - key: FLASK_SECRET_KEY
+        generateValue: true # Render può generare una chiave segreta
+      - key: GOOGLE_API_KEY
+        value: "" # Utente deve inserire
+      - key: GOOGLE_CLIENT_SECRETS_FILE # Potrebbe essere gestito come var env multiline
+        value: data/client_secrets.json # Indica dove l'app lo cerca
+      - key: DATABASE_FILE
+        value: data/creator_warehouse.db # Path relativo al disco persistente
+      - key: CHROMA_DB_PATH
+        value: data/chroma_db
+      - key: UPLOAD_FOLDER
+        value: data/uploaded_docs
+      - key: ARTICLES_FOLDER
+        value: data/article_content
+      - key: GOOGLE_TOKEN_FILE
+        value: data/token.pickle # O token.json
+      - key: APP_MODE
+        value: single # O 'saas', l'utente può scegliere
+      - key: PORT # Render imposta questa automaticamente, ma assicurati che la tua app la usi
+        value: "5000" # La tua app ascolta sulla porta 5000
+    disk: # Configurazione per un disco persistente
+      name: magazzino-data
+      mountPath: /app/data # Monta il disco in /app/data (assumendo WORKDIR /app nel Dockerfile)
+      sizeGB: 1 # Inizia con 1 GB, l'utente può aumentarlo
+    # autoDeploy: false # Imposta a true se vuoi auto-deploy da commit su main/master
+    # region: frankfurt # Opzionale: specifica una regione
+```    **Nota sul `mountPath` e `WORKDIR`:** Se il tuo `WORKDIR` nel Dockerfile è `/app` (comune), allora i path nel `.env` come `data/nomefile.db` diventeranno `/app/data/nomefile.db`. Il `mountPath` del disco persistente di Render deve corrispondere a questa directory `/app/data`.

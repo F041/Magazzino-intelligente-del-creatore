@@ -1,0 +1,48 @@
+{
+  "name": "Magazzino del Creatore",
+  "description": "Applicazione per creare una base di conoscenza interrogabile.",
+  "repository": "https://github.com/F041/Magazzino-intelligente-del-creatore",
+  "logo": "",
+  "keywords": ["python", "flask", "docker", "rag", "gemini"],
+  "env": {
+    "FLASK_APP": {
+      "description": "Entry point dell'applicazione Flask.",
+      "value": "app.main:create_app()"
+    },
+    "FLASK_ENV": {
+      "description": "Ambiente Flask (development o production).",
+      "value": "production"
+    },
+    "FLASK_SECRET_KEY": {
+      "description": "Chiave segreta per Flask. Generane una casuale.",
+      "generator": "secret"
+    },
+    "GOOGLE_API_KEY": {
+      "description": "La tua API Key di Google AI (Gemini).",
+      "value": ""
+    },
+    "APP_MODE": {
+      "description": "Modalità operativa ('single' o 'saas').",
+      "value": "single"
+    },
+    "PORT": {
+        "description": "Porta su cui l'app ascolterà (impostata da Heroku).",
+        "required": true
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-1x"
+    }
+  },
+  "addons": [
+
+  ],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "stack": "container"
+}
