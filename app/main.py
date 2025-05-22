@@ -329,6 +329,26 @@ def create_app(config_object=AppConfig):
     app = Flask(__name__)
     app.config.from_object(config_object) # Carica config Flask prima
 
+    # --- Setup Directory Dati Aggiuntive ---
+    try:
+        upload_dir = app.config.get('UPLOAD_FOLDER_PATH')
+        articles_dir = app.config.get('ARTICLES_FOLDER_PATH')
+
+        if upload_dir:
+            os.makedirs(upload_dir, exist_ok=True)
+            logger.info(f"Directory Upload '{upload_dir}' verificata/creata.")
+        else:
+            logger.warning("Percorso UPLOAD_FOLDER_PATH non configurato.")
+
+        if articles_dir:
+            os.makedirs(articles_dir, exist_ok=True)
+            logger.info(f"Directory Articoli '{articles_dir}' verificata/creata.")
+        else:
+            logger.warning("Percorso ARTICLES_FOLDER_PATH non configurato.")
+    except OSError as e_mkdir:
+        logger.error(f"Errore creando directory upload/articoli: {e_mkdir}")
+        # Potrebbe essere un errore fatale a seconda di quanto sono critiche queste dir all'avvio
+
     CORS(app, resources={
     r"/api/*": {"origins": "*"}, # API esistenti
     r"/widget": {"origins": "*"}, # Contenuto Iframe

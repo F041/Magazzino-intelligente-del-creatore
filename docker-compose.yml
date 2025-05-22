@@ -6,10 +6,10 @@ services:
       - "5001:5000"
     volumes:
       # Mappa la tua directory 'data' specifica
-      - /home/ubuntu/magazzino-creatore/Magazzino-intelligente-del-creatore/data:/app/data 
+      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/data:/app/data 
     env_file:
       # Specifica il percorso del tuo file .env
-      - /home/ubuntu/magazzino-creatore/Magazzino-intelligente-del-creatore/.env
+      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/.env
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
