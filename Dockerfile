@@ -17,9 +17,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     echo "Tentativo rimozione dipendenze pesanti post-installazione (versione 2)..." && \
-    # Rimuoviamo onnxruntime, sympy, tokenizers, huggingface, hf-xet, kubernetes, fastapi, uvicorn, posthog, typer, rich
+    # Rimuoviamo onnxruntime, sympy, tokenizers, huggingface, hf-xet, kubernetes, fastapi, uvicorn, typer, rich
     # MA LASCIAMO opentelemetry e le sue sotto-dipendenze perché sembrano necessarie per l'import di chromadb
-    pip uninstall -y onnxruntime sympy tokenizers huggingface-hub hf-xet kubernetes fastapi uvicorn posthog typer rich && \
+    pip uninstall -y onnxruntime sympy tokenizers huggingface-hub hf-xet kubernetes fastapi uvicorn typer rich && \
     rm -rf /root/.cache/pip
 
 # Copia il resto dell'applicazione

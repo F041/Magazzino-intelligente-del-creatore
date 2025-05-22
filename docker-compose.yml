@@ -1,18 +1,15 @@
-version: '3.8'
 services:
   app:
-    build: .
-    image: magazzino-creatore:latest
-    container_name: magazzino_creatore_app_selfhosted # Nome più specifico
+    image: ghcr.io/f041/magazzino-creatore-selfhosted:latest
+    container_name: magazzino_creatore_app
     ports:
-      - "5000:5000" # L'Host User può cambiare la porta host se necessario
+      - "5001:5000"
     volumes:
-      - ./:/app # Per codice e live reload (opzionale per produzione "pura")
-      - ./data:/app/data # Volume principale per tutti i dati persistenti
-      # Rimosso: - ./client_secrets.json:/app/client_secrets.json:ro
-      # Rimosso (se esisteva): - ./token.pickle:/app/token.pickle
+      # Mappa la tua directory 'data' specifica
+      - /home/ubuntu/magazzino-creatore/Magazzino-intelligente-del-creatore/data:/app/data 
     env_file:
-      - .env
-    environment:
-      - FLASK_ENV=${FLASK_ENV:-development}
+      # Specifica il percorso del tuo file .env
+      - /home/ubuntu/magazzino-creatore/Magazzino-intelligente-del-creatore/.env
     restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
