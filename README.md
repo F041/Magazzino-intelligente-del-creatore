@@ -131,9 +131,10 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
         *   Seleziona **"Applicazione web"** come tipo di applicazione.
         *   Dai un nome (es. "Magazzino Creatore SelfHosted").
         *   **URI di reindirizzamento autorizzati:** Questo è un passaggio cruciale. Devi aggiungere l'URL dove la tua istanza di Magazzino del Creatore sarà accessibile, seguito da `/oauth2callback`.
-            *   Se esegui Docker localmente per test: `http://localhost:5000/oauth2callback`
-            *   Se deployi su un server con un IP o dominio: `http://TUO_IP_O_DOMINIO:5000/oauth2callback` (sostituisci `TUO_IP_O_DOMINIO` e la porta `5000` se la cambi nel `docker-compose.yml`).
-            *   È buona norma aggiungere anche `http://127.0.0.1:5000/oauth2callback`.
+                    *   Se esegui Docker localmente per test: `http://localhost:5000/oauth2callback`
+                    *   **Se deployi su un server con un dominio (es. tramite Cloudflare Tunnel) e l'applicazione è esposta su HTTPS:** `https://TUO_DOMINIO_ESTERNO/oauth2callback` (sostituisci `TUO_DOMINIO_ESTERNO` con il dominio pubblico).
+                    *   Se esponi direttamente su un IP e una porta specifica (es. `5001` sull'host che mappa alla `5000` del container): `http://TUO_IP_O_DOMINIO_VPS:PORTA_HOST/oauth2callback` (es. `http://xxx.xxx.xxx.xxx:5001/oauth2callback`).
+                    *   È buona norma aggiungere anche `http://127.0.0.1:PORTA_HOST/oauth2callback` per test diretti sull'host.
         *   Clicca su "Crea".
     *   **Scarica il File JSON delle Credenziali:** Dopo la creazione, Google ti mostrerà il tuo ID client e client secret. Clicca sul pulsante di download (icona a forma di freccia verso il basso) per scaricare il file JSON delle credenziali.
     *   **Posiziona e Rinomina il File:**
@@ -148,11 +149,12 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Apri il file `.env` con un editor di testo e **modifica almeno le seguenti variabili OBBLIGATORIE**:
         *   `FLASK_SECRET_KEY`: Genera una chiave segreta forte e casuale. Puoi usare il comando `python -c 'import secrets; print(secrets.token_hex(32))'` in un terminale Python e copiare l'output.
         *   `GOOGLE_API_KEY`: Inserisci la tua chiave API per Google AI (Gemini).
-    *   **Verifica le altre variabili nel `.env`:**
+    *   **Verifica e configura attentamente le altre variabili nel `.env`:**
         *   `GOOGLE_CLIENT_SECRETS_FILE` dovrebbe già essere `data/client_secrets.json`.
         *   `APP_MODE`: Imposta a `single` per un uso personale self-hosted (raccomandato), o a `saas` se intendi gestire più account all'interno della tua istanza.
         *   `FLASK_ENV` e `FLASK_DEBUG`: Per produzione, imposta `FLASK_ENV=production` e `FLASK_DEBUG=0`. Per sviluppo/test, puoi usare `development` e `1`.
-        *   `OAUTHLIB_INSECURE_TRANSPORT=1`: Lascia `1` se accedi all'app tramite `http://localhost` o un IP senza HTTPS. Se configuri HTTPS, impostalo a `0`.
+        *   `OAUTHLIB_INSECURE_TRANSPORT=1`: **IMPORTANTE:** Lascia `1` SOLO se accedi all'app tramite `http://localhost` o un IP senza HTTPS durante lo sviluppo. **Se deployi in produzione con HTTPS (es. tramite Cloudflare Tunnel o un reverse proxy come Nginx), DEVI impostarlo a `0`**, altrimenti il flusso OAuth potrebbe fallire o essere insicuro.
+        *   **`ANONYMIZED_TELEMETRY=False`**: Aggiungi questa riga al tuo file `.env`. Disabilita l'invio di dati di telemetria da parte di ChromaDB, il che può prevenire errori di inizializzazione se il container ha problemi a contattare i server di telemetria o se mancano dipendenze specifiche per la telemetria nell'immagine Docker.
         *   Gli altri percorsi (`DATABASE_FILE`, `CHROMA_DB_PATH`, ecc.) sono già configurati per funzionare con la directory `data` e Docker.
 
 5.  **(Opzionale - Solo Windows con Docker Desktop) Configura Limiti Risorse WSL 2:**
@@ -272,28 +274,39 @@ Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le imm
 3.  Crea la sottodirectory `data`.
 4.  Prepara il tuo file `client_secrets.json` e mettilo in `data/client_secrets.json`.
 5.  Crea un file `.env` con le tue configurazioni (vedi sezione "Configura il File d'Ambiente (`.env`)" sopra).
-6.  Crea un file `docker-compose.ghcr.yml` (o un nome simile) con il seguente contenuto:
+6.  Crea un file `docker-compose.yml` (o `docker-compose.portainer.yml`) con il seguente contenuto, **adattando i percorsi assoluti** alla tua configurazione sul VPS (es. `/srv/magazzino-creatore/` o `/home/tuoutente/progetti/magazzino-creatore/`):
 
     ```yaml
-    version: '3.8'
     services:
       app:
-        image: ghcr.io/f041/magazzino-creatore-selfhosted:latest # Usa l'immagine da GHCR
-        container_name: magazzino_creatore_app_selfhosted
+        image: ghcr.io/f041/magazzino-creatore-selfhosted:latest # Usa l'immagine da GHCR e il tag :latest per Watchtower
+        container_name: magazzino_creatore_app # Nome container suggerito
         ports:
-          - "5000:5000" # Modifica la porta host (la prima '5000') se necessario
+          - "5001:5000" # Modifica la porta host (la prima '5001') se il tuo setup (es. Cloudflare Tunnel) punta a una porta diversa
         volumes:
-          - ./data:/app/data # Per i tuoi dati persistenti
+          # Percorso assoluto alla tua directory 'data' sull'host del VPS
+          - /percorso/assoluto/alla/tua/cartella_progetto/data:/app/data 
         env_file:
-          - .env
+          # Percorso assoluto al tuo file '.env' sull'host del VPS
+          - /percorso/assoluto/alla/tua/cartella_progetto/.env
         restart: unless-stopped
+        labels:
+          - "com.centurylinklabs.watchtower.enable=true" # Per abilitare gli aggiornamenti automatici con Watchtower
     ```
-7.  Avvia l'applicazione:
-    ```bash
-    docker-compose -f docker-compose.ghcr.yml pull # Scarica l'ultima immagine
-    docker-compose -f docker-compose.ghcr.yml up -d
-    ```
-Questo metodo è utile se vuoi eseguire una versione specifica o se hai difficoltà a buildare l'immagine localmente.
+    **Nota Importante sui Volumi:** Per un setup di produzione che si affida all'immagine pre-compilata e a Watchtower per gli aggiornamenti, **NON mappare il codice sorgente locale nel container** (es. NON usare un volume come `- ./app:/app` o `- ./:/app`). Il codice deve provenire dall'immagine Docker stessa per garantire che gli aggiornamenti dell'immagine vengano applicati.
+
+7.  **Avvia l'applicazione (tramite Portainer o CLI):**
+    *   **Con Portainer (Consigliato):**
+        1.  Vai su "Stacks" > "+ Add stack".
+        2.  Dai un nome allo stack.
+        3.  Scegli "Web editor" e incolla il contenuto YAML qui sopra dopo aver cambiato i percorsi.
+        4.  **Non usare l'opzione `env_file` nel YAML se Portainer ha problemi ad accedervi.** Invece, rimuovi la sezione `env_file` dal YAML e inserisci tutte le variabili d'ambiente (dal tuo file `.env` host) manualmente nella sezione "Environment variables" dell'interfaccia di Portainer per lo stack.
+        5.  Clicca "Deploy the stack".
+    *   **Con Docker Compose CLI (dalla directory del progetto sull'host dove hai il `docker-compose.yml` e il `.env`):**
+        ```bash
+        docker compose pull app  # Scarica l'ultima immagine specificata nel compose
+        docker compose up -d     # Avvia in background
+        ```
 
 ## Utilizzo (Modalità `saas`)
 
@@ -332,6 +345,30 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   Per Heroku, la gestione dei dati persistenti (SQLite, file caricati) richiede una configurazione aggiuntiva di add-on (es. Postgres, S3).
 *   Per Render e DigitalOcean, consulta la loro documentazione per configurare dischi persistenti se necessario.
 
+## Problemi Noti
+*   **Errore `ModuleNotFoundError: No module named 'posthog'` o altri errori di dipendenze ChromaDB:**
+    *   L'immagine Docker ufficiale (`ghcr.io/f041/magazzino-creatore-selfhosted:latest`) potrebbe, in alcune versioni, mancare di dipendenze opzionali o secondarie richieste da ChromaDB (es. `posthog`, `fastapi`, `onnxruntime`).
+    *   **Soluzione Consigliata:** Segnalare il problema aprendo una "Issue" sul repository GitHub del progetto, fornendo i log dell'errore.
+    *   **Workaround Temporaneo (se si builda localmente):** Se si sceglie di buildare l'immagine Docker localmente (usando `build: .` nel `docker-compose.yml`), potrebbe essere necessario aggiungere le dipendenze mancanti al file `requirements.txt` del progetto prima della build. Ad esempio, aggiungere `posthog`, `fastapi==0.115.9`, `onnxruntime>=1.14.1`, ecc. (verificare le versioni richieste dai log di `pip`).
+
+*   **Errore Inizializzazione ChromaDB: `table collections already exists`:**
+    *   Questo errore indica che un tentativo precedente di avvio ha creato parzialmente il database di ChromaDB, che ora è in uno stato inconsistente.
+    *   **Soluzione:** Ferma il container dell'applicazione. Sul server host, naviga nella tua directory dei dati persistenti (es. `./data/` o `/percorso/assoluto/alla/tua/data/`) e rimuovi la sottodirectory `chroma_db` (es. `sudo rm -rf chroma_db`). Riavvia il container; ChromaDB dovrebbe ricreare la sua struttura da zero. **Attenzione:** questa operazione cancella tutti i dati vettoriali precedentemente indicizzati.
+
+*   **Errore Recupero Trascrizioni YouTube: `youtube_transcript_api._errors.RequestBlocked`:**
+    *   YouTube spesso blocca le richieste di trascrizioni provenienti da indirizzi IP associati a provider cloud (come quelli dei VPS).
+    *   **Causa:** Politica di YouTube per prevenire abusi.
+    *   **Soluzioni Possibili (Complesse/Richiedono Modifiche o Costi):**
+        1.  **Utilizzare un servizio di proxy residenziali:** Richiede un abbonamento a un servizio proxy e modifiche al codice sorgente per instradare le richieste di `youtube-transcript-api` attraverso il proxy.
+        2.  **Architettura Ibrida:** Eseguire la logica di recupero trascrizioni su una macchina con IP residenziale e inviare i dati al server VPS.
+    *   **Impatto:** Senza una soluzione proxy, la funzionalità di recupero automatico delle trascrizioni YouTube potrebbe non funzionare sul VPS. L'applicazione rimarrà operativa per altre sorgenti dati (documenti, RSS).
+
+*   **Flusso OAuth Google (Autenticazione API YouTube):**
+    *   Assicurati che la variabile d'ambiente `OAUTHLIB_INSECURE_TRANSPORT` sia impostata a `0` nel tuo file `.env` se stai usando HTTPS (es. con Cloudflare Tunnel).
+    *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
+    *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
+
+
 ## TODO e Prossimi Passi
 
 **Funzionalità Completate Recentemente:**
@@ -356,6 +393,10 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Valutare uso libreria JS (Marked.js + DOMPurify) per mostrare formattazione LLM (elenchi, grassetto).
 *   [x] Rendere più fluida l'esperienza di ottenimento e inserimento della chiave per l'embed. ATTENZIONE: problema di sicurezza
 *   [X] Creare script bot separato che usi una chiave API del creator per permettere alla sua community di interrogare i suoi contenuti via Telegram.
+*   [x] Setup base Pytest e prima fixture app/client.
+*   [x] Test per autenticazione utente (registrazione, login, logout).
+*   [x] Test per API principali (es. search, gestione contenuti) con mocking.
+*   [x] Test unitari per logiche di business critiche.
 
 **Prossimi Passi Possibili:**
 
@@ -373,10 +414,7 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [ ] **Gestione Errori API:** Standardizzare formati JSON risposte errore.
 *   [ ] **Gestione Errori Indicizzazione:** Migliorare diagnostica/gestione errori estrazione testo e embedding.
 *   [ ] **Sviluppare Suite di Test:** (Iniziato)
-    *   [x] Setup base Pytest e prima fixture app/client.
-    *   [x] Test per autenticazione utente (registrazione, login, logout).
-    *   [x] Test per API principali (es. search, gestione contenuti) con mocking.
-    *   [ ] Test unitari per logiche di business critiche.
+
 
 **Nuove Sorgenti Dati/Funzionalità:**
 *   [ ] **Podcast:** Implementare gestione feed/audio/trascrizione.
@@ -394,3 +432,5 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   ~~Interfaccia Chat Streamlit~~ (Integrata in Flask)
 *   ~~Streaming Risposte LLM~~
 *   ~~Utilizzo Whisper/ASR Esterno~~ (Integrato con gestione documenti)
+
+
