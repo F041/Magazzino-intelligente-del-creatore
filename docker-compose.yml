@@ -6,10 +6,22 @@ services:
       - "5001:5000"
     volumes:
       # Mappa la tua directory 'data' specifica
-      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/data:/app/data 
+      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/data:/app/data # MODIFICA!
     env_file:
       # Specifica il percorso del tuo file .env
-      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/.env
+      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/.env # MODIFICA!
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    
+  
+  telegram_bot:
+    build: .  
+    container_name: magazzino_telegram_bot
+    command: python telegram_bot_magazzino/bot.py 
+    env_file:
+      - .env 
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
