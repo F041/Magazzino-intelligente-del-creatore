@@ -1,31 +1,830 @@
-<!-- FILE: templates/index.html -->
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
-    <title>YouTube Service - Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magazzino Intelligente del Creatore | Contenuti al Lavoro, Finalmente!</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+
     <style>
-        body { font-family: Arial, sans-serif; padding: 40px; text-align: center; background-color: #f4f7f6; }
-        h1 { color: #333; }
-        p { color: #555; margin-bottom: 30px; }
-        a.login-button {
-            display: inline-block; /* Per applicare padding e stile */
-            padding: 12px 25px;
-            background-color: #4285F4;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            font-size: 16px;
-            transition: background-color 0.3s;
+        :root {
+            --text-primary: #1d1d1f;
+            --text-secondary: #495057; /* Leggermente scurito per più contrasto */
+            --background: #f8f9fa; /* Un filino più scuro di f5f5f7, più standard */
+            --surface: #ffffff;
+            --primary: #0071e3;
+            --primary-hover: #005bb5; /* Hover più scuro */
+            --accent: #bf4800;
+            --success: #28a745; /* Verde più standard */
+            --border: #d2d2d7;
+            --shadow: 0 6px 24px rgba(0, 0, 0, 0.07); /* Ombra un po' più definita */
+            --radius: 12px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); /* Transizione più reattiva */
         }
-        a.login-button:hover {
-            background-color: #357ae8;
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth; /* Abilita smooth scroll globale */
+        }
+
+        body {
+            font-family: 'Merriweather', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+            line-height: 1.65; /* Aumentato per leggibilità */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            padding: 0;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1140px; /* Standard bootstrap-like */
+            width: 100%;
+            margin: 0 auto;
+            padding: 0 20px; /* Padding laterale ridotto */
+        }
+
+        section {
+            padding: 80px 0; /* Padding sezione leggermente ridotto */
+            border-bottom: 1px solid var(--border);
+        }
+        section:last-of-type {
+            border-bottom: none; /* Nessun bordo per l'ultima sezione */
+        }
+
+
+        .section-header {
+            text-align: center;
+            max-width: 750px; /* Leggermente aumentato */
+            margin: 0 auto 60px; /* Margine inferiore ridotto */
+        }
+
+        .section-title {
+            font-size: 2.6rem; /* Leggermente aggiustato */
+            font-weight: 700;
+            margin-bottom: 16px; /* Ridotto */
+            line-height: 1.2;
+            letter-spacing: -0.025em; /* Leggermente aggiustato */
+        }
+
+        .section-subtitle {
+            font-size: 1.3rem; /* Leggermente ridotto */
+            font-weight: 400;
+            color: var(--text-secondary);
+            margin-bottom: 0; /* Rimosso, lo spazio lo dà il section-header */
+            line-height: 1.55;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0; /* Padding header ridotto */
+            background-color: rgba(255, 255, 255, 0.85); /* Opacità leggermente aumentata */
+            backdrop-filter: blur(12px); /* Blur aumentato */
+            position: sticky;
+            top: 0;
+            z-index: 1000; /* z-index più alto */
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1140px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Ridotto */
+            font-size: 1.4rem; /* Ridotto */
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 32px; /* Ridotto */
+            height: 32px; /* Ridotto */
+            border-radius: 7px; /* Ridotto */
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.1rem; /* Dimensione icona nel box */
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 12px; /* Ridotto */
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 24px; /* Padding aggiustato */
+            border-radius: 8px; /* Ridotto */
+            font-size: 0.95rem; /* Leggermente ridotto */
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: var(--transition);
+            gap: 8px;
+            border: 1px solid transparent; /* Aggiunto per coerenza */
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary); /* Coerenza */
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover); /* Coerenza */
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--primary);
+            border-color: var(--border); /* Usiamo var(--border) */
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(0, 113, 227, 0.08); /* Più scuro */
+            border-color: rgba(0, 113, 227, 0.3); /* Bordo leggermente colorato */
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 100px 0 80px; /* Padding aggiustato */
+            text-align: center;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.85) 0%, var(--background) 100%);
+            border-bottom: none;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero-title {
+            font-size: 3rem; /* Leggermente ridotto */
+            font-weight: 700;
+            margin-bottom: 20px; /* Ridotto */
+            line-height: 1.2;
+            letter-spacing: -0.03em;
+        }
+
+        .hero-subtitle {
+            font-size: 1.35rem; /* Leggermente ridotto */
+            font-weight: 400;
+            color: var(--text-secondary);
+            margin-bottom: 35px; /* Ridotto */
+            line-height: 1.6;
+        }
+
+        .hero-cta {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 35px; /* Ridotto */
+            flex-wrap: wrap;
+        }
+
+        /* Features */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* minmax ridotto per adattarsi meglio */
+            gap: 25px; /* Ridotto */
+            margin-top: 0; /* Rimosso, lo spazio è nel section-header */
+        }
+
+        .feature-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 30px 28px; /* Padding aggiustato */
+            text-align: center;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-6px); /* Ridotto hover effect */
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.07); /* Ombra hover leggermente diversa */
+        }
+
+        .feature-icon {
+            width: 60px; /* Ridotto */
+            height: 60px; /* Ridotto */
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%); /* Icona con gradiente primario */
+            border-radius: 16px; /* Aggiustato */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px; /* Ridotto */
+            color: white; /* Icona bianca */
+            font-size: 1.6rem; /* Ridotto */
+        }
+
+        .feature-title {
+            font-size: 1.3rem; /* Leggermente ridotto */
+            font-weight: 600;
+            margin-bottom: 12px; /* Ridotto */
+            color: var(--text-primary);
+        }
+
+        .feature-description {
+            color: var(--text-secondary);
+            font-size: 1rem; /* Ridotto */
+            line-height: 1.65;
+        }
+
+        /* Use Cases */
+        .use-cases {
+            background-color: var(--surface);
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 40px; /* Ridotto */
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 26px; /* Aggiustato */
+            border-radius: 8px; /* Ridotto */
+            background-color: transparent;
+            border: 1px solid var(--border);
+            font-size: 0.95rem; /* Ridotto */
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .tab.active, .tab:hover {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .use-case-content {
+            display: flex; /* Sarà sovrascritto da JS per nascondere/mostrare, ma base è flex */
+            align-items: center;
+            gap: 50px; /* Ridotto */
+            max-width: 1000px; /* Ridotto */
+            margin: 0 auto;
+        }
+
+        button, .tab, .btn {
+          font-family: 'Merriweather', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        
+        .use-case-item { /* Nuovo wrapper per ogni contenuto del tab */
+            display: none; /* Nascosto di default, JS mostrerà quello attivo */
+            /* flex-direction e gap verranno applicati qui se la struttura interna lo richiede */
+        }
+        .use-case-item.active {
+            display: flex; /* O 'block' a seconda del layout interno */
+            align-items: center; /* Se flex */
+            gap: 50px; /* Se flex */
+            animation: fadeIn 0.5s ease-out; /* Animazione entrata */
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+
+        .use-case-image {
+            flex: 0 0 45%; /* Larghezza fissa per immagine, non stringere/allargare troppo */
+            min-width: 280px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .use-case-image img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .use-case-text {
+            flex: 1;
+            text-align: left;
+        }
+
+        .use-case-title {
+            font-size: 1.7rem; /* Ridotto */
+            font-weight: 600;
+            margin-bottom: 20px; /* Ridotto */
+            line-height: 1.3;
+        }
+
+        .use-case-description {
+            font-size: 1.05rem; /* Ridotto */
+            color: var(--text-secondary);
+            margin-bottom: 25px; /* Ridotto */
+            line-height: 1.7;
+        }
+
+        .use-case-list {
+            list-style: none;
+            margin-bottom: 25px; /* Ridotto */
+        }
+
+        .use-case-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px; /* Ridotto */
+            margin-bottom: 14px; /* Ridotto */
+            font-size: 1rem; /* Ridotto */
+        }
+
+        .use-case-list li i {
+            color: var(--success);
+            margin-top: 5px; /* Aggiustato */
+            font-size: 0.9em; /* Icona più piccola */
+        }
+
+        /* CTA Section */
+        .cta-section {
+            text-align: center;
+            background: var(--background); /* Colore sfondo body, non gradiente */
+            border-bottom: none;
+        }
+
+        .cta-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 60px 40px; /* Ridotto */
+            max-width: 750px; /* Ridotto */
+            margin: 0 auto;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .cta-title {
+            font-size: 2.2rem; /* Ridotto */
+            font-weight: 700;
+            margin-bottom: 16px; /* Ridotto */
+            line-height: 1.25;
+        }
+
+        .cta-text {
+            font-size: 1.15rem; /* Ridotto */
+            color: var(--text-secondary);
+            margin-bottom: 35px; /* Ridotto */
+            max-width: 550px; /* Ridotto */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Footer */
+        footer {
+            background-color: var(--surface);
+            padding: 60px 0 30px; /* Ridotto */
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .footer-logo {
+            font-size: 1.2rem; /* Ridotto */
+            font-weight: 600;
+            margin-bottom: 25px; /* Ridotto */
+            display: flex;
+            align-items: center;
+            gap: 8px; /* Ridotto */
+        }
+        
+        .footer-logo .logo-icon { /* Stile logo icona anche nel footer */
+            width: 28px; height: 28px; border-radius: 6px; font-size:1rem;
+        }
+
+        .footer-note {
+            color: var(--text-secondary);
+            font-size: 0.9rem; /* Ridotto */
+            max-width: 550px; /* Ridotto */
+            margin: 0 auto 25px; /* Ridotto */
+            line-height: 1.65;
+        }
+
+        .copyright {
+            color: #a1a1a6; /* Grigio più chiaro */
+            font-size: 0.85rem; /* Ridotto */
+            margin-top: 30px; /* Ridotto */
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) { /* Aggiunto breakpoint per tablet grandi */
+             .use-case-content.active, .use-case-item.active { /* Modificato selettore */
+                flex-direction: column;
+                gap: 35px;
+            }
+            .use-case-image {
+                flex-basis: auto; /* Reset per stacking verticale */
+                max-width: 450px; /* Limita larghezza immagine in colonna */
+            }
+            .use-case-text {
+                text-align: center;
+            }
+            .use-case-list { /* Centra la lista quando in colonna */
+                display: inline-block; /* Permette text-align dal parent */
+                text-align: left;
+                margin: 0 auto 25px; /* Centra la lista */
+            }
+        }
+
+
+        @media (max-width: 768px) { /* Modificato breakpoint per tablet */
+            .section-title, .hero-title {
+                font-size: 2.1rem;
+            }
+            
+            .section-subtitle, .hero-subtitle {
+                font-size: 1.1rem;
+            }
+
+            .header-container { /* Stack logo e bottoni su mobile */
+                flex-direction: column;
+                gap: 15px;
+            }
+            .nav-buttons {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 576px) { /* Modificato breakpoint per mobile */
+            section {
+                padding: 60px 0;
+            }
+            
+            .hero {
+                padding: 80px 0 60px;
+            }
+            
+            .section-title, .hero-title {
+                font-size: 1.8rem;
+            }
+            
+            .hero-cta {
+                flex-direction: column;
+                align-items: stretch; /* Bottoni full-width */
+            }
+             .hero-cta .btn {
+                width: 100%; /* Bottoni CTA full-width su mobile */
+                max-width: 300px; /* Ma con un max per non essere troppo larghi */
+                margin-left: auto;
+                margin-right: auto;
+            }
+            
+            .cta-card {
+                padding: 40px 20px;
+            }
+            .container {
+                 padding: 0 15px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>YouTube Video Service</h1>
-    <p>Per utilizzare il servizio, effettua l'autenticazione con Google:</p>
-    <!-- Usa url_for per generare il link dinamicamente -->
-    <a href="{{ url_for('authorize') }}" class="login-button">Login con Google</a>
+    <!-- Header -->
+    <header>
+        <div class="header-container">
+            <a href="#" class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-warehouse"></i> 
+                </div>
+                Magazzino del Creatore
+            </a>
+            <div class="nav-buttons">
+                <a href="#features" class="btn btn-secondary">A Cosa Serve?</a>
+                <a href="{{ url_for('authorize') }}" class="btn btn-primary">
+                    <i class="fab fa-google"></i> Accedi (con Google)
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title"> Fai lavorare i tuoi contenuti per te con l'IA.</h1>
+                <p class="hero-subtitle">
+                    Il <strong>Magazzino Intelligente del Creatore</strong>
+                    tira fuori il succo da YouTube, PDF, articoli del tuo blog... e te lo serve su un piatto d'argento interrogabile.
+                    Sì, hai capito bene, ci chatti. E lui risponde (basandosi sulla TUA roba).
+                </p>
+                <div class="hero-cta">
+                    <a href="{{ url_for('authorize') }}" class="btn btn-primary">
+                        <i class="fab fa-google"></i> Inizia a provarlo su questo sito (gratis)
+                    </a>
+                    <a href="#use-cases" class="btn btn-secondary">
+                        <i class="fas fa-question-circle"></i> A chi serve 'sta roba?
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Ok, bello. Ma in pratica, cosa ci faccio?</h2>
+                <p class="section-subtitle">
+                    Aumenta la fruibilità dei tuoi contenuti per la community (youtuber), potenziali clienti e clienti (aziende).
+                    Ecco qualche pillola:
+                </p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-file-import"></i>
+                    </div>
+                    <h3 class="feature-title">Importa di tutto (o quasi)</h3>
+                    <p class="feature-description">
+                        Video YouTube (trascrizioni), PDF, DOCX, TXT, feed RSS. Lui mastica un po' di tutto e lo mette in ordine nel suo "magazzino" digitale.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-search-plus"></i>
+                    </div>
+                    <h3 class="feature-title">Ricerca semantica (parolone, eh?)</h3>
+                    <p class="feature-description">
+                        Non serve ricordarti le parole chiave esatte. Trova per significato, non per corrispondenza (la cosa può limitare).
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-comment-dots"></i>
+                    </div>
+                    <h3 class="feature-title">Chatta con i tuoi contenuti</h3>
+                    <p class="feature-description">
+                        L'interfaccia principale è una chat. Fai domande, ottieni risposte e vedi pure da dove ha preso le informazioni. Puoi anche generare idee di nuovi contenuti seguendo il tuo stile.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <h3 class="feature-title">Gadget per il tuo sito</h3>
+                    <p class="feature-description">
+                        Vuoi far fare domande ai visitatori del tuo sito? Incolli uno codice in una parte del suo sito e voilà, la chat è servita anche lì. (Sì, con API Key se serve).
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-server"></i>
+                    </div>
+                    <h3 class="feature-title">Fai da te: installalo nella TUA sede</h3>
+                    <p class="feature-description">
+                        Te lo installi sul tuo server (o dove ti pare, basta che ci gira Docker). I dati rimangono tuoi. Niente dipendenze da terzi che ti cambiano le carte in tavola.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <h3 class="feature-title">API Key per smanettoni</h3>
+                    <p class="feature-description">
+                        Se vuoi integrare la ricerca in altri tuoi strumenti (tipo un bot Telegram, già fatto), puoi generare API Key e sbizzarrirti.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section class="use-cases" id="use-cases">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">A chi può servire un attrezzo del genere?</h2>
+                <p class="section-subtitle">
+                    Magari ti ci ritrovi, o magari no. Diamo un'occhiata.
+                </p>
+            </div>
+            
+            <div class="tabs">
+                <button class="tab active" data-target="creator-content">Creators digitali</button>
+                <button class="tab" data-target="business-content">Piccole aziende / freelance</button>
+                <button class="tab" data-target="researcher-content">Ricercatori / studenti</button>
+            </div>
+            
+            <div class="use-case-item active" id="creator-content">
+                <div class="use-case-image">
+                    <img src="https://images.unsplash.com/photo-1556155092-490a1ba16284?auto=format&fit=crop&w=600&h=450&q=80" alt="Creator al computer">
+                </div>
+                <div class="use-case-text">
+                    <h3 class="use-case-title">Smetti di perdere pezzi della tua storia (e del tuo lavoro)</h3>
+                    <p class="use-case-description">
+                        Hai prodotto tanto, ma ricordarti tutto è un'impresa. Rendi il tuo archivio una risorsa viva, non un cimitero digitale.
+                    </p>
+                    <ul class="use-case-list">
+                        <li><i class="fas fa-check"></i><span>Rispondi al volo alle domande della community ("Dove hai parlato di...?").</span></li>
+                        <li><i class="fas fa-check"></i><span>Trova subito spezzoni o concetti per nuovi video o post.</span></li>
+                        <li><i class="fas fa-check"></i><span>Offri un FAQ interattivo sul tuo sito, basato sui tuoi contenuti reali.</span></li>
+                        <li><i class="fas fa-check"></i><span>Se fai consulenze, recupera al volo informazioni da vecchi materiali.</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="use-case-item" id="business-content">
+                <div class="use-case-image">
+                     <img src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" alt="Team aziendale in riunione">
+                </div>
+                <div class="use-case-text">
+                    <h3 class="use-case-title">Documentazione interna che parla</h3>
+                    <p class="use-case-description">
+                        Manuali, procedure, report, vecchie email importanti... Trasformali in una base di conoscenza aziendale che i tuoi collaboratori possono interrogare facilmente.
+                    </p>
+                     <ul class="use-case-list">
+                        <li><i class="fas fa-check"></i><span>Accelera l'imbarco di nuovi colleghi.</span></li>
+                        <li><i class="fas fa-check"></i><span>Riduci il tempo perso a cercare informazioni interne.</span></li>
+                        <li><i class="fas fa-check"></i><span>Conserva e rendi accessibile il saper fare aziendale.</span></li>
+                        <li><i class="fas fa-check"></i><span>Supporta il servizio clienti con risposte rapide basate sulla documentazione ufficiale.</span></li>
+                    </ul>
+                </div>
+            </div>
+
+             <div class="use-case-item" id="researcher-content">
+                <div class="use-case-image">
+                    <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=600&h=450&q=80" alt="Ricercatore che studia documenti">
+                </div>
+                <div class="use-case-text">
+                    <h3 class="use-case-title">Articoli scientifici e note personali: fai ordine</h3>
+                    <p class="use-case-description">
+                        Quante volte hai letto un paper interessante per poi non ritrovare quel concetto chiave? Indicizza i tuoi PDF, note e trascrizioni di conferenze.
+                    </p>
+                     <ul class="use-case-list">
+                        <li><i class="fas fa-check"></i><span>Collega concetti attraverso decine di documenti in pochi secondi.</span></li>
+                        <li><i class="fas fa-check"></i><span>Prepara bibliografie o revisioni della letteratura più velocemente.</span></li>
+                        <li><i class="fas fa-check"></i><span>Fai brainstorming interrogando le tue stesse note e fonti.</span></li>
+                        <li><i class="fas fa-check"></i><span>Se studi, ripassa gli argomenti chiedendo al tuo "magazzino" personale.</span></li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-card">
+                <h2 class="cta-title">Allora, vuoi provare a far lavorare davvero i tuoi contenuti?</h2>
+                <p class="cta-text">
+                    È open source, quindi una certa dose di "smanettamento" è richiesta.
+                    Ma se l'idea di avere un cervello digitale che ha letto tutto il tuo materiale ti stuzzica...
+                </p>
+                <a href="{{ url_for('authorize') }}" class="btn btn-primary" style="padding: 16px 40px; font-size: 1.1rem;">
+                    <i class="fab fa-google"></i> Accedi e inizia a caricare
+                </a>
+                <p class="footer-note" style="margin-top: 25px; font-size: 0.9rem;">
+                    L'autenticazione Google serve per YouTube. Il resto, beh, dipende da te. <br>
+                    Se ti incastri, c'è il <a href="https://github.com/F041/magazzino-creatore" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">repo GitHub</a>.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-warehouse"></i>
+                    </div>
+                    Magazzino Intelligente del Creatore
+                </div>
+                <p class="footer-note" style="font-size:0.95rem;">   
+                    Perché avere tanti contenuti è bello, ma poterli farli fruttare quando servono è decisamente meglio.
+                </p>
+                <p class="copyright">
+                    © 2023-2024 Magazzino Intelligente del Creatore. Open Source, con tutti i pro e i (pochi, si spera) contro.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab');
+            const useCaseItems = document.querySelectorAll('.use-case-item'); // Seleziona tutti gli item
+            
+            // Funzione per mostrare il contenuto del tab
+            function showTabContent(targetId) {
+                useCaseItems.forEach(item => {
+                    if (item.id === targetId) {
+                        item.style.display = 'flex'; // O 'block' se il layout interno è diverso
+                        item.classList.add('active');
+                    } else {
+                        item.style.display = 'none';
+                        item.classList.remove('active');
+                    }
+                });
+            }
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    const targetContentId = this.getAttribute('data-target');
+                    showTabContent(targetContentId);
+                });
+            });
+            
+            // Mostra il contenuto del primo tab (creator) di default
+            if (tabs.length > 0) {
+                 showTabContent(tabs[0].getAttribute('data-target'));
+            }
+
+
+            // Smooth scrolling per anchor links (già presente, ottimo)
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetEl = document.querySelector(this.getAttribute('href'));
+                    if (targetEl) {
+                        // Calcola la posizione del target e sottrai l'altezza dell'header sticky
+                        const headerOffset = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
+                        const elementPosition = targetEl.getBoundingClientRect().top + window.pageYOffset;
+                        const offsetPosition = elementPosition - headerOffset - 20; // -20 per un po' di padding extra
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+            
+            // Animazione per feature cards 
+            // Potrebbe essere migliorata usando Intersection Observer per attivarla quando entrano in viewport
+            const featureCards = document.querySelectorAll('.feature-card');
+            const observerOptions = {
+                root: null, // rispetto alla viewport
+                rootMargin: '0px',
+                threshold: 0.1 // trigger quando il 10% dell'elemento è visibile
+            };
+
+            const observer = new IntersectionObserver((entries, observerInstance) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const card = entry.target;
+                        // Applica l'animazione
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                        observerInstance.unobserve(card); // Smetti di osservare dopo l'animazione
+                    }
+                });
+            }, observerOptions);
+
+            featureCards.forEach((card, index) => {
+                // Imposta stato iniziale per animazione
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(30px)';
+                card.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out';
+                card.style.transitionDelay = `${index * 0.1}s`; // Delay progressivo
+                observer.observe(card); // Inizia ad osservare la card
+            });
+        });
+    </script>
 </body>
 </html>
