@@ -19,6 +19,7 @@ from flask_login import LoginManager, login_required, login_user, logout_user, c
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # --- Import Google Auth/API ---
 from google_auth_oauthlib.flow import Flow
@@ -328,6 +329,18 @@ def create_app(config_object=AppConfig):
     """Crea e configura l'istanza dell'app Flask."""
     app = Flask(__name__)
     app.config.from_object(config_object) # Carica config Flask prima
+
+    # Configura ProxyFix per fidarsi degli header inviati da UN proxy.
+    # Cloudflare Tunnel agisce come un proxy.
+    # x_for=1 significa che si fida dell'header X-Forwarded-For per l'IP.
+    # x_proto=1 significa che si fida dell'header X-Forwarded-Proto per lo schema (http/https).
+    # x_host=1 significa che si fida dell'header X-Forwarded-Host per l'host.
+    # x_port=1 e x_prefix=1 sono per altri header che potrebbero essere rilevanti.
+    # È importante configurare il numero corretto di proxy. Se Cloudflare Tunnel
+    # è l'unico proxy davanti alla tua app, allora i valori a 1 sono corretti.
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1
+    )
 
     # --- Setup Directory Dati Aggiuntive ---
     try:
