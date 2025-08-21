@@ -54,7 +54,7 @@ class BaseConfig:
 
     # --- Impostazioni Ricerca RAG ---
     RAG_DEFAULT_N_RESULTS = 10 # o 15, 5 troppo poco
-    RAG_GENERATIVE_MODEL = "gemini-2.5-flash-preview-04-17"
+    RAG_GENERATIVE_MODEL = "gemini-2.5-pro"
     # "gemini-1.5-flash-latest" il più veloce
     # "gemini-1.5-pro" più stitico rispetto a "gemini-2.5-pro-exp-03-25" ma meglio dei flash
     # "gemini-2.0-flash" ha gli stessi limiti di 1.5-flash-latest: risposte stitiche, non fa sommari
