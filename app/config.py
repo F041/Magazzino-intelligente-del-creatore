@@ -54,7 +54,16 @@ class BaseConfig:
 
     # --- Impostazioni Ricerca RAG ---
     RAG_DEFAULT_N_RESULTS = 10 # o 15, 5 troppo poco
-    RAG_GENERATIVE_MODEL = "gemini-2.5-pro"
+    # NUOVA LOGICA per la lista di modelli con fallback
+    # Leggiamo la stringa dal .env, fornendo un default stabile se manca
+    _models_str = os.environ.get('LLM_MODELS', "gemini-2.5-pro,gemini-2.0-flash")
+    # Puliamo la stringa e la trasformiamo in una lista, rimuovendo eventuali modelli vuoti
+    RAG_MODELS_LIST = [model.strip() for model in _models_str.split(',') if model.strip()]
+    # Aggiungiamo un controllo per evitare che la lista sia vuota a causa di un errore di configurazione
+    if not RAG_MODELS_LIST:
+        print("ATTENZIONE: LLM_MODELS è vuota o mal formattata. Uso un modello di default.")
+        RAG_MODELS_LIST = ["gemini-1.5-pro-latest"]
+    print(f"Modelli RAG caricati in ordine di preferenza: {RAG_MODELS_LIST}") # Log di conferma all'avvio
     # "gemini-1.5-flash-latest" il più veloce
     # "gemini-1.5-pro" più stitico rispetto a "gemini-2.5-pro-exp-03-25" ma meglio dei flash
     # "gemini-2.0-flash" ha gli stessi limiti di 1.5-flash-latest: risposte stitiche, non fa sommari

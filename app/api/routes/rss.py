@@ -11,10 +11,11 @@ from flask_login import login_required, current_user
 import os
 import datetime
 from urllib.parse import urlparse, urljoin
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response
 from google.api_core import exceptions as google_exceptions
 import threading
 import copy
+import io
 
 try:
     from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT

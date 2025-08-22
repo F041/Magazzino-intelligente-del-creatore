@@ -74,20 +74,67 @@
 .reference-item a:hover { text-decoration: underline; }
 
 
-.input-area { /* Stili invariati */
-    padding: 15px; border-top: 1px solid #ddd; display: flex;
-    align-items: center; background-color: #ffffff; flex-shrink: 0;
-    }
-.input-area input[type="text"] { /* Stili invariati */
-    flex-grow: 1; padding: 10px 15px; border: 1px solid #ccc;
-    border-radius: 20px; margin-right: 10px; font-size: 1em;
-    }
-.input-area button { /* Stili invariati */
-    padding: 10px 20px; background-color: #007bff; color: white; border: none;
-    border-radius: 20px; cursor: pointer; font-size: 1em; transition: background-color 0.2s;
-    }
-.input-area button:hover { background-color: #0056b3; }
-.input-area button:disabled { background-color: #6c757d; cursor: not-allowed; }
+.input-area {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 15px;
+    border-top: 1px solid #ddd;
+    background-color: #ffffff;
+    flex-shrink: 0;
+    gap: 10px;
+}
+
+.input-area textarea {
+    padding: 12px 16px;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    font-size: 1em;
+    font-family: inherit;
+    line-height: 1.5;
+    resize: none;
+    overflow-y: hidden;
+    min-height: 48px;
+    box-sizing: border-box;
+    /* Assicura allineamento verticale consistente */
+    margin: 0;
+    vertical-align: middle;
+}
+
+.input-area .send-btn {
+    padding: 12px 24px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 1em;
+    font-family: inherit; /* Importante: eredita lo stesso font */
+    transition: background-color 0.2s;
+    height: 48px;
+    box-sizing: border-box;
+    /* Allineamento verticale preciso */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Reset di stili predefiniti del browser */
+    line-height: normal;
+    text-rendering: auto;
+    letter-spacing: normal;
+    word-spacing: normal;
+    text-transform: none;
+    text-indent: 0px;
+    text-shadow: none;
+}
+
+.input-area .send-btn:hover { 
+    background-color: #0056b3; 
+} 
+
+.input-area .send-btn:disabled { 
+    background-color: #6c757d; 
+    cursor: not-allowed; 
+}
 
 /* --- Stili Modale (ASSICURATI SIANO PRESENTI E CORRETTI) --- */
 #modal-overlay {
@@ -149,3 +196,35 @@
     font-weight: bold;
     font-size: 0.9em;
     }
+/* --- Stili per il nuovo bottone di modalità (CORRETTO) --- */
+.chat-mode-btn {
+    padding: 10px 15px; /* Padding verticale uguale al pulsante Invia */
+    margin-right: 10px;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 1em; /* Stessa dimensione font */
+    transition: background-color 0.2s;
+    
+    /* Rimuoviamo la disposizione verticale e allineiamo il contenuto */
+    display: inline-flex; /* Usa flex per allineare icona e testo */
+    align-items: center;
+    gap: 6px; /* Spazio tra icona e testo */
+    flex-shrink: 0; /* Impedisce al pulsante di rimpicciolirsi */
+}
+
+.chat-mode-btn:hover {
+    background-color: #5a6268;
+}
+
+/* Rimuoviamo la regola per .mode-icon, non più necessaria */
+
+/* Stile per quando saremo in modalità "Conversa" */
+.chat-mode-btn.conversa-mode {
+    background-color: #17a2b8;
+}
+.chat-mode-btn.conversa-mode:hover {
+    background-color: #138496;
+}

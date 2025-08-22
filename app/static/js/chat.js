@@ -113,8 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const query = userInput.value.trim();
         if (!query || sendButton.disabled) return;
 
-        addMessage(query, 'user'); // I messaggi utente sono testo semplice
+        addMessage(query, 'user');
         userInput.value = '';
+        userInput.style.height = 'auto'; // <-- AGGIUNGI QUESTA RIGA per resettare l'altezza
         enableUI(false);
         let currentStatusMessageElement = addMessage("Elaborazione in corso...", 'bot', null, false, true);
 
@@ -256,6 +257,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    userInput.addEventListener('input', () => {
+    userInput.style.height = 'auto'; // Resetta l'altezza per calcolare la nuova
+    userInput.style.height = (userInput.scrollHeight) + 'px'; // Imposta l'altezza in base al contenuto
+});
+
     sendButton.addEventListener('click', handleSendMessage);
     userInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
@@ -263,6 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
             handleSendMessage();
         }
     });
+
+    
 
     userInput.focus();
     console.log("Chat JS inizializzato e pronto.");

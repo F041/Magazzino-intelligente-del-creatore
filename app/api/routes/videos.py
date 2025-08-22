@@ -496,13 +496,18 @@ def reprocess_single_video(video_id):
         # --- 4. Recupero Trascrizione ---
         logger.info(f"[Reprocess Single] [{video_id}] Recupero trascrizione...")
         transcript_result = TranscriptService.get_transcript(video_id)
-        if transcript_result:
-             transcript_text, transcript_lang, transcript_type = transcript_result['text'], transcript_result['language'], transcript_result['type']
-             final_status = 'processing_embedding'; logger.info(f"[Reprocess Single] [{video_id}] Trascrizione OK.")
+        if transcript_result and not transcript_result.get('error'):
+            # Successo, abbiamo la trascrizione
+            transcript_text, transcript_lang, transcript_type = transcript_result['text'], transcript_result['language'], transcript_result['type']
+            final_status = 'processing_embedding'
+            logger.info(f"[Reprocess Single] [{video_id}] Trascrizione OK.")
         else:
-             final_status = 'failed_transcript'; logger.warning(f"[Reprocess Single] [{video_id}] Trascrizione fallita.")
-
-        # --- 5. Chunking, Embedding, Chroma ---
+            # Fallimento, usiamo il messaggio di errore specifico
+            final_status = 'failed_transcript'
+            error_details = transcript_result.get('message', 'Trascrizione non trovata o disabilitata.') if transcript_result else 'Trascrizione non trovata o disabilitata.'
+            message = f"Riprocessamento {video_id} fallito: {error_details}" # Aggiorniamo il messaggio per l'utente
+            logger.warning(f"[Reprocess Single] [{video_id}] Trascrizione fallita. Motivo: {error_details}")
+                # --- 5. Chunking, Embedding, Chroma ---
         chunks = [] # Inizializza chunks qui
         if final_status == 'processing_embedding' and transcript_text:
             try:
@@ -599,7 +604,6 @@ def reprocess_single_video(video_id):
         conn_sqlite.commit() # Commit di TUTTE le modifiche DB
         update_db_success = True
         logger.info(f"[Reprocess Single] [{video_id}] Aggiornamento finale DB OK.")
-        message = f"Riprocessamento {video_id} terminato. Stato: {final_status}"
 
     # --- Gestione Eccezioni Generali della Route ---
     except sqlite3.Error as db_err_outer:

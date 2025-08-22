@@ -149,6 +149,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Apri il file `.env` con un editor di testo e **modifica almeno le seguenti variabili OBBLIGATORIE**:
         *   `FLASK_SECRET_KEY`: Genera una chiave segreta forte e casuale. Puoi usare il comando `python -c 'import secrets; print(secrets.token_hex(32))'` in un terminale Python e copiare l'output.
         *   `GOOGLE_API_KEY`: Inserisci la tua chiave API per Google AI (Gemini).
+        *   `LLM_MODELS`: Inserisci una lista di modelli Gemini separati da virgola, senza spazi. L'applicazione proverà il primo e, in caso di errore (es. non disponibile o bloccato), passerà al successivo. L'ordine è importante. Esempio: `RAG_GENERATIVE_MODELS_FALLBACK_LIST="gemini-2.5-pro,gemini-2.0-flash"`
     *   **Verifica e configura attentamente le altre variabili nel `.env`:**
         *   `GOOGLE_CLIENT_SECRETS_FILE` dovrebbe già essere `data/client_secrets.json`.
         *   `APP_MODE`: Imposta a `single` per un uso personale self-hosted (raccomandato), o a `saas` se intendi gestire più account all'interno della tua istanza.
@@ -368,6 +369,9 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
     *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
     *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
 
+*   **Mancanza barra attività in bacgkround in dashboard nonostante logica presente**
+
+*   **Errore mancanza lingua nei video per recuperare il transcript nonostante la lingua esiste**
 
 ## TODO e Prossimi Passi
 
@@ -409,6 +413,12 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 
 **Miglioramenti RAG/Ricerca:**
 *   [ ] **Ottimizzare Recupero:** Sperimentare `n_results`, analizzare chunk, esplorare re-ranking/query expansion.
+
+**Creare intent conversazione:**
+*   [ ] **Creare nuovo intent:** Quando non ho elementi con distanza sufficiente dalla soglia, provare a dare una risposta replicando lo stile dell'autore.
+        - questo potrebbe andare in conflitto con il fallback del prompt del RAG
+
+
 
 **Stabilità e Qualità:**
 *   [ ] **Gestione Errori API:** Standardizzare formati JSON risposte errore.

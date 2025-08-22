@@ -25,10 +25,16 @@
         </div>
     </div>
 
-    <div class="input-area">
-        <input type="text" id="user-input" placeholder="Chiedi qualcosa...">
-        <button id="send-button">Invia</button>
-    </div>
+<div class="input-area">
+<!--     <button id="chat-mode-toggle" class="chat-mode-btn" title="Clicca per cambiare modalità (Domanda / Conversazione)">
+        <span class="mode-icon">❓</span>
+        <span class="mode-text">Chiedi</span>
+    </button> --> 
+<!-- non ha senso, va gestito da intent --> 
+    <textarea id="user-input" placeholder="Chiedi qualcosa..." rows="1"></textarea>
+    <button id="send-button" class="send-btn">Invia</button>
+
+</div>
 
 </div>
 
@@ -76,14 +82,7 @@
 {# Script JS modale (assicurati sia presente e corretto) #}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // ... (tutto il codice JS del modale che avevi prima) ...
-        // Per brevità, non lo ripeto qui, ma assicurati che sia lo stesso
-        // che gestisce l'apertura/chiusura del modale e la generazione/copia dello snippet.
-        // Il codice JS rilevante qui è quello dentro il DOMContentLoaded che
-        // si occupa di #open-embed-modal-button, #embed-code-modal, ecc.
 
-        // COPIARE QUI IL JAVASCRIPT DEL MODALE DALL'ULTIMO SNIPPET CORRETTO CHE HAI
-        // Esempio:
         console.log("Modal Embed JS executing (v2 - API Key)...");
 
         const openModalButton = document.getElementById('open-embed-modal-button');

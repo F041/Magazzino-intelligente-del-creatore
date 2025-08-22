@@ -232,33 +232,68 @@ def handle_search_request(*args, **kwargs): # Nome più generico
             else:
                 logger.warning("Nessun risultato trovato da NESSUNA collezione ChromaDB disponibile.")
 
-            # Chiamata LLM
+            # Chiamata LLM (con logica di fallback)
             prompt = build_prompt(query_text_internal, all_results_combined, history=history_from_request)
-            model_name=current_app.config.get('RAG_GENERATIVE_MODEL')
-            if not model_name: raise RuntimeError("RAG_GENERATIVE_MODEL non configurato.")
+            models_to_try = current_app.config.get('RAG_MODELS_LIST', [])
+            if not models_to_try:
+                raise RuntimeError("Nessun modello RAG configurato. Controlla la variabile RAG_MODELS_LIST nel file .env.")
 
-            llm_answer=None; llm_success=False;
-            try:
-                model=genai.GenerativeModel(model_name, safety_settings=current_app.config.get('RAG_SAFETY_SETTINGS', {}))
-                response_llm=model.generate_content(prompt, generation_config=genai.types.GenerationConfig(**current_app.config.get('RAG_GENERATION_CONFIG',{})))
+            llm_answer = None
+            llm_success = False
+            last_error = None # Memorizza l'ultimo errore se tutti i modelli falliscono
+
+            for model_name in models_to_try:
+                logger.info(f"Tentativo di generazione risposta con il modello: {model_name}")
                 try:
-                    llm_answer=response_llm.text;
-                    llm_success=True;
-                    logger.info("Risposta LLM generata.")
-                except ValueError:
-                    block_reason_obj = getattr(getattr(response_llm,'prompt_feedback',None),'block_reason',None)
-                    block_reason_name = getattr(block_reason_obj, 'name', 'UNKNOWN_REASON')
-                    llm_answer=f"BLOCKED:{block_reason_name}"
-                    logger.warning(f"Risposta LLM bloccata: {llm_answer}")
-                except Exception as e_txt:
-                    llm_answer="Errore lettura testo risposta LLM.";
-                    logger.error(f"Errore .text LLM: {e_txt}", exc_info=True)
-            except Exception as e_llm_gen:
-                error_code_llm='LLM_GENERATION_FAILED'; message_llm=f'Errore LLM: {e_llm_gen}'
-                if isinstance(e_llm_gen, google_exceptions.ResourceExhausted): error_code_llm='API_RATE_LIMIT_GENERATION'; message_llm='Limite API LLM.'
-                elif isinstance(e_llm_gen, google_exceptions.GoogleAPIError): error_code_llm='API_ERROR_GENERATION'; message_llm=f'Errore API Google LLM ({getattr(e_llm_gen, "code", "N/A")}).'
-                logger.error(f"{error_code_llm}: {message_llm}", exc_info=True)
-                final_payload.update({'error_code': error_code_llm, 'message': message_llm}); raise e_llm_gen
+                    model = genai.GenerativeModel(
+                        model_name,
+                        safety_settings=current_app.config.get('RAG_SAFETY_SETTINGS', {})
+                    )
+                    response_llm = model.generate_content(
+                        prompt,
+                        generation_config=genai.types.GenerationConfig(**current_app.config.get('RAG_GENERATION_CONFIG', {}))
+                    )
+
+                    # Controlla se la risposta è stata bloccata per motivi di sicurezza
+                    try:
+                        llm_answer = response_llm.text
+                        llm_success = True
+                        logger.info(f"Risposta LLM generata con successo dal modello {model_name}.")
+                        break  # Successo! Esci dal ciclo.
+
+                    except ValueError:
+                        block_reason_obj = getattr(getattr(response_llm, 'prompt_feedback', None), 'block_reason', None)
+                        block_reason_name = getattr(block_reason_obj, 'name', 'UNKNOWN_REASON')
+                        llm_answer = f"BLOCKED:{block_reason_name}"
+                        llm_success = False
+                        logger.warning(f"Risposta LLM bloccata dal modello {model_name} per motivo: {block_reason_name}. Tento con il prossimo modello.")
+                        last_error = ValueError(f"Blocked by model {model_name}") # Memorizziamo l'errore per sicurezza
+                        continue 
+                    
+                except (google_exceptions.NotFound, google_exceptions.PermissionDenied, google_exceptions.InternalServerError) as e_fallback:
+                    last_error = e_fallback
+                    logger.warning(f"Modello '{model_name}' non trovato o non accessibile. Tento con il prossimo modello nella lista.")
+                    continue # Prova il prossimo modello
+                
+                except Exception as e_llm_gen:
+                    # Per altri errori (es. rate limit), usciamo subito senza provare altri modelli
+                    logger.error(f"Errore critico durante la generazione con il modello '{model_name}': {e_llm_gen}", exc_info=True)
+                    last_error = e_llm_gen
+                    llm_success = False
+                    break # Esci dal ciclo e gestisci l'errore
+
+            # Se siamo usciti dal ciclo senza successo e con un errore, lo gestiamo qui
+            if not llm_success and last_error:
+                error_code_llm = 'LLM_GENERATION_FAILED'; message_llm = f'Errore LLM dopo aver provato i modelli disponibili: {last_error}'
+                if isinstance(last_error, (google_exceptions.NotFound, google_exceptions.PermissionDenied)):
+                    error_code_llm = 'LLM_MODEL_NOT_AVAILABLE'
+                    message_llm = 'Nessuno dei modelli configurati è risultato accessibile o disponibile.'
+                elif isinstance(last_error, google_exceptions.GoogleAPIError):
+                    error_code_llm = 'API_ERROR_GENERATION'; message_llm = f'Errore API Google LLM ({getattr(last_error, "code", "N/A")}).'
+                
+                logger.error(f"{error_code_llm}: {message_llm}")
+                final_payload.update({'error_code': error_code_llm, 'message': message_llm});
+                raise last_error
 
             # Costruzione Payload Finale
             final_payload.update({
