@@ -495,7 +495,12 @@ def reprocess_single_video(video_id):
 
         # --- 4. Recupero Trascrizione ---
         logger.info(f"[Reprocess Single] [{video_id}] Recupero trascrizione...")
-        transcript_result = TranscriptService.get_transcript(video_id)
+        # Creiamo un'istanza del client usando il token dalla configurazione
+        token_path = current_app.config.get('TOKEN_PATH')
+        youtube_client = YouTubeClient(token_file=token_path)
+
+        # Ora chiamiamo get_transcript passando il client
+        transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
         if transcript_result and not transcript_result.get('error'):
             # Successo, abbiamo la trascrizione
             transcript_text, transcript_lang, transcript_type = transcript_result['text'], transcript_result['language'], transcript_result['type']
@@ -796,15 +801,17 @@ def process_video():
         #     return jsonify({'success': False, 'error_code': 'NO_MANUAL_CAPTIONS', 'message': 'No manual captions available for this video.'}), 404
 
         transcript_result = TranscriptService.get_transcript(video_id)
-        if transcript_result:
-            return jsonify({'success': True, 'transcript': transcript_result})
+        if transcript_result and not transcript_result.get('error'):
+            # Questo blocco viene eseguito SOLO se abbiamo una trascrizione valida
+            transcript_text, transcript_lang, transcript_type = transcript_result['text'], transcript_result['language'], transcript_result['type']
+            current_video_status = 'processing_embedding'
         else:
-            # TranscriptService restituisce None se non trova nulla o errore
-            # Restituiamo 404 se non trovata, 500 se errore generico?
-            # La logica attuale di get_transcript rende difficile distinguere.
-            # Per ora, usiamo un codice generico.
-            return jsonify({'success': False, 'error_code': 'TRANSCRIPT_NOT_FOUND_OR_FAILED', 'message': 'Failed to retrieve transcript (may be disabled or unavailable).'}), 404 # O 500? Usiamo 404 assumendo che "non trovato" sia più comune
-
+            # Questo blocco gestisce TUTTI i casi di fallimento (None o dizionario di errore)
+            current_video_status = 'failed_transcript'
+            transcript_errors += 1
+            # Logghiamo il messaggio di errore specifico se presente
+            if transcript_result and transcript_result.get('message'):
+                logger.warning(f"[CORE YT Process] [{video_id}] Trascrizione fallita. Motivo: {transcript_result['message']}")
     except Exception as e:
         logger.exception(f"Errore imprevisto in /process per video {video_id}: {e}")
         return jsonify({'success': False, 'error_code': 'TRANSCRIPT_UNEXPECTED_ERROR', 'message': f'Unexpected error retrieving transcript: {str(e)}'}), 500
