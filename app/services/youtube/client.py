@@ -224,8 +224,7 @@ class YouTubeClient:
                 id=track_to_download['id'],
                 tfmt='srt'
             )
-            srt_captions = download_request.execute()
-
+            srt_captions = download_request.execute().decode('utf-8')
             # 4. Pulisci il testo SRT per ottenere solo le frasi
             # Rimuove numeri di sequenza, timestamp e tag HTML
             text_no_seq = re.sub(r'^\d+\s*$', '', srt_captions, flags=re.MULTILINE)
