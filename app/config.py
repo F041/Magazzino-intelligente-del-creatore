@@ -20,7 +20,7 @@ class BaseConfig:
     SECRET_KEY = os.environ.get('FLASK_SECRET_KEY')
     GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
     # Leggiamo gli SCOPES e li splittiamo subito in lista
-    GOOGLE_SCOPES = os.environ.get('GOOGLE_SCOPES', "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtubepartner").split()
+    GOOGLE_SCOPES = os.environ.get('GOOGLE_SCOPES', "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtubepartner").split()
     # Usiamo basedir calcolato sopra
     BASE_DIR = basedir
 
