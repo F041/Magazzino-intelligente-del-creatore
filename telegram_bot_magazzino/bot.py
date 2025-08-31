@@ -70,7 +70,7 @@ async def handle_question(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     payload = {"query": user_message, "n_results": 10} # Aumentato n_results per avere più contesto per i riferimenti
 
     try:
-        logger.info(f"Invio richiesta a Magazzino API: {MAGAZZINO_API_ENDPOINT}")
+        logger.info(f"!!! DEBUG CHIAVE BOT: La chiave API che sto per inviare e': '{MAGAZZINO_API_KEY}'")
         response = requests.post(MAGAZZINO_API_ENDPOINT, headers=headers, json=payload, timeout=90) # Timeout aumentato
         response.raise_for_status()
         api_response_data = response.json()
