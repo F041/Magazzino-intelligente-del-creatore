@@ -356,22 +356,27 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
     *   Questo errore indica che un tentativo precedente di avvio ha creato parzialmente il database di ChromaDB, che ora è in uno stato inconsistente.
     *   **Soluzione:** Ferma il container dell'applicazione. Sul server host, naviga nella tua directory dei dati persistenti (es. `./data/` o `/percorso/assoluto/alla/tua/data/`) e rimuovi la sottodirectory `chroma_db` (es. `sudo rm -rf chroma_db`). Riavvia il container; ChromaDB dovrebbe ricreare la sua struttura da zero. **Attenzione:** questa operazione cancella tutti i dati vettoriali precedentemente indicizzati.
 
-*   **Errore Recupero Trascrizioni YouTube: `youtube_transcript_api._errors.RequestBlocked`:**
-    *   YouTube spesso blocca le richieste di trascrizioni provenienti da indirizzi IP associati a provider cloud (come quelli dei VPS).
-    *   **Causa:** Politica di YouTube per prevenire abusi.
-    *   **Soluzioni Possibili (Complesse/Richiedono Modifiche o Costi):**
-        1.  **Utilizzare un servizio di proxy residenziali:** Richiede un abbonamento a un servizio proxy e modifiche al codice sorgente per instradare le richieste di `youtube-transcript-api` attraverso il proxy.
-        2.  **Architettura Ibrida:** Eseguire la logica di recupero trascrizioni su una macchina con IP residenziale e inviare i dati al server VPS.
-    *   **Impatto:** Senza una soluzione proxy, la funzionalità di recupero automatico delle trascrizioni YouTube potrebbe non funzionare sul VPS. L'applicazione rimarrà operativa per altre sorgenti dati (documenti, RSS).
+*   **Errore Recupero Trascrizioni YouTube: `403 Forbidden` quando si usa l'API Ufficiale**
+    *   Dopo aver implementato l'uso dell'API ufficiale di YouTube per superare i blocchi IP, potrebbe ancora verificarsi un errore `403 Forbidden` durante il download delle tracce dei sottotitoli.
+    *   **Causa:** Questo problema è quasi sempre legato ai **Canali YouTube gestiti come "Account Brand"**. Le API di Google, anche con i permessi corretti (`youtubepartner`), a volte hanno difficoltà a gestire le autorizzazioni delegate per questo tipo di account, bloccando l'accesso programmatico al download dei file delle didascalie.
+    *   **Verifica:** Per verificare se il tuo canale è un Account Brand, vai su Impostazioni -> Autorizzazioni  da [https://studio.youtube.com/](Youtube Studio). Se **non** vedi nomi e ruoli, il tuo è un Account Brand.
+    *   **Soluzione:** Al momento non esiste una soluzione diretta a livello di codice. Il problema è una limitazione nota delle policy delle API di YouTube. Le uniche opzioni sono indagare a fondo le impostazioni dell'Account Brand.
 
 *   **Flusso OAuth Google (Autenticazione API YouTube):**
     *   Assicurati che la variabile d'ambiente `OAUTHLIB_INSECURE_TRANSPORT` sia impostata a `0` nel tuo file `.env` se stai usando HTTPS (es. con Cloudflare Tunnel).
     *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
     *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
+    *   Se il flusso OAuth continua a dare errori inspiegabili (come `redirect_uri_mismatch` o `scope_changed` anche dopo aver corretto la configurazione), potrebbe essere necessario un "hard reset":
+    1.  **Revoca i permessi** dell'app dal tuo account Google su [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+    2.  **Cancella il file del token** (`token.pickle` o `token.json`) dalla tua cartella `data` o `app`.
+    3.  **Pulisci i cookie e i dati del sito** per il dominio della tua applicazione direttamente dal browser.
+    4.  Riprova il flusso di autenticazione da capo.
+
+*   **Incorporazione widget problematica ma provvisoria**
+    *   Usare JWT
 
 *   **Mancanza barra attività in bacgkround in dashboard nonostante logica presente**
 
-*   **Errore mancanza lingua nei video per recuperare il transcript nonostante la lingua esiste**
 
 ## TODO e Prossimi Passi
 
@@ -442,5 +447,3 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   ~~Interfaccia Chat Streamlit~~ (Integrata in Flask)
 *   ~~Streaming Risposte LLM~~
 *   ~~Utilizzo Whisper/ASR Esterno~~ (Integrato con gestione documenti)
-
-
