@@ -8,6 +8,7 @@ from functools import wraps
 import sqlite3
 import json
 import time
+import jwt
 
 try:
     from app.services.embedding.gemini_embedding import get_gemini_embeddings, TASK_TYPE_QUERY
@@ -34,13 +35,43 @@ def require_api_key(f):
             logger.debug("Decoratore @require_api_key: Modalità SINGLE. Accesso consentito.")
             return f(*args, **kwargs)
 
-        logger.debug("Decoratore @require_api_key: Modalità SAAS. Controllo API Key/Sessione...")
+        logger.debug("Decoratore @require_api_key: Modalità SAAS. Controllo autenticazione...")
+
+        # --- NUOVA LOGICA JWT (priorità 1) ---
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            jwt_token = auth_header.split(" ")[1]
+            logger.debug(f"Trovato header Authorization con token JWT.")
+            try:
+                secret_key = current_app.config.get('SECRET_KEY')
+                payload = jwt.decode(jwt_token, secret_key, algorithms=["HS256"], audience='widget_user')
+                
+                user_id_from_jwt = payload.get('sub') # 'sub' è lo standard per l'ID utente
+                user_name_from_jwt = payload.get('name', 'N/D')
+
+                if not user_id_from_jwt:
+                    raise jwt.InvalidTokenError("Token JWT non contiene user_id ('sub').")
+
+                logger.info(f"Token JWT valido per utente '{user_name_from_jwt}' (ID associato: {user_id_from_jwt}).")
+                # Passiamo l'user_id del proprietario dei dati alla funzione protetta
+                kwargs['api_user_id_override'] = user_id_from_jwt
+                return f(*args, **kwargs)
+
+            except jwt.ExpiredSignatureError:
+                logger.warning("Tentativo di accesso con token JWT scaduto.")
+                return jsonify({"success": False, "error_code": "TOKEN_EXPIRED", "message": "Il link di accesso è scaduto."}), 401
+            except jwt.InvalidTokenError as e:
+                logger.warning(f"Tentativo di accesso con token JWT non valido: {e}")
+                return jsonify({"success": False, "error_code": "INVALID_TOKEN", "message": "Il token di accesso non è valido."}), 401
+
+        # --- LOGICA API KEY (priorità 2) ---
         provided_key = request.headers.get('X-API-Key')
         if provided_key:
-            logger.debug(f"API Key fornita: {provided_key[:5]}...")
+            logger.debug(f"Trovato header X-API-Key.")
             user_id_for_api = None; key_name = None
             db_path = current_app.config.get('DATABASE_FILE'); conn = None
             try:
+                # ... (la logica di controllo API KEY rimane identica a prima) ...
                 if not db_path: raise ValueError("DB_PATH mancante")
                 conn = sqlite3.connect(db_path); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
                 cursor.execute("SELECT user_id, name FROM api_keys WHERE key = ? AND is_active = TRUE", (provided_key,))
@@ -57,9 +88,15 @@ def require_api_key(f):
                 if conn: conn.close()
             if user_id_for_api: kwargs['api_user_id_override'] = user_id_for_api; return f(*args, **kwargs)
             else: return jsonify({"success": False, "error_code": "INTERNAL_SERVER_ERROR", "message": "Errore determinazione utente da chiave API."}), 500
-        else:
-            if current_user.is_authenticated: logger.debug("Accesso API via sessione Flask."); return f(*args, **kwargs)
-            else: logger.warning("Accesso API negato: No API Key e No sessione."); return jsonify({"success": False, "error_code": "UNAUTHORIZED", "message": "Autenticazione richiesta."}), 401
+
+        # --- LOGICA SESSIONE BROWSER (ultima priorità) ---
+        if current_user.is_authenticated:
+            logger.debug("Accesso API via sessione Flask (es. chat interna).")
+            return f(*args, **kwargs)
+
+        # --- Se nessun metodo di autenticazione ha funzionato ---
+        logger.warning("Accesso API negato: nessun metodo di autenticazione valido fornito (JWT, API Key, o Sessione).")
+        return jsonify({"success": False, "error_code": "UNAUTHORIZED", "message": "Autenticazione richiesta."}), 401
     return decorated_function
 
 # Funzione build_prompt (rimane invariata)
@@ -129,7 +166,7 @@ def handle_search_request(*args, **kwargs): # Nome più generico
     logger.info(f"Richiesta di ricerca ricevuta. Accept Header: '{accept_header}', SSE Richiesto: {is_sse_request}")
 
     # --- Logica interna per eseguire la ricerca e generare la risposta ---
-    def execute_search_logic():
+    def execute_search_logic(**kwargs):
         # Questa funzione interna conterrà la logica di ricerca che prima era nel generatore SSE.
         # Restituirà un dizionario con il payload finale o solleverà un'eccezione.
         final_payload = { "success": False, "answer": None, "retrieved_results": [], "error_code": None, "message": None }
@@ -183,11 +220,10 @@ def handle_search_request(*args, **kwargs): # Nome più generico
             app_mode = current_app.config.get('APP_MODE', 'single')
             user_id_to_use = None
             if app_mode == 'saas':
-                user_id_to_use = kwargs.get('api_user_id_override')
-                if not user_id_to_use and current_user.is_authenticated: user_id_to_use = current_user.id
-                if not user_id_to_use:
-                     final_payload.update({'error_code': 'INTERNAL_AUTH_ERROR', 'message': 'Utente non identificato per SAAS.'}); raise ValueError("Utente non identificato per SAAS")
-                logger.info(f"SAAS Mode: User ID for Chroma: {user_id_to_use}")
+                    # 2. NUOVA LOGICA DI VERIFICA
+                    user_id_to_use = kwargs.get('api_user_id_override') # Priorità 1: da JWT/API Key
+                    if not user_id_to_use and current_user.is_authenticated:
+                        user_id_to_use = current_user.id # Priorità 2: da sessione browser
 
             video_collection, doc_collection, article_collection = None, None, None
             chroma_client = current_app.config.get('CHROMA_CLIENT')

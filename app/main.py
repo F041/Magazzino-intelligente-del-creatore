@@ -236,13 +236,26 @@ def init_db(config):
         # --- Tabella users ---
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,    -- UUID come stringa
+                id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                name TEXT,              -- Nome opzionale
+                name TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )''')
-        logger.debug("Tabella 'users' verificata/creata.")
+        # Aggiungi la colonna 'role' (se non l'abbiamo già fatto)
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'")
+        except sqlite3.OperationalError: pass # Ignora se esiste già
+        # Aggiungi la nuova colonna per il dominio del widget
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN allowed_widget_domain TEXT")
+            logger.info("Colonna 'allowed_widget_domain' aggiunta alla tabella 'users'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e).lower():
+                logger.debug("Colonna 'allowed_widget_domain' già presente nella tabella 'users'.")
+            else:
+                raise
+    
 
         # --- Tabella api_keys ---
         cursor.execute('''
@@ -362,11 +375,7 @@ def create_app(config_object=AppConfig):
         logger.error(f"Errore creando directory upload/articoli: {e_mkdir}")
         # Potrebbe essere un errore fatale a seconda di quanto sono critiche queste dir all'avvio
 
-    CORS(app, resources={
-    r"/api/*": {"origins": "*"}, # API esistenti
-    r"/widget": {"origins": "*"}, # Contenuto Iframe
-    r"/embed.js": {"origins": "*"} # Script Embed
-    })
+
 
     # --- Configura Logging di Flask ---
     # Determina il livello di log in base a FLASK_DEBUG o DEBUG nella config
@@ -511,6 +520,9 @@ def create_app(config_object=AppConfig):
     except ImportError as e:
          logger.critical(f"Errore importazione/registrazione blueprint: {e}", exc_info=True)
          sys.exit(1)
+
+    CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
+    logger.info("Configurazione CORS applicata a tutta l'applicazione.")
 
     # Registra Filtro Jinja
     app.jinja_env.filters['format_date'] = format_datetime_filter
@@ -904,8 +916,26 @@ def create_app(config_object=AppConfig):
             except Exception as e_sched_stop_test:
                 logger.error(f"Errore fermando APScheduler in modalità test: {e_sched_stop_test}")
 
+    @app.route('/generate-link')
+    @login_required
+    def generate_link_page():
+        """Renderizza la pagina per generare token di accesso JWT per la chat esterna."""
+        # Se in futuro implementeremo i ruoli, basterà cambiare @login_required in @admin_required
+        return render_template('generate_token.html')
+    
+    @app.route('/widget-standalone')
+    def widget_standalone_page():   
+        """
+        Renderizza la pagina della chat standalone, che si aspetta un token JWT
+        come parametro URL per l'autenticazione via JavaScript.
+        """
+        return render_template('widget_standalone.html')
+
+
 
     return app
+
+
 
 
 

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - Magazzino Aziendale</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <!-- Includiamo SIA gli stili globali SIA quelli della chat -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_styles.css') }}">
+    <style>
+        /* Sovrascriviamo solo lo stile del body per centrare il contenuto */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f7f6; /* Stesso sfondo di base.html */
+            padding: 20px; /* Aggiunge un po' di margine sui lati */
+            box-sizing: border-box;
+        }
+        /* Rimuoviamo il box-shadow dal contenitore principale perché è già su uno sfondo */
+        .chat-container {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- La struttura interna è ora IDENTICA a quella di chat.html -->
+    <div class="chat-container">
+        <div class="chat-header">
+            <h3>Chat aziendale</h3>
+        </div>
+
+        <div class="chat-window" id="chat-window">
+            <div class="message bot-message">
+                <p>Ciao! Sono l'assistente aziendale. Fai una domanda sulla documentazione interna.</p>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <!-- Per ora nascondiamo il pulsante modalità, lo aggiungeremo dopo se serve -->
+            <textarea id="user-input" placeholder="Chiedi qualcosa..." rows="1"></textarea>
+            <button id="send-button" class="send-btn">Invia</button>
+        </div>
+    </div>
+
+    <!-- Script necessari -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>

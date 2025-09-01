@@ -25,7 +25,9 @@
             </li>
             <li class="{{ 'active' if request.endpoint == 'chat_page' else '' }}"><a href="{{ url_for('chat_page') }}"><span>Chat</span></a></li>
             <li class="{{ 'active' if request.endpoint == 'keys.manage_api_keys_page' else '' }}"><a href="{{ url_for('keys.manage_api_keys_page') }}"><span>Chiavi API</span></a></li>
-            
+            <li class="{{ 'active' if request.endpoint == 'generate_link_page' else '' }}"><a href="{{ url_for('generate_link_page') }}"><span>Accesso terzi</span></a></li>
+
+
             {# Aggiungi una linea separatrice (opzionale) #}
             <hr style="margin: 10px 20px; border: 0; border-top: 1px solid #eee;">
             {# NUOVO LINK LOGOUT #}

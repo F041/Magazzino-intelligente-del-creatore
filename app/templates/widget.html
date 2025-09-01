@@ -52,14 +52,7 @@
     </div>
 
     {# Includiamo lo stesso script chat.js #}
-    {# Assumiamo che l'API Key necessaria per /api/search sia gestita
-       dal sito esterno o passata in qualche modo sicuro (argomento avanzato).
-       PER ORA: Il widget funzionerà solo se l'utente è GIA' loggato
-       nella web app principale sullo stesso browser (usa lo stesso cookie di sessione)
-       oppure se l'API /api/search non richiede autenticazione stringente (dipende da @require_api_key)
-       Nel nostro caso, @require_api_key richiede o sessione o API Key.
-       QUINDI, IL WIDGET AVRÀ BISOGNO DI UN MODO PER AUTENTICARSI.
-       Lo risolviamo dopo, per ora creiamo la struttura. #}
+
     <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
     {# Potrebbe servire un JS aggiuntivo specifico per il widget in futuro #}
 </body>

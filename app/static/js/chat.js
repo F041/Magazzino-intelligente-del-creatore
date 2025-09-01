@@ -1,13 +1,20 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let WIDGET_API_KEY = null;
-    function getApiKeyFromUrl() {
+    let JWT_TOKEN = null; // Nuova variabile per il nostro token
+    
+    // Funzione per estrarre il token JWT dal parametro 'token' dell'URL
+    function getTokenFromUrl() {
         const params = new URLSearchParams(window.location.search);
-        const key = params.get('apiKey');
-        if (key) { console.log("Chat JS (Widget): API Key trovata in URL."); return key; }
+        const token = params.get('token');
+        if (token) {
+            console.log("Chat JS: Token JWT trovato nell'URL.");
+            return token;
+        }
+        console.log("Chat JS: Nessun token JWT trovato nell'URL.");
         return null;
     }
-    WIDGET_API_KEY = getApiKeyFromUrl();
-    console.log(`Chat JS loaded. API Key (from URL): ${WIDGET_API_KEY || "Nessuna"}`);
+    JWT_TOKEN = getTokenFromUrl(); // Salviamo il token
+    
+    console.log(`Chat JS loaded. Token JWT presente: ${JWT_TOKEN ? 'Sì' : 'No'}`);
 
     let chatHistory = [];
     const MAX_HISTORY_MESSAGES_TO_SEND = 6;
@@ -115,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addMessage(query, 'user');
         userInput.value = '';
-        userInput.style.height = 'auto'; // <-- AGGIUNGI QUESTA RIGA per resettare l'altezza
+        userInput.style.height = 'auto';
         enableUI(false);
         let currentStatusMessageElement = addMessage("Elaborazione in corso...", 'bot', null, false, true);
 
@@ -139,8 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 'Content-Type': 'application/json',
                 'Accept': 'text/event-stream'
             };
-            if (WIDGET_API_KEY) {
-                fetchHeaders['X-API-Key'] = WIDGET_API_KEY;
+
+            // NUOVA LOGICA: Aggiungi l'header di autorizzazione JWT se abbiamo un token
+            if (JWT_TOKEN) {
+                // Questo è lo standard per inviare i token JWT
+                fetchHeaders['Authorization'] = `Bearer ${JWT_TOKEN}`;
             }
 
             const response = await fetch('/api/search/', {

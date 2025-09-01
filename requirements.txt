@@ -7,6 +7,7 @@ Werkzeug>=3.0.0 # Spesso legato a Flask, ma diamo un po' di flessibilità
 Jinja2>=3.1.0   # Idem
 itsdangerous>=2.0.0 # Idem
 click>=8.0.0      # Idem
+PyJWT==2.8.0
 
 # Google APIs & Auth
 google-api-python-client # Per YouTube Data API
@@ -37,6 +38,7 @@ requests
 APScheduler
 Flask-SQLAlchemy # Per APScheduler job store
 sqlalchemy # Dipendenza di Flask-SQLAlchemy
+
 
 # Feed RSS
 feedparser

@@ -372,8 +372,6 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
     3.  **Pulisci i cookie e i dati del sito** per il dominio della tua applicazione direttamente dal browser.
     4.  Riprova il flusso di autenticazione da capo.
 
-*   **Incorporazione widget problematica ma provvisoria**
-    *   Usare JWT
 
 *   **Mancanza barra attività in bacgkround in dashboard nonostante logica presente**
 

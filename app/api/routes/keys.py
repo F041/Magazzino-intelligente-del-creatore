@@ -7,6 +7,8 @@ from flask_login import login_required, current_user
 
 # Importa la funzione helper per generare chiavi
 from app.utils import generate_api_key
+import datetime
+import jwt
 
 try:
     from app.api.routes.search import require_api_key
@@ -128,3 +130,154 @@ def verify_api_key_endpoint(*args, **kwargs):
 # def toggle_api_key_action(key_id):
 #     # Implementare logica per cambiare il flag 'is_active' nel DB
 #     pass
+
+# --- NUOVA ROUTE API PER GENERARE TOKEN JWT PER LA CHAT ESTERNA ---
+@keys_bp.route('/api/generate-token', methods=['POST'])
+@login_required
+def generate_jwt_for_widget():
+    """
+    Genera un token JWT per un utente esterno (es. dipendente).
+    Il token è firmato con la SECRET_KEY dell'app e contiene l'user_id dell'admin che lo ha generato.
+    """
+    if not request.is_json:
+        return jsonify({'success': False, 'error_code': 'INVALID_CONTENT_TYPE', 'message': 'Request must be JSON.'}), 400
+
+    data = request.get_json()
+    user_identifier = data.get('user_id')
+    try:
+        # L'input è in secondi (es. '86400'), lo convertiamo in intero
+        expires_in_seconds = int(data.get('expires_in', 86400))
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': 'Durata di validità non valida.'}), 400
+    
+    if not user_identifier:
+        return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': 'Identificativo utente richiesto.'}), 400
+
+    # L'utente a cui associare i dati è l'admin che sta generando il token
+    admin_user_id = current_user.id
+    secret_key = current_app.config.get('SECRET_KEY')
+
+    if not secret_key:
+        logger.error(f"Tentativo di generare JWT senza una SECRET_KEY configurata!")
+        return jsonify({'success': False, 'error_code': 'SERVER_CONFIG_ERROR', 'message': 'Errore di configurazione del server.'}), 500
+
+    # Creiamo il payload del token
+    payload = {
+        'iat': datetime.datetime.utcnow(), # Data di creazione (Issued At)
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(seconds=expires_in_seconds), # Data di scadenza (Expiration)
+        'sub': admin_user_id, # Il "soggetto" del token è l'utente admin proprietario dei dati
+        'name': user_identifier # Il nome descrittivo del dipendente
+    }
+
+    try:
+        # Codifichiamo il token usando la chiave segreta dell'applicazione
+        encoded_jwt = jwt.encode(payload, secret_key, algorithm="HS256")
+        logger.info(f"Admin {admin_user_id} ha generato un token JWT per '{user_identifier}' valido per {expires_in_seconds} secondi.")
+        
+        # Restituiamo il token al frontend
+        return jsonify({'success': True, 'token': encoded_jwt})
+
+    except Exception as e:
+        logger.error(f"Errore durante la codifica del JWT: {e}", exc_info=True)
+        return jsonify({'success': False, 'error_code': 'JWT_ENCODING_ERROR', 'message': 'Errore durante la creazione del token.'}), 500
+    
+    # --- NUOVA LOGICA PER IL WIDGET JWT ---
+
+@keys_bp.route('/api/widget-settings', methods=['GET', 'POST']) # Aggiunto GET
+@login_required
+def widget_settings():
+    """
+    GET: Recupera il dominio autorizzato per il widget dell'utente.
+    POST: Salva o aggiorna il dominio autorizzato per il widget di un utente.
+    """
+    db_path = current_app.config.get('DATABASE_FILE')
+    conn = None
+
+    if request.method == 'POST':
+        if not request.is_json or 'domain' not in request.get_json():
+            return jsonify({'success': False, 'message': 'Dati non validi.'}), 400
+        
+        domain = request.get_json().get('domain').strip().lower()
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET allowed_widget_domain = ? WHERE id = ?", (domain, current_user.id))
+            conn.commit()
+            logger.info(f"Utente {current_user.id} ha aggiornato il dominio del widget a: {domain}")
+            return jsonify({'success': True, 'message': 'Dominio salvato!', 'customerId': current_user.id})
+        except sqlite3.Error as e:
+            logger.error(f"Errore DB durante l'aggiornamento del dominio per l'utente {current_user.id}: {e}")
+            if conn: conn.rollback()
+            return jsonify({'success': False, 'message': 'Errore durante il salvataggio.'}), 500
+        finally:
+            if conn: conn.close()
+
+    if request.method == 'GET':
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT allowed_widget_domain FROM users WHERE id = ?", (current_user.id,))
+            result = cursor.fetchone()
+            domain = result[0] if result else ""
+            return jsonify({'success': True, 'domain': domain})
+        except sqlite3.Error as e:
+            logger.error(f"Errore DB durante la lettura del dominio per l'utente {current_user.id}: {e}")
+            return jsonify({'success': False, 'message': 'Errore nel recupero del dominio.'}), 500
+        finally:
+            if conn: conn.close()
+
+
+@keys_bp.route('/api/public/generate-widget-token', methods=['POST'])
+def generate_public_widget_token():
+    """
+    Endpoint PUBBLICO chiamato da embed.js.
+    Verifica il customer_id e il dominio di origine prima di rilasciare un token JWT.
+    """
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Richiesta non valida.'}), 400
+        
+    customer_id = request.json.get('customerId')
+    origin_domain = request.headers.get('Origin') # Es. https://www.sito-del-cliente.com
+
+    if not customer_id or not origin_domain:
+        return jsonify({'success': False, 'message': 'Dati mancanti.'}), 400
+    
+    # Pulisce il dominio di origine, rimuovendo protocollo, path E PORTA.
+    cleaned_origin = origin_domain.replace('https://', '').replace('http://', '').split('/')[0].split(':')[0]
+
+    db_path = current_app.config.get('DATABASE_FILE')
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT allowed_widget_domain FROM users WHERE id = ?", (customer_id,))
+        result = cursor.fetchone()
+        
+        if not result or not result[0]:
+            logger.warning(f"Tentativo di generazione token per customer ID non valido o senza dominio configurato: {customer_id}")
+            return jsonify({'success': False, 'message': 'Cliente non autorizzato.'}), 403
+
+        allowed_domain = result[0].lower()
+        
+        # --- IL CONTROLLO DI SICUREZZA FONDAMENTALE ---
+        if cleaned_origin != allowed_domain.replace('www.', ''):
+            logger.warning(f"Tentativo di generazione token RIFIUTATO. Dominio di origine '{cleaned_origin}' non corrisponde a quello autorizzato '{allowed_domain}' per il cliente {customer_id}.")
+            return jsonify({'success': False, 'message': 'Dominio non autorizzato.'}), 403
+
+        # Se i controlli passano, genera il token JWT
+        secret_key = current_app.config.get('SECRET_KEY')
+        payload = {
+            'iat': datetime.datetime.utcnow(),
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=2), # Token valido per 2 ore
+            'sub': customer_id, # Il "soggetto" è l'ID del cliente proprietario dei dati
+            'aud': 'widget_user' # Audience: identifica che è un token per un utente del widget
+        }
+        encoded_jwt = jwt.encode(payload, secret_key, algorithm="HS256")
+        
+        return jsonify({'success': True, 'token': encoded_jwt})
+
+    except Exception as e:
+        logger.error(f"Errore imprevisto durante la generazione del token pubblico: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Errore interno del server.'}), 500
+    finally:
+        if conn: conn.close()
