@@ -366,12 +366,6 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
     *   Assicurati che la variabile d'ambiente `OAUTHLIB_INSECURE_TRANSPORT` sia impostata a `0` nel tuo file `.env` se stai usando HTTPS (es. con Cloudflare Tunnel).
     *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
     *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
-    *   Se il flusso OAuth continua a dare errori inspiegabili (come `redirect_uri_mismatch` o `scope_changed` anche dopo aver corretto la configurazione), potrebbe essere necessario un "hard reset":
-    1.  **Revoca i permessi** dell'app dal tuo account Google su [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
-    2.  **Cancella il file del token** (`token.pickle` o `token.json`) dalla tua cartella `data` o `app`.
-    3.  **Pulisci i cookie e i dati del sito** per il dominio della tua applicazione direttamente dal browser.
-    4.  Riprova il flusso di autenticazione da capo.
-
 
 *   **Mancanza barra attività in bacgkround in dashboard nonostante logica presente**
 
@@ -445,3 +439,5 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   ~~Interfaccia Chat Streamlit~~ (Integrata in Flask)
 *   ~~Streaming Risposte LLM~~
 *   ~~Utilizzo Whisper/ASR Esterno~~ (Integrato con gestione documenti)
+
+
