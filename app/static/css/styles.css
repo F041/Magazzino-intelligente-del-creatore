@@ -1,38 +1,64 @@
 /* ==========================================================================
-   Variabili CSS
+   FILE CSS COMPLETO: Magazzino del Creatore (Stile "Industriale-Tech")
    ========================================================================== */
 
 :root {
-    /* Palette Colori */
-    --color-primary: #007bff;
-    --color-secondary: #6c757d;
-    --color-background-main: #f4f7f6;
+    /* Palette Colori (Base fornita, eccellente) */
+    --color-primary: #4361ee;
+    --color-primary-light: #4895ef;
+    --color-primary-dark: #3a0ca3;
+    --color-primary-hover: #3a56d4;
+    --color-secondary: #7209b7;
+    --color-secondary-light: #9b5de5;
+    --color-accent: #f72585;
+    --color-background-main: #f8f9fa;
     --color-background-secondary: #ffffff;
-    --color-text-main: #333;
-    --color-text-secondary: #555; /* Usato anche per alcuni bordi/ombre */
+    --color-text-main: #212529;
+    --color-text-secondary: #495057;
+    --color-text-light: #6c757d;
     --color-border: #dee2e6;
-    --color-border-light: #eee;
-    --color-success: #28a745;
-    --color-error: #dc3545;
-    --color-warning: #ffc107;
-    --color-info: #17a2b8;
+    --color-border-light: #e9ecef;
+    --color-success: #4cc9f0; /* Tocco tech/ciano per il successo */
+    --color-error: #e5383b;
+    --color-warning: #f9c74f;
+    --color-info: #4895ef;
 
-    /* Spaziatura (basata su multipli di 8px) */
+    /* Gradienti */
+    --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    
+    /* Variabili "Industriali" Aggiunte */
+    --color-metal-dark: #343a40; /* Colore per la sidebar/pannello */
+    --shadow-inset-light: inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    --shadow-inset-dark: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+
+    /* Spaziatura */
     --spacing-unit: 8px;
-    --spacing-xs: calc(0.5 * var(--spacing-unit)); /* 4px */
-    --spacing-sm: var(--spacing-unit); /* 8px */
+    --spacing-xs: calc(0.5 * var(--spacing-unit));  /* 4px */
+    --spacing-sm: var(--spacing-unit);             /* 8px */
     --spacing-md: calc(1.5 * var(--spacing-unit)); /* 12px */
-    --spacing-lg: calc(2 * var(--spacing-unit)); /* 16px */
-    --spacing-xl: calc(3 * var(--spacing-unit)); /* 24px */
-    --spacing-xxl: calc(4 * var(--spacing-unit)); /* 32px */
-    --spacing-xxxl: calc(5 * var(--spacing-unit)); /* 40px */
+    --spacing-lg: calc(2 * var(--spacing-unit));    /* 16px */
+    --spacing-xl: calc(3 * var(--spacing-unit));    /* 24px */
+    --spacing-xxl: calc(4 * var(--spacing-unit));   /* 32px */
+    --spacing-xxxl: calc(5 * var(--spacing-unit));  /* 40px */
+    
+    /* Tipografia */
+    --font-serif: 'Merriweather', serif;
+    --font-sans: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-weight-light: 300;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-bold: 700;
 
     /* Altro */
-    --border-radius-sm: 4px;
-    --border-radius-md: 8px;
-    --border-radius-lg: 12px;
-    --box-shadow-sm: 0 2px 5px rgba(0,0,0,0.1);
-    --box-shadow-md: 0 2px 10px rgba(0,0,0,0.1);
+    --border-radius-sm: 6px;
+    --border-radius-md: 12px;
+    --border-radius-lg: 16px;
+    --box-shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+    --box-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    --box-shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+    --sidebar-width: 280px;
+    --transition-base: all 0.25s ease;
+    --transition-slow: all 0.4s ease;
 }
 
 
@@ -40,83 +66,197 @@
    Stili Base
    ========================================================================== */
 
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
     padding: 0;
-    font-family: Arial, sans-serif; /* Tipografia approvata */
+    font-family: var(--font-sans);
+    font-weight: var(--font-weight-regular);
     display: flex;
     min-height: 100vh;
     background-color: var(--color-background-main);
-    color: var(--color-text-main); /* Colore testo base */
+    color: var(--color-text-main);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    font-weight: var(--font-weight-bold);
+    line-height: 1.3;
+    margin-top: 0;
+    margin-bottom: var(--spacing-lg);
 }
 
 h1 {
+    font-size: 2.5rem;
+    margin-bottom: var(--spacing-xl);
+    position: relative;
     color: var(--color-text-main);
-    margin-top: 0;
-    margin-bottom: var(--spacing-lg); /* Utilizzo variabile spaziatura */
+}
+
+h1:after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    width: 60px;
+    height: 4px;
+    background: var(--gradient-primary);
+    border-radius: 2px;
+}
+
+p {
+    margin-bottom: var(--spacing-lg);
+}
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: var(--transition-base);
+}
+
+a:hover {
+    color: var(--color-primary-hover);
 }
 
 
 /* ==========================================================================
-   Layout
+   Layout - Stile "Pannello di Controllo"
    ========================================================================== */
 
 .sidebar {
-    width: 250px;
-    background: var(--color-background-secondary);
-    border-right: 1px solid var(--color-border);
-    padding: var(--spacing-lg) 0;
-    box-shadow: var(--box-shadow-sm);
+    width: var(--sidebar-width);
+    background-color: var(--color-metal-dark);
+    padding: 0;
     flex-shrink: 0;
+    box-shadow: 5px 0 15px rgba(0,0,0,0.15);
+    position: relative;
+    z-index: 10;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-brand {
+    padding: var(--spacing-xl) var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-inset-dark);
+    margin-bottom: var(--spacing-md);
+    flex-shrink: 0;
+}
+
+/* Stile per l'icona del brand (ora un tag <i>) */
+.sidebar-brand i {
+    font-size: 2rem;
+    margin-right: var(--spacing-md);
+    color: var(--color-success);
+}
+
+/* Stile per le icone nel menu (ora un tag <i>) */
+.sidebar-menu a i {
+    font-size: 1.2rem;
+    /* La classe "fa-fw" nel HTML si occupa già di dare una larghezza fissa per l'allineamento */
+}
+
+.sidebar-brand span:last-child {
+    font-family: var(--font-serif);
+    font-weight: var(--font-weight-bold);
+    font-size: 1.2rem;
+    color: #e9ecef;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
 }
 
 .sidebar-menu {
     list-style: none;
-    padding: 0;
+    padding: 0 var(--spacing-sm);
     margin: 0;
+    overflow-y: auto;
+    flex-grow: 1;
 }
 
 .sidebar-menu li {
-    padding: var(--spacing-md) var(--spacing-lg);
-    cursor: pointer;
-    transition: background-color 0.2s, border-left-color 0.2s;
-    border-left: 4px solid transparent;
-}
-
-.sidebar-menu li:hover {
-    background-color: var(--color-background-main); /* Utilizzo variabile per hover */
-}
-
-.sidebar-menu li.active {
-    background-color: var(--color-background-main); /* Utilizzo variabile per active */
-    border-left: 4px solid var(--color-primary);
+    margin-bottom: var(--spacing-sm);
 }
 
 .sidebar-menu a {
-    text-decoration: none;
-    color: var(--color-text-main);
     display: flex;
     align-items: center;
-    gap: var(--spacing-sm);
-    font-weight: 500;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    text-decoration: none;
+    color: #ced4da;
+    font-weight: var(--font-weight-medium);
+    transition: var(--transition-base);
+    border-radius: var(--border-radius-sm);
+    box-shadow: var(--shadow-inset-dark), var(--shadow-inset-light);
+    background-color: rgba(0,0,0,0.15);
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+.sidebar-menu li:not(.active) a:hover {
+    background-color: rgba(0,0,0,0.25);
+    color: white;
+    box-shadow: var(--shadow-inset-dark);
+}
+
+.sidebar-menu li.active a {
+    background: var(--gradient-primary);
+    color: white;
+    font-weight: var(--font-weight-bold);
+    box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-primary-light) 40%, transparent);
+}
+
+.sidebar-menu .material-symbols-rounded {
+    font-size: 1.4rem;
+}
+
+.sidebar hr {
+    margin: var(--spacing-md) var(--spacing-lg);
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .main-content {
     flex-grow: 1;
     padding: var(--spacing-xxxl);
     overflow-y: auto;
+    background-color: var(--color-background-main);
+    position: relative;
+}
+
+.main-content::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* NUOVO PATTERN: Un pattern a puntini molto più leggero e tecnologico */
+    background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+    background-size: 15px 15px; /* Puntini più piccoli e ravvicinati */
+    pointer-events: none;
+    z-index: -1; /* Lo mettiamo sotto lo sfondo principale */
 }
 
 
 /* ==========================================================================
-   Componenti
+   Componenti (Dalla tua base, sono eccellenti)
    ========================================================================== */
 
 /* Tabelle */
 .data-table {
     width: 100%;
-    border-collapse: collapse;
-    margin-top: var(--spacing-lg);
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: var(--spacing-xl);
     background-color: var(--color-background-secondary);
     box-shadow: var(--box-shadow-md);
     border-radius: var(--border-radius-md);
@@ -126,199 +266,272 @@ h1 {
 .data-table th, .data-table td {
     padding: var(--spacing-md) var(--spacing-lg);
     text-align: left;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border-light);
 }
 
 .data-table th {
-    background-color: var(--color-background-main); /* Utilizzo variabile per sfondo header tabella */
-    font-weight: 600;
+    background-color: var(--color-background-main);
+    font-weight: var(--font-weight-medium);
+    font-family: var(--font-sans);
     color: var(--color-text-secondary);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    padding: var(--spacing-lg);
 }
 
 .data-table tr:last-child td {
     border-bottom: none;
 }
 
-.data-table tr:hover {
-    background-color: #e9ecef; /* Utilizzo un grigio chiaro per hover tabella */
+.data-table tbody tr {
+    transition: var(--transition-base);
 }
 
-.data-table a {
-    color: var(--color-primary); /* Utilizzo variabile per link */
-    text-decoration: none;
-}
-
-.data-table a:hover {
-    text-decoration: underline;
+.data-table tbody tr:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
 }
 
 /* Status Badge */
 .status-badge {
-    display: inline-block;
-    padding: var(--spacing-xs) var(--spacing-sm); /* Utilizzo variabile spaziatura */
-    border-radius: var(--border-radius-lg);
-    font-size: 11px; /* Considerare se standardizzare le dimensioni font */
-    font-weight: 500;
-    text-transform: capitalize;
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: var(--font-weight-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid transparent;
 }
 
 .status-completed {
-    background-color: #d4edda; /* Potrebbe essere sostituito con una variabile basata su --color-success */
-    color: #155724; /* Potrebbe essere sostituito con una variabile basata su --color-success */
-    border: 1px solid #c3e6cb; /* Potrebbe essere sostituito con una variabile basata su --color-success */
-}
-
-.status-failed {
-    background-color: var(--color-error);
-    color: #721c24; /* Potrebbe essere sostituito con una variabile basata su --color-error */
-    border: 1px solid #f5c6cb; /* Potrebbe essere sostituito con una variabile basata su --color-error */
-}
-
-.status-pending, .status-converted-and-pending, .status-saved-and-pending {
-    background-color: #fff3cd; /* Potrebbe essere sostituito con una variabile basata su --color-warning */
-    color: #856404; /* Potrebbe essere sostituito con una variabile basata su --color-warning */
-    border: 1px solid #ffeeba; /* Potrebbe essere sostituito con una variabile basata su --color-warning */
-}
-
-.status-processing {
-    background-color: #d1ecf1; /* Potrebbe essere sostituito con una variabile basata su --color-info */
-    color: #0c5460; /* Potrebbe essere sostituito con una variabile basata su --color-info */
-    border-color: #bee5eb; /* Potrebbe essere sostituito con una variabile basata su --color-info */
+    background-color: rgba(76, 201, 240, 0.15);
+    color: var(--color-success);
+    border-color: rgba(76, 201, 240, 0.3);
 }
 
 .status-badge[class*="status-failed"] {
-     /* Già coperto da .status-failed sopra, ma mantenuto per sicurezza se ci fossero altre classi */
-    background-color: var(--color-error);
-    color: #721c24;
-    border-color: #f5c6cb;
+    background-color: rgba(229, 56, 59, 0.15);
+    color: var(--color-error);
+    border-color: rgba(229, 56, 59, 0.3);
 }
 
-.status-unknown {
-    background-color: #e2e3e5; /* Potrebbe essere sostituito con una variabile basata su un grigio neutro */
-    color: #383d41; /* Potrebbe essere sostituito con una variabile basata su un grigio neutro */
-    border-color: #d6d8db; /* Potrebbe essere sostituito con una variabile basata su un grigio neutro */
+.status-pending, .status-processing {
+    background-color: rgba(249, 199, 79, 0.15);
+    color: var(--color-warning);
+    border-color: rgba(249, 199, 79, 0.3);
 }
 
 /* Messaggi Feedback */
+.success-message, .error-message {
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    border: 1px solid transparent;
+    display: flex;
+    align-items: center;
+    box-shadow: var(--box-shadow-sm);
+}
+
 .success-message {
-    padding: var(--spacing-sm);
-    margin-top: var(--spacing-md);
-    border-radius: var(--border-radius-sm);
-    display: block;
-    background-color: color-mix(in srgb, var(--color-success) 20%, transparent); /* Sfondo leggero basato sul colore successo */
-    color: color-mix(in srgb, var(--color-success) 80%, black); /* Testo più scuro basato sul colore successo */
-    border: 1px solid color-mix(in srgb, var(--color-success) 40%, transparent); /* Bordo basato sul colore successo */
+    background-color: rgba(76, 201, 240, 0.1);
+    color: var(--color-success);
+    border-color: rgba(76, 201, 240, 0.2);
 }
 
 .error-message {
-    padding: var(--spacing-sm);
-    margin-top: var(--spacing-md);
-    border-radius: var(--border-radius-sm);
-    display: block;
-    background-color: color-mix(in srgb, var(--color-error) 20%, transparent); /* Sfondo leggero basato sul colore errore */
-    color: color-mix(in srgb, var(--color-error) 80%, black); /* Testo più scuro basato sul colore errore */
-    border: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent); /* Bordo basato sul colore errore */
+    background-color: rgba(229, 56, 59, 0.1);
+    color: var(--color-error);
+    border-color: rgba(229, 56, 59, 0.2);
 }
 
-/* Bottoni Azioni */
-.action-btn { /* Classe generica per bottoni azione */
-    padding: var(--spacing-xs) var(--spacing-sm); /* Utilizzo variabile spaziatura */
-    font-size: 12px; /* Considerare se standardizzare le dimensioni font */
+/* Bottoni Azione */
+.action-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: 0.9rem;
+    font-weight: var(--font-weight-medium);
     border: none;
     border-radius: var(--border-radius-sm);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: var(--transition-base);
     color: white;
-    background-color: var(--color-primary);
+    background: var(--gradient-primary);
+    box-shadow: var(--box-shadow-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--box-shadow-md);
+    text-decoration: none;
 }
 
 .action-btn:disabled {
-    background-color: var(--color-secondary);
+    background: var(--color-border);
     cursor: not-allowed;
     opacity: 0.7;
+    transform: translateY(0);
 }
 
-/* Stili specifici per tipo bottone (possono sovrascrivere il default) */
 .delete-btn {
-    background-color: var(--color-error);
+    background: linear-gradient(135deg, var(--color-error) 0%, #c82333 100%);
 }
 
 .delete-btn:hover {
-    background-color: #c82333; /* Potrebbe essere sostituito con una variabile per hover errore */
+    background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
 }
 
-/* Hover generico per .action-btn (se non è delete) */
-.action-btn:not(.delete-btn):hover {
-    background-color: #0056b3; /* Potrebbe essere sostituito con una variabile per hover primario */
-}
-
-.action-loader {
-    display: none;
-    margin-left: var(--spacing-xs); /* Utilizzo variabile spaziatura */
-    font-style: italic;
-    color: var(--color-text-secondary);
-    font-size: 11px; /* Considerare se standardizzare le dimensioni font */
-}
-
-/* Elementi non trovati */
-.no-items-message {
-    text-align: center;
-    padding: var(--spacing-xxxl); /* Utilizzo variabile spaziatura */
-    color: #777; /* Potrebbe essere sostituito con una variabile per testo terziario */
-}
-
-/* Stili comuni per Form e Input */
+/* Input e Form */
 input[type="text"],
 input[type="email"],
 input[type="password"],
+input[type="url"],
 input[type="number"],
 textarea,
 select {
-    display: block; /* Rende gli input block per un layout più prevedibile */
+    display: block;
     width: 100%;
-    padding: var(--spacing-sm); /* Utilizzo variabile spaziatura */
-    margin-bottom: var(--spacing-md); /* Spazio sotto l'input */
-    font-size: 1em;
-    font-family: inherit; /* Eredita il font base */
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    font-size: 1rem;
+    font-family: var(--font-sans);
     color: var(--color-text-main);
     background-color: var(--color-background-secondary);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius-sm);
-    box-sizing: border-box; /* Include padding e border nel width */
-    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    box-sizing: border-box;
+    transition: var(--transition-base);
 }
 
-input[type="text"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus,
-input[type="number"]:focus,
-textarea:focus,
-select:focus {
+input:focus, textarea:focus, select:focus {
     border-color: var(--color-primary);
     outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* Ombra leggera al focus */
+    box-shadow: 0 0 0 0.2rem rgba(67, 97, 238, 0.25);
 }
 
 label {
-    display: block; /* Rende le label block per posizionarle sopra l'input */
-    margin-bottom: var(--spacing-xs); /* Spazio sotto la label */
-    font-weight: 500;
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-weight: var(--font-weight-medium);
     color: var(--color-text-main);
 }
 
-/* Stili per placeholder */
-input::placeholder,
-textarea::placeholder {
-    color: var(--color-text-secondary);
-    opacity: 1; /* Assicura che il colore sia visibile */
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 240px;
+    }
+    
+    .main-content {
+        padding: var(--spacing-xl);
+    }
 }
 
-/* Stili per stati di validazione (opzionale, da implementare dove necessario) */
-/*
-.is-valid { border-color: var(--color-success); }
-.is-valid:focus { border-color: var(--color-success); box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25); }
-.is-invalid { border-color: var(--color-error); }
-.is-invalid:focus { border-color: var(--color-error); box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25); }
-*/
+/* ==========================================================================
+   Componente: Accordion (per la Dashboard)
+   ========================================================================== */
 
-/* (Il blocco Jinja non è più qui dentro - rimosso in un passaggio precedente) */
+.accordion-container {
+    max-width: 800px; /* Limita la larghezza per la leggibilità */
+    margin-top: var(--spacing-xl);
+}
+
+.accordion-item {
+    border: 1px solid var(--color-border);
+    margin-bottom: -1px; /* Fa sovrapporre i bordi per un look pulito */
+    background-color: var(--color-background-secondary);
+    transition: var(--transition-base);
+}
+
+.accordion-container > .accordion-item:first-child {
+    border-top-left-radius: var(--border-radius-md);
+    border-top-right-radius: var(--border-radius-md);
+}
+
+.accordion-container > .accordion-item:last-child {
+    border-bottom-left-radius: var(--border-radius-md);
+    border-bottom-right-radius: var(--border-radius-md);
+    margin-bottom: 0;
+}
+
+.accordion-header {
+    background-color: transparent;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+
+.accordion-item:hover .accordion-header {
+    background-color: var(--color-border-light);
+}
+
+.accordion-title {
+    font-family: var(--font-sans); /* Usiamo il sans-serif per l'UI */
+    font-weight: var(--font-weight-medium);
+    font-size: 1.1em;
+    color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.accordion-arrow {
+    /* Rimuoviamo la riga font-family per lasciare che Font Awesome faccia il suo lavoro. */
+    font-size: 1rem; /* Riduciamo leggermente per un look più raffinato */
+    color: var(--color-text-light);
+    transition: transform 0.3s ease, color 0.3s ease; /* Aggiungiamo transizione al colore */
+    font-weight: 900; /* IMPORTANTE: Lo stile "solid" (fas) di Font Awesome 6 richiede un font-weight di 900. */
+}
+
+/* Quando un item è aperto, ruota la freccia */
+.accordion-item.open > .accordion-header > .accordion-arrow {
+    transform: rotate(180deg);
+    color: var(--color-primary);
+}
+
+.accordion-content {
+    padding: var(--spacing-xl);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border-light);
+    display: none; /* Nascosto di default, JS lo mostrerà */
+}
+
+.accordion-item.open > .accordion-content {
+    display: block; /* Mostra il contenuto quando l'item è aperto */
+}
+
+/* Stile per l'area di upload file */
+.file-drop-area {
+    border: 2px dashed var(--color-border);
+    padding: var(--spacing-xxl);
+    text-align: center;
+    background-color: var(--color-background-main);
+    color: var(--color-text-light);
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    transition: var(--transition-base);
+    margin-bottom: var(--spacing-lg);
+}
+
+.file-drop-area:hover, .file-drop-area.dragover {
+    background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+    border-color: var(--color-primary);
+}
+
+.file-drop-area span strong { 
+    color: var(--color-primary);
+}
+

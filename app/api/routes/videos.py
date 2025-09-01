@@ -145,7 +145,7 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                 logger.info(f"[CORE YT Process] --- Processing video {index}/{to_process_count}: {video_id} ({video_title}) ---")
                 current_video_status = 'pending'; transcript_text, transcript_lang, transcript_type = None, None, None; chunks = []
                 try:
-                    transcript_result = TranscriptService.get_transcript(video_id)
+                    transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
                     if transcript_result:
                         transcript_text, transcript_lang, transcript_type = transcript_result['text'], transcript_result['language'], transcript_result['type']
                         current_video_status = 'processing_embedding'

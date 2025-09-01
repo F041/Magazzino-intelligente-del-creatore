@@ -70,7 +70,8 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
         *   Registrazione/Login utente (`saas`).
         *   Autenticazione Google OAuth (per API YouTube).
         *   Gestione Chiavi API (`/keys/manage`) (`saas`).
-        *   Dashboard (`/dashboard`) per avviare elaborazione Canale YouTube, caricare Documenti, processare Feed RSS, con feedback di avanzamento per i processi asincroni (YouTube, RSS).
+        *   **UX a "Rivelazione Progressiva":** Al primo accesso, l'utente viene guidato verso l'azione fondamentale ("Ingresso Dati"). Le funzionalità avanzate (Chat, Automazioni, API) si sbloccano automaticamente solo dopo aver caricato i primi contenuti, creando un'esperienza più pulita e meno opprimente.
+        *   Gestione contenuti tramite un'interfaccia a pannelli espandibili (accordion).
         *   Visualizzazione contenuti (`/my-videos`, `/my-documents`, `/my-articles`) con azioni (Riprocessa, Elimina).
         *   Pulsante "Elimina Tutti" per video e articoli (in `/my-videos`, `/my-articles`) (`saas`).
     *   **Chat Interattiva (Flask):**

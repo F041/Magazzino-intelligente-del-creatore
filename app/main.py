@@ -931,6 +931,56 @@ def create_app(config_object=AppConfig):
         """
         return render_template('widget_standalone.html')
 
+    @app.context_processor
+    def inject_user_content_status():
+        """
+        Controlla il numero di contenuti completati per ogni categoria
+        e rende queste informazioni disponibili a tutti i template.
+        """
+        # Dizionario di partenza: tutto a zero.
+        content_counts = {
+            'has_videos': False,
+            'has_documents': False,
+            'has_articles': False
+        }
+
+        # Se l'utente non è loggato, non ha contenuti.
+        if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
+            return dict(content_counts=content_counts)
+
+        app_mode = current_app.config.get('APP_MODE', 'single')
+        db_path = current_app.config.get('DATABASE_FILE')
+        conn = None
+        
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            params = (current_user.id,) if app_mode == 'saas' else ()
+            user_filter = " WHERE user_id = ?" if app_mode == 'saas' else ""
+
+            # Controlla i video
+            cursor.execute(f"SELECT 1 FROM videos {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+            if cursor.fetchone():
+                content_counts['has_videos'] = True
+
+            # Controlla i documenti
+            cursor.execute(f"SELECT 1 FROM documents {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+            if cursor.fetchone():
+                content_counts['has_documents'] = True
+            
+            # Controlla gli articoli
+            cursor.execute(f"SELECT 1 FROM articles {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+            if cursor.fetchone():
+                content_counts['has_articles'] = True
+
+        except sqlite3.Error as e:
+            logger.error(f"Errore DB in context_processor: {e}")
+        finally:
+            if conn:
+                conn.close()
+        
+        return dict(content_counts=content_counts)
 
 
     return app

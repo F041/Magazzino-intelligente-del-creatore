@@ -67,12 +67,16 @@
                     <td>
                         {# {% if video.processing_status not in ['processing', 'completed'] %} #}
                         <button class="action-btn reprocess-btn" data-video-id="{{ video.video_id }}">
-                            {# Puoi semplificare il testo se vuoi, o lasciarlo condizionale #}
-                            {% if video.processing_status == 'pending' %}Processa
-                            {% elif video.processing_status == 'completed' %}Riprocessa (Completo)
-                            {% else %}Riprocessa{% endif %}
-                        </button>
-                        <span class="action-loader reprocess-loader">(loading...)</span>
+                                <i class="fas fa-sync-alt fa-fw"></i>
+                                <!-- RIPRISTINATA la logica per il testo del bottone -->
+                                {% if video.processing_status == 'completed' %}
+                                    <span>Riprocessa (Completo)</span>
+                                {% else %}
+                                    <span>Riprocessa</span>
+                                {% endif %}
+                            </button>
+                            <!-- CORRETTO: Il loader è nascosto di default -->
+                            <span class="action-loader reprocess-loader" style="display: none;">(loading...)</span>
                     {# {% endif %} #}
                 </td>       
                 </tr>
