@@ -304,6 +304,18 @@ def init_db(config):
             )''')
         logger.info("Tabella 'monitored_rss_feeds' verificata/creata.")
 
+        # --- Tabella per le Impostazioni Utente ---
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id TEXT PRIMARY KEY,
+                llm_provider TEXT,
+                llm_model_name TEXT,
+                llm_embedding_model TEXT,
+                llm_api_key TEXT,
+                rag_temperature REAL, 
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )''')
+        logger.info("Tabella 'user_settings' verificata/creata.")
 
         conn.commit()
         # Aggiorna messaggio log finale
@@ -517,6 +529,9 @@ def create_app(config_object=AppConfig):
         from .api.routes.monitoring import monitoring_bp
         app.register_blueprint(monitoring_bp, url_prefix='/api/monitoring')
         logger.info("Blueprint Monitoring registrato con prefisso /api/monitoring.")
+        from .api.routes.settings import settings_bp
+        app.register_blueprint(settings_bp) # Nessun prefisso, la rotta è /settings
+        logger.info("Blueprint Settings registrato.")
     except ImportError as e:
          logger.critical(f"Errore importazione/registrazione blueprint: {e}", exc_info=True)
          sys.exit(1)
@@ -528,16 +543,12 @@ def create_app(config_object=AppConfig):
     app.jinja_env.filters['format_date'] = format_datetime_filter
 
     # --- Definizione Routes ---
-    # (Rimosse le duplicazioni, mantenuta una sola definizione per route)
+   
 
     @app.route('/')
     def index():
-        # load_credentials richiede contesto app
-        with app.app_context():
-            if not load_credentials():
-                return render_template('index.html')
-            else:
-                return redirect(url_for('dashboard'))
+        """Mostra sempre la pagina di benvenuto (index.html)."""
+        return render_template('index.html')
 
     @app.route('/authorize')
     def authorize():
@@ -630,7 +641,7 @@ def create_app(config_object=AppConfig):
                 logger.info(f"Utente {user.email} loggato con successo.")
                 next_page = request.args.get('next')
                 if not next_page: # Se 'next' non esiste, vai alla dashboard
-                 next_page = url_for('dashboard')
+                 next_page = url_for('ingresso-dati')
                  return redirect(next_page)
             else:
                 flash('Email o password non validi.', 'error')
@@ -652,7 +663,7 @@ def create_app(config_object=AppConfig):
     def register():
         # Se l'utente è già loggato, reindirizzalo alla dashboard
         if current_user.is_authenticated:
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('ingresso-dati'))
 
         if request.method == 'POST':
             email = request.form.get('email')
@@ -715,7 +726,7 @@ def create_app(config_object=AppConfig):
         return render_template('register.html')
 
 
-    @app.route('/dashboard')
+    @app.route('/ingresso-dati')
     @login_required
     def dashboard():
         return render_template('dashboard.html')

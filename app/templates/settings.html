@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Impostazioni - Magazzino del Creatore{% endblock %}
+
+{% block head_styles %}
+
+<style>
+    .settings-form {
+        max-width: 800px;
+    }
+    .form-section {
+        background: var(--color-background-secondary);
+        padding: var(--spacing-xl);
+        border: 1px solid var(--color-border);
+        border-radius: var(--border-radius-md);
+        margin-bottom: var(--spacing-xxl);
+        box-shadow: var(--box-shadow-md);
+    }
+    .form-section h2 {
+        font-size: 1.5rem;
+        margin-top: 0;
+        margin-bottom: var(--spacing-lg);
+        padding-bottom: var(--spacing-md);
+        border-bottom: 1px solid var(--color-border-light);
+    }
+    .form-group {
+        margin-bottom: var(--spacing-lg);
+    }
+    /* NUOVA STRUTTURA PER LABEL E TOOLTIPS */
+    .label-wrapper {
+        display: flex;
+        align-items: center;
+        margin-bottom: var(--spacing-xs);
+    }
+    .label-wrapper .tooltip-group {
+        display: flex;
+        align-items-center;
+        gap: var(--spacing-sm);
+        margin-left: var(--spacing-sm);
+    }
+    .info-tooltip, .help-video-link {
+        display: inline-block;
+        position: relative;
+        cursor: help;
+    }
+    /* STILE ICONA 'i' CON STACKING - LA SOLUZIONE ELEGANTE */
+    .info-tooltip .fa-stack {
+        font-size: 0.8em; /* Controlla la dimensione generale */
+        vertical-align: middle;
+    }
+    .info-tooltip .fa-stack .fa-circle {
+        color: var(--color-text-light);
+    }
+    .info-tooltip .fa-stack .fa-info {
+        color: white;
+    }
+    /* STILE ICONA VIDEO */
+    .help-video-link i {
+        color: var(--color-primary);
+        font-size: 1.2em;
+        vertical-align: middle;
+        transition: transform 0.2s ease;
+    }
+    .help-video-link:hover i {
+        transform: scale(1.2);
+    }
+
+    .info-tooltip .tooltip-text {
+        visibility: hidden;
+        width: 300px;
+        background-color: var(--color-metal-dark);
+        color: #fff;
+        text-align: center;
+        border-radius: var(--border-radius-sm);
+        padding: var(--spacing-md);
+        position: absolute;
+        z-index: 1;
+        bottom: 150%;
+        left: 50%;
+        margin-left: -150px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-family: var(--font-sans);
+        font-size: 0.9rem;
+        font-weight: 400;
+        line-height: 1.5;
+    }
+    .info-tooltip .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: var(--color-metal-dark) transparent transparent transparent;
+    }
+    .info-tooltip:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+</style>
+
+{% endblock %}
+
+{% block content %}
+<h1>Impostazioni</h1>
+<p>Configura il comportamento del tuo Magazzino. Le impostazioni qui sovrascrivono i valori prestabiliti.</p>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="{{ 'success-message' if category == 'success' else 'error-message' }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<!-- 1. Contenitore principale per le schede -->
+<div class="tabs-container">
+    
+    <!-- 2. Navigazione delle schede -->
+    <nav class="tabs-navigation">
+        <div class="tab-link active" data-tab="generali">
+            <i class="fas fa-sliders-h"></i>
+            <span>Generali</span>
+        </div>
+        <!-- Qui in futuro potrai aggiungere altre tab, es:
+        <div class="tab-link" data-tab="account">
+            <i class="fas fa-user-circle"></i>
+            <span>Account</span>
+        </div>
+        -->
+    </nav>
+
+    <!-- 3. Contenuto delle schede -->
+    <form method="POST" action="{{ url_for('settings.settings_page') }}" class="settings-form">
+        
+        <!-- Contenuto della Tab "Generali" -->
+        <div id="generali" class="tab-content active">
+            <div class="form-section">
+                <h2>Intelligenza Artificiale</h2>
+                
+                <div class="form-group">
+                    <label for="llm_provider">Fornitore modello linguistico</label>
+                    <select id="llm_provider" name="llm_provider">
+                        <option value="google" {% if settings.llm_provider == 'google' or not settings.llm_provider %}selected{% endif %}>Google Gemini</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <div class="label-wrapper">
+                        <label for="llm_model_name">Modello IA per generazione</label>
+                        <div class="tooltip-group">
+                            <span class="info-tooltip">
+                                <span class="fa-stack">
+                                  <i class="fas fa-circle fa-stack-2x"></i>
+                                  <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                                </span>
+                                <span class="tooltip-text">Il "motore" che crea le risposte. Inserisci qui il nome del modello che vuoi usare (es. `gemini-2.5-pro`).</span>
+                            </span>
+                        </div>
+                    </div>
+                    <input type="text" id="llm_model_name" name="llm_model_name" value="{{ settings.get('llm_model_name', '') }}" placeholder="Default: gemini-2.5-pro">
+                </div>
+
+                <div class="form-group">
+                     <div class="label-wrapper">
+                        <label for="llm_embedding_model">Modello per trasformare il testo in linguaggio macchina</label>
+                         <div class="tooltip-group">
+                            <span class="info-tooltip">
+                                <span class="fa-stack">
+                                  <i class="fas fa-circle fa-stack-2x"></i>
+                                  <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                                </span>
+                                <span class="tooltip-text">Il "traduttore" che trasforma il tuo testo in numeri per la ricerca. Per Gemini, `text-embedding-004` è una buona scelta.</span>
+                            </span>
+                        </div>
+                    </div>
+                    <input type="text" id="llm_embedding_model" name="llm_embedding_model" value="{{ settings.get('llm_embedding_model', '') }}" placeholder="Default: text-embedding-004">
+                </div>
+
+                <div class="form-group">
+                     <div class="label-wrapper">
+                        <label for="llm_api_key">Chiave per servizio modello linguistico</label>
+                        <div class="tooltip-group">
+                            <span class="info-tooltip">
+                                <span class="fa-stack">
+                                  <i class="fas fa-circle fa-stack-2x"></i>
+                                  <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                                </span>
+                                <span class="tooltip-text">La tua "password" per usare il servizio di Intelligenza Artificiale scelto. Viene salvata in modo sicuro. Se lasci vuoto, verrà usata quella di default del sistema.</span>
+                            </span>
+                            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="help-video-link" title="Guarda come trovare la tua API Key">
+                                <i class="fab fa-youtube"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <input type="password" id="llm_api_key" name="llm_api_key" value="{{ settings.get('llm_api_key', '') }}" placeholder="Incolla la tua API Key qui">
+                </div>
+            </div>
+        </div>
+
+        <!-- Qui in futuro potrai aggiungere il contenuto di altre tab, es:
+        <div id="account" class="tab-content">
+            <div class="form-section">
+                <h2>Il Tuo Account</h2>
+                <p>Contenuto della tab Account...</p>
+            </div>
+        </div>
+        -->
+        
+        <button type="submit" class="action-btn">Salva impostazioni</button>
+    </form>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Logica per gestire il click sulle schede
+    const tabLinks = document.querySelectorAll('.tab-link');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const tabId = link.dataset.tab;
+
+            // Rimuovi 'active' da tutti i link e contenuti
+            tabLinks.forEach(l => l.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+
+            // Aggiungi 'active' al link cliccato e al contenuto corrispondente
+            link.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
+});
+</script>
+{% endblock %}

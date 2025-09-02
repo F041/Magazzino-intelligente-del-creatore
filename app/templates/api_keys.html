@@ -1,7 +1,7 @@
 <!-- FILE: app/templates/api_keys.html -->
 {% extends "base.html" %}
 
-{% block title %}Gestione Chiavi API - Magazzino del Creatore{% endblock %}
+{% block title %}Gestione chiavi API - Magazzino del Creatore{% endblock %}
 
 {% block head_styles %}
 <style>
@@ -68,8 +68,8 @@
 {% endblock %}
 
 {% block content %}
-    <h1>Gestione Chiavi API</h1>
-    <p>Le chiavi API ti permettono di accedere ai dati tramite script o applicazioni esterne (come Streamlit).</p>
+    <h1>Gestione chiavi API</h1>
+    <p>Le chiavi API ti permettono di accedere ai dati tramite script o applicazioni esterne.</p>
     <p><strong>Tratta le tue chiavi API come password!</strong> Non condividerle pubblicamente.</p>
 
     {# Mostra messaggi flash (es. successo/errore generazione) #}
@@ -83,7 +83,7 @@
       {% endif %}
     {% endwith %}
 
-    <h2>Le Tue Chiavi API</h2>
+    <h2>Le tue chiavi API</h2>
     <div id="api-key-list">
         {% if api_keys %}
             {% for key_info in api_keys %}

@@ -34,6 +34,10 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
 *   **Gestione API Key (Modalità `saas`):**
     *   Interfaccia web (`/keys/manage`) per utenti loggati per generare, visualizzare ed eliminare chiavi API personali.
     *   Le API critiche (es. `/api/search/`) sono protette e richiedono una chiave API valida per identificare l'utente.
+*   **Configurazione AI via UI:**
+    *   Una pagina dedicata "Impostazioni" permette all'utente di **sovrascrivere le configurazioni di default** (presenti nel file `.env`) direttamente dall'interfaccia web.
+    *   È possibile cambiare dinamicamente il fornitore AI (attualmente Google Gemini), i modelli specifici per la generazione e per l'embedding, e inserire la propria API Key.
+    *   Questo rende l'applicazione **agnostica rispetto al modello** e accessibile anche a utenti non tecnici, che non dovranno più modificare file di configurazione manuali.
 *   **Recupero Contenuti YouTube:**
     *   Autenticazione OAuth 2.0 sicura per l'API YouTube (token salvato in `token.pickle`/`.json`).
     *   Recupera metadati e trascrizioni (manuali e automatiche) per i video di un canale specificato.
@@ -83,6 +87,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
         *   Funzionalità per incorporare la chat su siti web esterni tramite uno snippet JavaScript.
         *   Il creator può ottenere lo snippet dalla pagina `/chat` (richiede incolla di una chiave API dedicata se in modalità `saas`).
         *   L'autenticazione del widget avviene tramite la chiave API fornita nello snippet (modalità `saas`) o è implicita (modalità `single`). (Da rivedere)
+    *   **Impostazioni:** Una pagina dedicata per configurare il "cervello" dell'applicazione, come i modelli di Intelligenza Artificiale da utilizzare.
 
 ## Prerequisiti (per Self-Hosting con Docker)
 
@@ -314,7 +319,7 @@ Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le imm
 
 1.  **Registrazione/Login Flask:** Apri `http://localhost:5000`. Registra un nuovo utente o effettua il login.
 2.  **Autenticazione Google:** Se necessario, completa il flusso di login Google per autorizzare l'API YouTube.
-3.  **Elaborazione Contenuti (Flask UI):** Usa la `/dashboard` per aggiungere contenuti YouTube, Documenti o RSS. Monitora lo stato dei processi asincroni.
+3.  **Ingresso Dati (Flask UI):** Usa la pagina `/ingresso-dati` per aggiungere contenuti da YouTube, Documenti o RSS. Monitora lo stato dei processi asincroni. Una volta che i contenuti saranno processati con successo, le altre voci del menu appariranno.
 4.  **Gestione Contenuti (Flask UI):** Usa le pagine `/my-*` per visualizzare, riprocessare o eliminare contenuti. Usa `/keys/manage` per creare/eliminare chiavi API.
 5.  **Interrogazione Contenuti (Chat Flask):**
     *   Vai alla pagina `/chat`.
@@ -416,8 +421,6 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [ ] **Creare nuovo intent:** Quando non ho elementi con distanza sufficiente dalla soglia, provare a dare una risposta replicando lo stile dell'autore.
         - questo potrebbe andare in conflitto con il fallback del prompt del RAG
 
-
-
 **Stabilità e Qualità:**
 *   [ ] **Gestione Errori API:** Standardizzare formati JSON risposte errore.
 *   [ ] **Gestione Errori Indicizzazione:** Migliorare diagnostica/gestione errori estrazione testo e embedding.
@@ -430,11 +433,16 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 
 **UI/UX:**
 *   [ ] **Feedback Processi Background:** Migliorare ulteriormente il feedback per operazioni lunghe (re-indicizzazione).
+    [ ] **Mettere modello fallback in UI impostazioni:** al momento consente di scegliere solo un modello.
+
 
 **DevOps e Deployment:**
 *   [x] **Dockerizzazione:** Creati `Dockerfile` e `docker-compose.yml` per esecuzione self-hosted.
 *   [x] **CI/CD:** Impostare pipeline.
 *   [ ] **Valutare DB Esterno:** Considerare PostgreSQL/Supabase per deployment `saas` su larga scala (o per istanze self-hosted che richiedono maggiore robustezza/concorrenza, specialmente se si separa lo scheduler).
+
+**Ollama:**
+[ ] **Permette di collegarsi ad Ollama come fornitore LLM**.
 
 **Funzionalità Rimosse/Archiviate:**
 *   ~~Interfaccia Chat Streamlit~~ (Integrata in Flask)

@@ -1,4 +1,4 @@
-<!-- FILE: app/templates/base.html (Versione con Logica Server-Side) -->
+<!-- FILE: app/templates/base.html (Versione con Layout Sidebar Robusto) -->
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -16,80 +16,46 @@
 </head>
 <body>
     <div class="sidebar">
-        <div class="sidebar-brand">
-            <i class="fas fa-warehouse"></i>
-            <span>Magazzino</span>
+        
+        <!-- Intestazione della Sidebar (fissa) -->
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <i class="fas fa-warehouse"></i>
+                <span>Magazzino</span>
+            </div>
         </div>
 
-                <!-- Menu Principale con Logica Granulare -->
+        <!-- CORREZIONE: Il menu principale ora è il contenitore che scrolla -->
         <ul class="sidebar-menu">
-            <li class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">
-                <a href="{{ url_for('dashboard') }}">
-                    <i class="fas fa-file-import fa-fw"></i>
-                    <span>Ingresso Dati</span>
-                </a>
-            </li>
-
-            <!-- Mostra "I tuoi video" SOLO se ci sono video completati -->
+            <li class="{{ 'active' if request.endpoint == 'dashboard' else '' }}"><a href="{{ url_for('dashboard') }}"><i class="fas fa-file-import fa-fw"></i><span>Ingresso Dati</span></a></li>
+            
             {% if content_counts.has_videos %}
-                <li class="{{ 'active' if request.endpoint == 'my_videos' else '' }}">
-                    <a href="{{ url_for('my_videos') }}">
-                        <i class="fas fa-video fa-fw"></i>
-                        <span>I tuoi video</span>
-                    </a>
-                </li>
+                <li class="{{ 'active' if request.endpoint == 'my_videos' else '' }}"><a href="{{ url_for('my_videos') }}"><i class="fas fa-video fa-fw"></i><span>I tuoi video</span></a></li>
             {% endif %}
-
-            <!-- Mostra "I tuoi documenti" SOLO se ci sono documenti completati -->
             {% if content_counts.has_documents %}
-                <li class="{{ 'active' if request.endpoint == 'my_documents' else '' }}">
-                    <a href="{{ url_for('my_documents') }}">
-                        <i class="fas fa-file-alt fa-fw"></i>
-                        <span>I tuoi documenti</span>
-                    </a>
-                </li>
+                <li class="{{ 'active' if request.endpoint == 'my_documents' else '' }}"><a href="{{ url_for('my_documents') }}"><i class="fas fa-file-alt fa-fw"></i><span>I tuoi documenti</span></a></li>
             {% endif %}
-
-            <!-- Mostra "I tuoi articoli" SOLO se ci sono articoli completati -->
             {% if content_counts.has_articles %}
-                <li class="{{ 'active' if request.endpoint == 'my_articles' else '' }}">
-                    <a href="{{ url_for('my_articles') }}">
-                        <i class="fas fa-newspaper fa-fw"></i>
-                        <span>I tuoi articoli</span>
-                    </a>
-                </li>
+                <li class="{{ 'active' if request.endpoint == 'my_articles' else '' }}"><a href="{{ url_for('my_articles') }}"><i class="fas fa-newspaper fa-fw"></i><span>I tuoi articoli</span></a></li>
             {% endif %}
-
-            <!-- Mostra le altre voci (Chat, API, etc.) se c'è ALMENO UN tipo di contenuto -->
             {% if content_counts.has_videos or content_counts.has_documents or content_counts.has_articles %}
-                 <li class="{{ 'active' if request.endpoint == 'automations_page' else '' }}">
-                    <a href="{{ url_for('automations_page') }}">
-                        <i class="fas fa-robot fa-fw"></i>
-                        <span>Automazioni</span>
-                    </a>
-                </li>
-                <li class="{{ 'active' if request.endpoint == 'chat_page' else '' }}">
-                    <a href="{{ url_for('chat_page') }}">
-                        <i class="fas fa-comments fa-fw"></i>
-                        <span>Chat</span>
-                    </a>
-                </li>
-                <li class="{{ 'active' if request.endpoint == 'keys.manage_api_keys_page' else '' }}">
-                    <a href="{{ url_for('keys.manage_api_keys_page') }}">
-                        <i class="fas fa-key fa-fw"></i>
-                        <span>Chiavi API</span>
-                    </a>
-                </li>
-                 <li class="{{ 'active' if request.endpoint == 'generate_link_page' else '' }}">
-                    <a href="{{ url_for('generate_link_page') }}">
-                        <i class="fas fa-share-alt fa-fw"></i>
-                        <span>Accesso terzi</span>
-                    </a>
-                 </li>
+                 <li class="{{ 'active' if request.endpoint == 'automations_page' else '' }}"><a href="{{ url_for('automations_page') }}"><i class="fas fa-robot fa-fw"></i><span>Automazioni</span></a></li>
+                <li class="{{ 'active' if request.endpoint == 'chat_page' else '' }}"><a href="{{ url_for('chat_page') }}"><i class="fas fa-comments fa-fw"></i><span>Chat</span></a></li>
+                <li class="{{ 'active' if request.endpoint == 'keys.manage_api_keys_page' else '' }}"><a href="{{ url_for('keys.manage_api_keys_page') }}"><i class="fas fa-key fa-fw"></i><span>Chiavi API</span></a></li>
+                 <li class="{{ 'active' if request.endpoint == 'generate_link_page' else '' }}"><a href="{{ url_for('generate_link_page') }}"><i class="fas fa-share-alt fa-fw"></i><span>Accesso terzi</span></a></li>
             {% endif %}
         </ul>
         
-        <div style="margin-top: auto;">
+        <!-- Footer della Sidebar (fisso) -->
+        <div class="sidebar-footer">
+            <ul class="sidebar-menu">
+                <li class="{{ 'active' if request.endpoint == 'settings.settings_page' else '' }}">
+                    <a href="{{ url_for('settings.settings_page') }}">
+                        <i class="fas fa-cog fa-fw"></i>
+                        <span>Impostazioni</span>
+                    </a>
+                </li>
+            </ul>
             <hr>
             <ul class="sidebar-menu">
                  <li>
@@ -105,6 +71,7 @@
     <main class="main-content">
         {% block content %}{% endblock %}
     </main>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>

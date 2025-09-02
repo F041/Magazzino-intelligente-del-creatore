@@ -1,61 +1,24 @@
-<!-- FILE: app/templates/automations.html -->
 {% extends "base.html" %}
 
 {% block title %}Automazioni - Magazzino del Creatore{% endblock %}
 
-{% block head_styles %}
-<style>
-    .automation-section {
-        margin-bottom: 30px;
-        padding: 20px;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-    }
-    .automation-section h2 {
-        margin-top: 0;
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #ced4da;
-        color: #495057;
-    }
-    .status-display p { margin-bottom: 5px; }
-    .status-display strong { color: #333; }
-    .status-display .none-active { color: #6c757d; font-style: italic; }
-    .status-display .action-btn { margin-top: 10px; }
-
-    .add-form label { display: block; margin-bottom: 5px; font-weight: bold; }
-    .add-form select, .add-form input[type="url"] {
-        width: 100%;
-        max-width: 500px;
-        padding: 8px;
-        margin-bottom: 10px;
-        border: 1px solid #ced4da;
-        border-radius: 4px;
-    }
-    .add-form button { margin-top: 10px; }
-    #form-message { margin-top: 15px; } /* Per messaggi form */
-</style>
-{% endblock %}
-
 {% block content %}
 <h1>Gestione Automazioni</h1>
-<p>Configura qui le sorgenti (Canale YouTube o Feed RSS) da controllare automaticamente per nuovi contenuti.</p>
-<p><strong>Nota:</strong> Attualmente puoi monitorare attivamente un solo Canale YouTube e un solo Feed RSS alla volta.</p>
+<p>Configura qui le sorgenti da controllare automaticamente per nuovi contenuti e la frequenza dei controlli.</p>
 
 <!-- Sezione Stato Attuale -->
-<div class="automation-section">
+<div class="form-section">
     <h2>Stato Monitoraggio Attuale</h2>
     <div id="monitoring-status-display">
-        <p>Caricamento stato...</p> {# Placeholder #}
+        <p>Caricamento stato...</p>
     </div>
 </div>
 
 <!-- Sezione Aggiungi/Modifica Sorgente -->
-<div class="automation-section">
-    <h2>Aggiungi o Modifica Sorgente da Monitorare</h2>
-    <form id="add-source-form" class="add-form">
-        <div>
+<div class="form-section">
+    <h2>Aggiungi o Modifica Sorgente</h2>
+    <form id="add-source-form">
+        <div class="form-group">
             <label for="source_type">Tipo Sorgente:</label>
             <select id="source_type" name="type" required>
                 <option value="">-- Seleziona Tipo --</option>
@@ -63,239 +26,212 @@
                 <option value="rss">Feed RSS</option>
             </select>
         </div>
-        <div>
+        <div class="form-group">
             <label for="source_url">URL Sorgente:</label>
             <input type="url" id="source_url" name="url" placeholder="Incolla l'URL del canale o del feed" required>
         </div>
-        <button type="submit" id="save-source-btn" class="action-btn">Salva e Attiva Monitoraggio</button>
+        <button type="submit" id="save-source-btn" class="action-btn">Salva e Attiva</button>
         <span id="save-loader" class="action-loader" style="display: none;">(salvataggio...)</span>
     </form>
-    <div id="form-message" style="display: none;"></div> {# Per messaggi successo/errore form #}
+    <div id="form-message" style="display: none;"></div>
 </div>
 
+<!-- NUOVA SEZIONE: Frequenza Controlli -->
+<div class="form-section">
+    <h2>Frequenza Controlli</h2>
+    <p>Imposta quanto spesso il sistema deve controllare automaticamente le fonti attive per nuovi contenuti.</p>
+    <form id="schedule-form">
+         <div class="form-group">
+            <label for="schedule_interval">Controlla ogni:</label>
+            <select id="schedule_interval" name="interval">
+                <option value="12 hours">12 Ore</option>
+                <option value="1 day" selected>Giorno</option>
+                <option value="2 days">2 Giorni</option>
+                <option value="1 week">Settimana</option>
+            </select>
+        </div>
+        <button type="submit" class="action-btn">Aggiorna Frequenza</button>
+    </form>
+</div>
 {% endblock %}
 
 {% block scripts %}
-<!-- 1. Rendering Dati Iniziali come JSON (sicuro per il linter) -->
+
+<!-- 1. Dati Iniziali dal Server (per il pre-caricamento del form) -->
 <script id="initial-data-json" type="application/json">
     {{ {'initial_type': initial_type, 'initial_url': initial_url} | tojson | safe }}
-    </script>
+</script>
+
 <!-- 2. Script Principale della Pagina -->
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log("[Automations Page] DOMContentLoaded event fired.");
-
-        // --- LETTURA DATI INIZIALI DAL JSON ---
-        let initialType = null;
-        let initialUrl = null;
+document.addEventListener('DOMContentLoaded', () => {
+    // --- SELEZIONE ELEMENTI DOM ---
+    const statusDisplayDiv = document.getElementById('monitoring-status-display');
+    const addForm = document.getElementById('add-source-form');
+    const typeSelect = document.getElementById('source_type');
+    const urlInput = document.getElementById('source_url');
+    const saveBtn = document.getElementById('save-source-btn');
+    const saveLoader = document.getElementById('save-loader');
+    const formMessageDiv = document.getElementById('form-message');
+    // Non abbiamo più un form per la frequenza, quindi questi elementi non servono più
+    // const scheduleForm = document.getElementById('schedule-form');
+    // const scheduleSelect = document.getElementById('schedule_interval');
+    
+    // --- FUNZIONE PER CARICARE E VISUALIZZARE LO STATO ---
+    async function loadMonitoringStatus() {
+        if (!statusDisplayDiv) return;
+        statusDisplayDiv.innerHTML = '<p>Caricamento stato...</p>';
         try {
-            const jsonDataElement = document.getElementById('initial-data-json');
-            if (jsonDataElement) {
-                const initialData = JSON.parse(jsonDataElement.textContent || '{}');
-                initialType = initialData.initial_type || null;
-                initialUrl = initialData.initial_url || null;
-                 console.log("[Automations Page] Initial Data Parsed:", { initialType, initialUrl });
-            } else {
-                 console.warn("[Automations Page] JSON data script tag #initial-data-json not found.");
-            }
-        } catch (e) {
-            console.error("[Automations Page] Error parsing initial data JSON:", e);
-        }
-        // Log dei valori letti
-        console.log("[Automations Page] Initial Type (from JSON):", initialType, "| Typeof:", typeof initialType);
-        console.log("[Automations Page] Initial URL (from JSON):", initialUrl, "| Typeof:", typeof initialUrl);
+            const response = await fetch('/api/monitoring/status');
+            if (!response.ok) throw new Error(`Errore API ${response.status}`);
+            const data = await response.json();
 
-        // --- SELEZIONE ELEMENTI DOM ---
-        const statusDisplayDiv = document.getElementById('monitoring-status-display');
-        const addForm = document.getElementById('add-source-form');
-        const typeSelect = document.getElementById('source_type');
-        const urlInput = document.getElementById('source_url');
-        const saveBtn = document.getElementById('save-source-btn');
-        const saveLoader = document.getElementById('save-loader');
-        const formMessageDiv = document.getElementById('form-message');
-
-        // --- FUNZIONE PER CARICARE E VISUALIZZARE LO STATO ---
-        async function loadMonitoringStatus() {
-            if (!statusDisplayDiv) return; // Non fare nulla se il div non esiste
-            statusDisplayDiv.innerHTML = '<p>Caricamento stato...</p>'; // Reset
-             try {
-                 const response = await fetch('/api/monitoring/status');
-                 console.log("[loadMonitoringStatus] Fetch /api/monitoring/status - Status:", response.status);
-                 if (!response.ok) throw new Error(`Errore API ${response.status}`);
-                 const data = await response.json();
-                 console.log("[loadMonitoringStatus] Dati ricevuti:", data);
-
-
-                 if (data.success) {
-                     let html = '<h4>Canale YouTube Monitorato:</h4>';
-                     if (data.youtube_channel && data.youtube_channel.is_active) { // Mostra solo se attivo
-                         const ch = data.youtube_channel;
-                         // Formattazione data leggibile (gestisce null)
-                         const lastCheckedYt = ch.last_checked_at ? new Date(ch.last_checked_at).toLocaleString() : 'Mai';
-                         html += `<div id="active-youtube-monitor">
-                                   <p><strong>ID:</strong> ${ch.channel_id || 'N/D'}<br>
-                                   <strong>Nome:</strong> ${ch.channel_name || '(Non disponibile)'}<br>
-                                   <strong>URL:</strong> ${ch.channel_url || 'N/D'}<br>
-                                   <strong>Ultimo Controllo:</strong> ${lastCheckedYt}<br>
-                                   <strong>Stato:</strong> Attivo
-                                 </p>
-                                 <button class="action-btn delete-btn remove-source-btn" data-type="youtube" data-id="${ch.id || ''}">Disattiva Monitoraggio YouTube</button>
-                                  </div>`;
-                     } else {
-                         html += '<p class="none-active">Nessun canale YouTube attualmente monitorato attivamente.</p>';
-                     }
-
-                     html += '<hr style="margin: 20px 0;"><h4>Feed RSS Monitorato:</h4>';
-                     if (data.rss_feed && data.rss_feed.is_active) { // Mostra solo se attivo
-                         const fd = data.rss_feed;
-                         const lastCheckedRss = fd.last_checked_at ? new Date(fd.last_checked_at).toLocaleString() : 'Mai';
-                         html += `<div id="active-rss-monitor">
-                                   <p><strong>URL:</strong> ${fd.feed_url || 'N/D'}<br>
-                                   <strong>Titolo:</strong> ${fd.feed_title || '(Non disponibile)'}<br>
-                                   <strong>Ultimo Controllo:</strong> ${lastCheckedRss}<br>
-                                   <strong>Stato:</strong> Attivo
-                                  </p>
-                                  <button class="action-btn delete-btn remove-source-btn" data-type="rss" data-id="${fd.id || ''}">Disattiva Monitoraggio RSS</button>
-                                  </div>`;
-                     } else {
-                         html += '<p class="none-active">Nessun feed RSS attualmente monitorato attivamente.</p>';
-                     }
-                     statusDisplayDiv.innerHTML = html;
-                     addRemoveListeners(); // Aggiungi listener ai nuovi bottoni
-                 } else {
-                     throw new Error(data.message || 'Errore caricamento stato (API success=false)');
-                 }
-             } catch (error) {
-                  console.error("[loadMonitoringStatus] Errore:", error);
-                 statusDisplayDiv.innerHTML = `<p class="error-message">Errore caricamento stato: ${error.message}</p>`; // Usa classe errore
-             }
-        }
-
-        // --- FUNZIONE PER AGGIUNGERE LISTENER AI PULSANTI "RIMUOVI" ---
-        function addRemoveListeners() {
-            const removeButtons = statusDisplayDiv.querySelectorAll('.remove-source-btn');
-            console.log(`[addRemoveListeners] Trovati ${removeButtons.length} pulsanti Rimuovi.`);
-
-            removeButtons.forEach(button => {
-                 // Clonazione per evitare listener duplicati su ricaricamenti parziali (anche se qui ricarichiamo tutto l'HTML)
-                 const newButton = button.cloneNode(true);
-                 button.parentNode.replaceChild(newButton, button);
-
-                 newButton.addEventListener('click', async (event) => {
-                     const btn = event.target;
-                     const sourceType = btn.dataset.type;
-                     // const sourceId = btn.dataset.id; // Non serve per l'API DELETE attuale
-                     console.log(`[Remove Listener] Click su Rimuovi ${sourceType}`);
-
-                     if (!sourceType) return;
-                     if (!confirm(`Sei sicuro di voler disattivare il monitoraggio per ${sourceType === 'youtube' ? 'il canale YouTube' : 'il feed RSS'}?`)) {
-                         return;
-                     }
-
-                     btn.disabled = true; btn.textContent = 'Disattivazione...';
-                     displayFormMessage('');
-
-                     try {
-                         const response = await fetch('/api/monitoring/source', {
-                             method: 'DELETE', // L'API DELETE usa il tipo nel body
-                             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                             body: JSON.stringify({ type: sourceType })
-                         });
-                         console.log(`[Remove Listener] Fetch DELETE /api/monitoring/source - Status: ${response.status}`);
-                         let data = {}; let responseOk = response.ok;
-                         try { data = await response.json(); } catch (e) { data.message = responseOk ? `Risposta server non valida.` : `Errore server ${response.status}.`; data.success = false; if(responseOk) responseOk = false; }
-                         console.log(`[Remove Listener] Dati risposta:`, data);
-
-                         if (responseOk && data.success) {
-                             displayFormMessage(data.message || 'Monitoraggio disattivato.', 'success');
-                             loadMonitoringStatus(); // Ricarica lo stato
-                         } else {
-                             throw new Error(data.message || `Errore ${response.status}`);
-                         }
-                     } catch (error) {
-                          console.error(`[Remove Listener] Errore:`, error);
-                         displayFormMessage(`Errore disattivazione: ${error.message}`, 'error');
-                         btn.disabled = false; // Riabilita solo in caso di errore
-                         btn.textContent = `Disattiva Monitoraggio ${sourceType === 'youtube' ? 'YouTube' : 'RSS'}`;
-                     }
-                 });
-            });
-        }
-
-        // --- FUNZIONE PER VISUALIZZARE MESSAGGI DEL FORM ---
-        function displayFormMessage(message, type = 'info') {
-            if (!formMessageDiv) return;
-            formMessageDiv.textContent = message;
-            formMessageDiv.className = type === 'success' ? 'success-message' : (type === 'error' ? 'error-message' : ''); // Rimuovi classe se info
-            formMessageDiv.style.display = message ? 'block' : 'none';
-        }
-
-        // --- GESTIONE SUBMIT FORM AGGIUNGI/MODIFICA ---
-        if (addForm) {
-            addForm.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                 console.log("[Form Submit] Form inviato.");
-                const sourceType = typeSelect.value;
-                const sourceUrl = urlInput.value.trim();
-
-                if (!sourceType || !sourceUrl) {
-                    displayFormMessage('Seleziona un tipo e inserisci un URL.', 'error');
-                    return;
+            if (data.success) {
+                let html = '<h4>Canale YouTube Monitorato:</h4>';
+                if (data.youtube_channel && data.youtube_channel.is_active) {
+                    const ch = data.youtube_channel;
+                    const lastChecked = ch.last_checked_at ? new Date(ch.last_checked_at).toLocaleString() : 'Mai';
+                    html += `
+                        <div class="status-display">
+                            <p><strong>Nome:</strong> ${ch.channel_name || '(Non disponibile)'}</p>
+                            <p><strong>URL:</strong> ${ch.channel_url || 'N/D'}</p>
+                            <p><strong>Ultimo Controllo:</strong> ${lastChecked}</p>
+                            <p><strong>Stato:</strong> Attivo</p>
+                            <button class="action-btn delete-btn remove-source-btn" data-type="youtube">Disattiva Monitoraggio YouTube</button>
+                        </div>`;
+                } else {
+                    html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun canale YouTube monitorato.</p>';
                 }
 
-                saveBtn.disabled = true; saveLoader.style.display = 'inline';
+                html += '<hr style="margin: 20px 0;"><h4>Feed RSS Monitorato:</h4>';
+                if (data.rss_feed && data.rss_feed.is_active) {
+                    const fd = data.rss_feed;
+                    const lastChecked = fd.last_checked_at ? new Date(fd.last_checked_at).toLocaleString() : 'Mai';
+                    html += `
+                         <div class="status-display">
+                            <p><strong>Titolo:</strong> ${fd.feed_title || '(Non disponibile)'}</p>
+                            <p><strong>URL:</strong> ${fd.feed_url || 'N/D'}</p>
+                            <p><strong>Ultimo Controllo:</strong> ${lastChecked}</p>
+                            <p><strong>Stato:</strong> Attivo</p>
+                            <button class="action-btn delete-btn remove-source-btn" data-type="rss">Disattiva Monitoraggio RSS</button>
+                        </div>`;
+                } else {
+                    html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun feed RSS monitorato.</p>';
+                }
+                statusDisplayDiv.innerHTML = html;
+                addRemoveListeners(); // Aggiungi listener ai nuovi bottoni
+            } else {
+                throw new Error(data.message || 'Errore caricamento stato');
+            }
+        } catch (error) {
+            statusDisplayDiv.innerHTML = `<p class="error-message">Errore: ${error.message}</p>`;
+        }
+    }
+
+    // --- FUNZIONE PER AGGIUNGERE LISTENER AI PULSANTI "RIMUOVI" ---
+    function addRemoveListeners() {
+        statusDisplayDiv.querySelectorAll('.remove-source-btn').forEach(button => {
+            button.addEventListener('click', async (event) => {
+                const btn = event.target;
+                const sourceType = btn.dataset.type;
+                if (!sourceType || !confirm(`Disattivare il monitoraggio per ${sourceType}?`)) return;
+
+                btn.disabled = true;
+                btn.textContent = 'Disattivazione...';
                 displayFormMessage('');
 
                 try {
                     const response = await fetch('/api/monitoring/source', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                        body: JSON.stringify({ type: sourceType, url: sourceUrl })
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: sourceType })
                     });
-                     console.log(`[Form Submit] Fetch POST /api/monitoring/source - Status: ${response.status}`);
-                     let data = {}; let responseOk = response.ok;
-                     try { data = await response.json(); } catch (e) { data.message = responseOk ? `Risposta server non valida.` : `Errore server ${response.status}.`; data.success = false; if(responseOk) responseOk = false; }
-                     console.log(`[Form Submit] Dati risposta:`, data);
-
-
-                    if ((response.status === 201 || response.status === 200) && data.success) { // Accetta 200 o 201
-                        displayFormMessage(data.message || 'Sorgente salvata con successo!', 'success');
-                        loadMonitoringStatus(); // Ricarica lo stato
-                        // Considera se resettare il form qui
-                        // typeSelect.value = '';
-                        // urlInput.value = '';
+                    const data = await response.json();
+                    if (response.ok && data.success) {
+                        displayFormMessage(data.message || 'Monitoraggio disattivato.', 'success');
+                        loadMonitoringStatus();
                     } else {
-                         throw new Error(data.message || `Errore ${response.status}`);
+                        throw new Error(data.message || `Errore ${response.status}`);
                     }
                 } catch (error) {
-                     console.error(`[Form Submit] Errore:`, error);
-                     displayFormMessage(`Errore salvataggio: ${error.message}`, 'error');
-                } finally {
-                    saveBtn.disabled = false; saveLoader.style.display = 'none';
+                    displayFormMessage(`Errore: ${error.message}`, 'error');
+                    btn.disabled = false;
+                    btn.textContent = `Disattiva Monitoraggio ${sourceType === 'youtube' ? 'YouTube' : 'RSS'}`;
                 }
             });
-        } else {
-             console.error("Form #add-source-form non trovato!");
+        });
+    }
+
+    // --- FUNZIONE PER VISUALIZZARE MESSAGGI DEL FORM ---
+    function displayFormMessage(message, type = 'info') {
+        if (!formMessageDiv) return;
+        formMessageDiv.textContent = message;
+        formMessageDiv.className = type === 'success' ? 'success-message' : (type === 'error' ? 'error-message' : '');
+        formMessageDiv.style.display = message ? 'block' : 'none';
+        setTimeout(() => { if(formMessageDiv) formMessageDiv.style.display = 'none'; }, 5000);
+    }
+
+    // --- GESTIONE SUBMIT FORM AGGIUNGI/MODIFICA ---
+    if (addForm) {
+        addForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const sourceType = typeSelect.value;
+            const sourceUrl = urlInput.value.trim();
+
+            if (!sourceType || !sourceUrl) {
+                displayFormMessage('Seleziona un tipo e inserisci un URL.', 'error');
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveLoader.style.display = 'inline';
+            displayFormMessage('');
+
+            try {
+                const response = await fetch('/api/monitoring/source', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: sourceType, url: sourceUrl })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    displayFormMessage(data.message || 'Sorgente salvata!', 'success');
+                    loadMonitoringStatus();
+                    addForm.reset(); // Pulisce il form
+                } else {
+                    throw new Error(data.message || `Errore ${response.status}`);
+                }
+            } catch (error) {
+                displayFormMessage(`Errore salvataggio: ${error.message}`, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveLoader.style.display = 'none';
+            }
+        });
+    }
+
+    // --- INIZIALIZZAZIONE PAGINA ---
+    let initialType = null;
+    let initialUrl = null;
+    try {
+        const jsonDataElement = document.getElementById('initial-data-json');
+        if (jsonDataElement) {
+            const initialData = JSON.parse(jsonDataElement.textContent || '{}');
+            initialType = initialData.initial_type;
+            initialUrl = initialData.initial_url;
         }
+    } catch (e) {
+        console.error("Errore parsing dati iniziali:", e);
+    }
+    
+    if (initialType && initialUrl) {
+        if (typeSelect) typeSelect.value = initialType;
+        if (urlInput) urlInput.value = initialUrl;
+        displayFormMessage(`Pronto per aggiungere/aggiornare la sorgente: ${initialUrl}`, 'info');
+    }
 
-        // --- INIZIALIZZAZIONE PAGINA ---
-        console.log("[Automations Page] Inizializzazione...");
-        // Pre-compila il form se arrivano parametri GET validi
-        if (initialType && ['youtube', 'rss'].includes(initialType) && initialUrl) {
-            if (typeSelect) typeSelect.value = initialType;
-            if (urlInput) urlInput.value = initialUrl;
-            console.log(`[Automations Page] Form pre-compilato con tipo=${initialType}, url=${initialUrl}`);
-             // Potresti anche mostrare un messaggio o fare submit automatico qui,
-             // ma per ora lo lasciamo solo pre-compilato.
-              displayFormMessage(`Pronto per aggiungere/aggiornare la sorgente ${initialType}: ${initialUrl}`, 'info');
-
-        } else {
-             console.log("[Automations Page] Nessun parametro valido per pre-compilare il form.");
-        }
-
-        // Carica lo stato iniziale del monitoraggio
-        loadMonitoringStatus();
-
-    }); // Fine DOMContentLoaded
+    // Carica lo stato iniziale
+    loadMonitoringStatus();
+});
 </script>
 {% endblock %}

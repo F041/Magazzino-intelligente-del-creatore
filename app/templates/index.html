@@ -515,20 +515,30 @@
     </style>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Header Intelligente -->
     <header>
         <div class="header-container">
-            <a href="#" class="logo">
+            <a href="{{ url_for('index') }}" class="logo"> <!-- Il logo punta sempre alla home -->
                 <div class="logo-icon">
                     <i class="fas fa-warehouse"></i> 
                 </div>
                 Magazzino del Creatore
             </a>
             <div class="nav-buttons">
-                <a href="#features" class="btn btn-secondary">A Cosa Serve?</a>
-                <a href="{{ url_for('authorize') }}" class="btn btn-primary">
-                    <i class="fab fa-google"></i> Accedi (con Google)
-                </a>
+                <a href="#features" class="btn btn-secondary">A cosa serve?</a>
+
+                <!-- Logica Condizionale per il pulsante di azione -->
+                {% if current_user.is_authenticated %}
+                    <!-- Se l'utente è loggato, mostra un pulsante per entrare nella web app -->
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                        <i class="fas fa-arrow-right-to-bracket"></i> Vai al pannello
+                    </a>
+                {% else %}
+                    <!-- Se non è loggato, mostra il classico pulsante di accesso -->
+                    <a href="{{ url_for('authorize') }}" class="btn btn-primary">
+                        <i class="fab fa-google"></i> Accedi (con Google)
+                    </a>
+                {% endif %}
             </div>
         </div>
     </header>
@@ -737,7 +747,7 @@
                     Perché avere tanti contenuti è bello, ma poterli farli fruttare quando servono è decisamente meglio.
                 </p>
                 <p class="copyright">
-                    © 2023-2024 Magazzino Intelligente del Creatore. Open Source, con tutti i pro e i (pochi, si spera) contro.
+                    © 2025 STATiCalmo.
                 </p>
             </div>
         </div>
