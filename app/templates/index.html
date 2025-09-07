@@ -530,7 +530,7 @@
                 <!-- Logica Condizionale per il pulsante di azione -->
                 {% if current_user.is_authenticated %}
                     <!-- Se l'utente è loggato, mostra un pulsante per entrare nella web app -->
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+<a href="{{ url_for('data_entry') }}" class="btn btn-primary">
                         <i class="fas fa-arrow-right-to-bracket"></i> Vai al pannello
                     </a>
                 {% else %}

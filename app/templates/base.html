@@ -27,7 +27,7 @@
 
         <!-- CORREZIONE: Il menu principale ora è il contenitore che scrolla -->
         <ul class="sidebar-menu">
-            <li class="{{ 'active' if request.endpoint == 'dashboard' else '' }}"><a href="{{ url_for('dashboard') }}"><i class="fas fa-file-import fa-fw"></i><span>Ingresso Dati</span></a></li>
+<li class="{{ 'active' if request.endpoint == 'data_entry' else '' }}"><a href="{{ url_for('data_entry') }}"><i class="fas fa-file-import fa-fw"></i><span>Ingresso dati</span></a></li>
             
             {% if content_counts.has_videos %}
                 <li class="{{ 'active' if request.endpoint == 'my_videos' else '' }}"><a href="{{ url_for('my_videos') }}"><i class="fas fa-video fa-fw"></i><span>I tuoi video</span></a></li>

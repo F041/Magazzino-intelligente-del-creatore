@@ -145,11 +145,28 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                 logger.info(f"[CORE YT Process] --- Processing video {index}/{to_process_count}: {video_id} ({video_title}) ---")
                 current_video_status = 'pending'; transcript_text, transcript_lang, transcript_type = None, None, None; chunks = []
                 try:
-                    transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
-                    if transcript_result:
+                    import time
+                    transcript_result = None
+                    last_transcript_error = None
+                    # Prova fino a 3 volte con una pausa tra i tentativi
+                    for attempt in range(3):
+                        logger.info(f"[CORE YT Process] [{video_id}] Tentativo recupero trascrizione #{attempt + 1}...")
+                        transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
+                        if transcript_result and not transcript_result.get('error'):
+                            logger.info(f"[CORE YT Process] [{video_id}] Trascrizione ottenuta con successo al tentativo #{attempt + 1}.")
+                            break # Successo, esci dal ciclo
+                        else:
+                            last_transcript_error = transcript_result.get('message', 'Errore sconosciuto') if transcript_result else 'Nessuna trascrizione trovata'
+                            logger.warning(f"[CORE YT Process] [{video_id}] Tentativo #{attempt + 1} fallito: {last_transcript_error}. Attendo 2 secondi...")
+                            time.sleep(2) # Pausa prima del prossimo tentativo
+                    
+                    if transcript_result and not transcript_result.get('error'):
                         transcript_text, transcript_lang, transcript_type = transcript_result['text'], transcript_result['language'], transcript_result['type']
                         current_video_status = 'processing_embedding'
-                    else: current_video_status = 'failed_transcript'; transcript_errors += 1
+                    else: 
+                        current_video_status = 'failed_transcript'
+                        transcript_errors += 1
+                        logger.error(f"[CORE YT Process] [{video_id}] Recupero trascrizione fallito dopo 3 tentativi. Errore finale: {last_transcript_error}")
                     
                     if current_video_status == 'processing_embedding' and transcript_text:
                         chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)

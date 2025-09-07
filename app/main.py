@@ -598,7 +598,7 @@ def create_app(config_object=AppConfig):
             credentials = flow.credentials
             logger.info(f"Token OAuth ottenuto. Refresh token presente: {'yes' if credentials.refresh_token else 'no'}")
             save_credentials(credentials) # Richiede contesto app
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('data_entry'))
         except Exception as e:
             logger.exception("Errore durante fetch_token in /oauth2callback.")
             return jsonify({'success': False, 'error_code': 'OAUTH_TOKEN_FETCH_FAILED', 'message': f"Token fetch error: {str(e)}"}), 500
@@ -606,7 +606,7 @@ def create_app(config_object=AppConfig):
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if current_user.is_authenticated:
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('data_entry'))
 
         if request.method == 'POST':
             email = request.form.get('email')
@@ -640,8 +640,8 @@ def create_app(config_object=AppConfig):
                 login_user(user)
                 logger.info(f"Utente {user.email} loggato con successo.")
                 next_page = request.args.get('next')
-                if not next_page: # Se 'next' non esiste, vai alla dashboard
-                 next_page = url_for('ingresso-dati')
+                if not next_page: # Se 'next' non esiste, vai ad ingresso dati
+                 next_page = url_for('data_entry')
                  return redirect(next_page)
             else:
                 flash('Email o password non validi.', 'error')
@@ -661,9 +661,9 @@ def create_app(config_object=AppConfig):
 
     @app.route('/register', methods=['GET', 'POST'])
     def register():
-        # Se l'utente è già loggato, reindirizzalo alla dashboard
+        # Se l'utente è già loggato, reindirizzalo ad ingresso dati
         if current_user.is_authenticated:
-            return redirect(url_for('ingresso-dati'))
+            return redirect(url_for('data_entry'))
 
         if request.method == 'POST':
             email = request.form.get('email')
@@ -726,10 +726,10 @@ def create_app(config_object=AppConfig):
         return render_template('register.html')
 
 
-    @app.route('/ingresso-dati')
+    @app.route('/data-entry')
     @login_required
-    def dashboard():
-        return render_template('dashboard.html')
+    def data_entry():
+        return render_template('data_entry.html')
 
     @app.route('/my-videos')
     @login_required

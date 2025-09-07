@@ -115,11 +115,11 @@ def test_successful_login(client):
     response = register_and_login_user(client, email, password) # Usa l'helper
 
     assert response.status_code == 200
-    # Dopo il login con successo, ci si aspetta un redirect alla dashboard
-    # Il contenuto della dashboard potrebbe variare, quindi controlliamo l'URL o un messaggio specifico
-    # Se '/dashboard' è il target, e `follow_redirects=True`, response.request.path dovrebbe essere '/dashboard'
-    # o controlla un testo che sai essere sulla dashboard
-    assert b"Dashboard" in response.data # Assumendo che "Dashboard" sia nel titolo o h1 della dashboard
+    # Dopo il login con successo, ci si aspetta un redirect alla ingresso_dati
+    # Il contenuto della ingresso_dati potrebbe variare, quindi controlliamo l'URL o un messaggio specifico
+    # Se '/ingresso_dati' è il target, e `follow_redirects=True`, response.request.path dovrebbe essere '/ingresso_dati'
+    # o controlla un testo che sai essere sulla ingresso_dati
+    assert b"ingresso_dati" in response.data # Assumendo che "ingresso_dati" sia nel titolo o h1 della ingresso_dati
     # Verifica che l'utente sia in sessione
     with client.session_transaction() as sess:
         assert sess.get('_user_id') is not None
@@ -184,7 +184,7 @@ def test_logout(client):
 
 def test_access_protected_page_unauthenticated(client):
     """Testa l'accesso a una pagina protetta da utente non autenticato."""
-    response = client.get(url_for('dashboard'), follow_redirects=True)
+    response = client.get(url_for('ingresso_dati'), follow_redirects=True)
     assert response.status_code == 200
     assert b"Login" in response.data # Reindirizzato al login
     assert b"Per favore, effettua il login per accedere a questa pagina." in response.data
@@ -195,8 +195,8 @@ def test_access_protected_page_authenticated(client):
     password = 'password123'
     register_and_login_user(client, email, password) # Registra e logga
 
-    response = client.get(url_for('dashboard')) # Non seguire i redirect qui, vogliamo la risposta diretta
+    response = client.get(url_for('ingresso_dati')) # Non seguire i redirect qui, vogliamo la risposta diretta
     assert response.status_code == 200
-    assert b"Dashboard" in response.data # Dovrebbe mostrare la dashboard
+    assert b"ingresso_dati" in response.data # Dovrebbe mostrare la ingresso_dati
 
 

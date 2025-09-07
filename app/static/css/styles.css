@@ -455,7 +455,7 @@ label {
 }
 
 /* ==========================================================================
-   Componente: Accordion (per la Dashboard)
+   Componente: Accordion (per la data_entry)
    ========================================================================== */
 
 .accordion-container {
@@ -594,4 +594,3 @@ label {
 .tab-content.active {
     display: block; /* Mostra il contenuto attivo */
 }
-

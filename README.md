@@ -42,9 +42,9 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Autenticazione OAuth 2.0 sicura per l'API YouTube (token salvato in `token.pickle`/`.json`).
     *   Recupera metadati e trascrizioni (manuali e automatiche) per i video di un canale specificato.
     *   **Elaborazione Asincrona:** L'elaborazione del canale (recupero, trascrizione, embedding) viene avviata in un thread separato per non bloccare l'interfaccia web.
-    *   **Feedback di Avanzamento:** La Dashboard mostra lo stato e l'avanzamento dell'elaborazione del canale interrogando un endpoint API dedicato (`/api/videos/progress`).
+    *   **Feedback di Avanzamento:** ingresso_dati mostra lo stato e l'avanzamento dell'elaborazione del canale interrogando un endpoint API dedicato (`/api/videos/progress`).
 *   **Gestione Documenti:**
-    *   Upload di file PDF, DOCX, TXT tramite interfaccia web (`/dashboard`).
+    *   Upload di file PDF, DOCX, TXT tramite interfaccia web (`/data-entry`).
     *   Conversione automatica in Markdown (`.md`).
     *   Salvataggio file e registrazione nel DB (associato all'utente in `saas`).
     *   Indicizzazione automatica all'upload (chunking, embedding, salvataggio in ChromaDB).
@@ -194,7 +194,7 @@ Dopo aver completato i passaggi nella sezione "Setup":
     ```
     (Premi `Ctrl+C` per uscire dai log).
 4.  **Accedi all'applicazione:** Apri il tuo browser web e vai a `http://localhost:5000` (o la porta che hai configurato se hai modificato il `docker-compose.yml` o l'IP/dominio del tuo server).
-5.  **Primo Utilizzo - Autenticazione Google:** La prima volta che accedi e provi a usare una funzionalità che richiede l'API YouTube (es. Dashboard > Processa Canale), verrai reindirizzato per autenticarti con Google. Completa il flusso. Il token di accesso verrà salvato in `./data/token.pickle` (o `token.json`) e usato per le sessioni future.
+5.  **Primo Utilizzo - Autenticazione Google:** La prima volta che accedi e provi a usare una funzionalità che richiede l'API YouTube (es. ingresso_dati > Processa Canale), verrai reindirizzato per autenticarti con Google. Completa il flusso. Il token di accesso verrà salvato in `./data/token.pickle` (o `token.json`) e usato per le sessioni future.
 
 **Per fermare l'applicazione Docker:**
 Nella stessa directory del progetto, esegui:
@@ -373,7 +373,7 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
     *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
     *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
 
-*   **Mancanza barra attività in bacgkround in dashboard nonostante logica presente**
+*   **Mancanza barra attività in bacgkround in ingresso_dati nonostante logica presente**
 
 
 ## TODO e Prossimi Passi
