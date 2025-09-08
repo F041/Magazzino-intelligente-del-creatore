@@ -7,14 +7,14 @@
     <div style="margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; display: flex; align-items: center; gap: 15px;">
         {# Bottone Download Contenuto Articoli #}
         <a href="{{ url_for('rss.download_all_articles') }}" download="all_article_contents.txt" class="action-btn" style="background-color: #28a745; color: white; text-decoration: none; display: inline-block; padding: 8px 15px;">
-            Scarica Contenuto Articoli (.txt)
+            Scarica contenuto articoli (.txt)
         </a>
         <span style="font-size: 0.9em; color: #6c757d;">(Solo articoli 'completed')</span>
 
         {# Bottone Elimina Tutti - Solo SAAS #}
         {% if config.APP_MODE == 'saas' %}
             <button id="delete-all-articles-btn" class="action-btn delete-btn" style="margin-left: auto;">
-                Elimina Tutti gli Articoli Utente
+                Elimina Tutti gli articoli utente
             </button>
             <span id="delete-all-articles-loader" class="action-loader">(eliminazione...)</span>
         {% endif %}

@@ -3,12 +3,12 @@
 {% block title %}Automazioni - Magazzino del Creatore{% endblock %}
 
 {% block content %}
-<h1>Gestione Automazioni</h1>
+<h1>Gestione automazioni</h1>
 <p>Configura qui le sorgenti da controllare automaticamente per nuovi contenuti e la frequenza dei controlli.</p>
 
 <!-- Sezione Stato Attuale -->
 <div class="form-section">
-    <h2>Stato Monitoraggio Attuale</h2>
+    <h2>Stato monitoraggio attuale</h2>
     <div id="monitoring-status-display">
         <p>Caricamento stato...</p>
     </div>
@@ -16,10 +16,10 @@
 
 <!-- Sezione Aggiungi/Modifica Sorgente -->
 <div class="form-section">
-    <h2>Aggiungi o Modifica Sorgente</h2>
+    <h2>Aggiungi o modifica sorgente</h2>
     <form id="add-source-form">
         <div class="form-group">
-            <label for="source_type">Tipo Sorgente:</label>
+            <label for="source_type">Tipo sorgente:</label>
             <select id="source_type" name="type" required>
                 <option value="">-- Seleziona Tipo --</option>
                 <option value="youtube">Canale YouTube</option>
@@ -27,7 +27,7 @@
             </select>
         </div>
         <div class="form-group">
-            <label for="source_url">URL Sorgente:</label>
+            <label for="source_url">URL sorgente:</label>
             <input type="url" id="source_url" name="url" placeholder="Incolla l'URL del canale o del feed" required>
         </div>
         <button type="submit" id="save-source-btn" class="action-btn">Salva e Attiva</button>
@@ -36,9 +36,9 @@
     <div id="form-message" style="display: none;"></div>
 </div>
 
-<!-- NUOVA SEZIONE: Frequenza Controlli -->
+<!-- NUOVA SEZIONE: Frequenza controlli -->
 <div class="form-section">
-    <h2>Frequenza Controlli</h2>
+    <h2>Frequenza controlli</h2>
     <p>Imposta quanto spesso il sistema deve controllare automaticamente le fonti attive per nuovi contenuti.</p>
     <form id="schedule-form">
          <div class="form-group">
@@ -50,7 +50,7 @@
                 <option value="1 week">Settimana</option>
             </select>
         </div>
-        <button type="submit" class="action-btn">Aggiorna Frequenza</button>
+        <button type="submit" class="action-btn">Aggiorna frequenza</button>
     </form>
 </div>
 {% endblock %}
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.success) {
-                let html = '<h4>Canale YouTube Monitorato:</h4>';
+                let html = '<h4>Canale YouTube monitorato:</h4>';
                 if (data.youtube_channel && data.youtube_channel.is_active) {
                     const ch = data.youtube_channel;
                     const lastChecked = ch.last_checked_at ? new Date(ch.last_checked_at).toLocaleString() : 'Mai';
@@ -97,13 +97,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p><strong>URL:</strong> ${ch.channel_url || 'N/D'}</p>
                             <p><strong>Ultimo Controllo:</strong> ${lastChecked}</p>
                             <p><strong>Stato:</strong> Attivo</p>
-                            <button class="action-btn delete-btn remove-source-btn" data-type="youtube">Disattiva Monitoraggio YouTube</button>
+                            <button class="action-btn delete-btn remove-source-btn" data-type="youtube">Disattiva monitoraggio YouTube</button>
                         </div>`;
                 } else {
                     html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun canale YouTube monitorato.</p>';
                 }
 
-                html += '<hr style="margin: 20px 0;"><h4>Feed RSS Monitorato:</h4>';
+                html += '<hr style="margin: 20px 0;"><h4>Feed RSS monitorato:</h4>';
                 if (data.rss_feed && data.rss_feed.is_active) {
                     const fd = data.rss_feed;
                     const lastChecked = fd.last_checked_at ? new Date(fd.last_checked_at).toLocaleString() : 'Mai';
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <p><strong>URL:</strong> ${fd.feed_url || 'N/D'}</p>
                             <p><strong>Ultimo Controllo:</strong> ${lastChecked}</p>
                             <p><strong>Stato:</strong> Attivo</p>
-                            <button class="action-btn delete-btn remove-source-btn" data-type="rss">Disattiva Monitoraggio RSS</button>
+                            <button class="action-btn delete-btn remove-source-btn" data-type="rss">Disattiva monitoraggio RSS</button>
                         </div>`;
                 } else {
                     html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun feed RSS monitorato.</p>';
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     displayFormMessage(`Errore: ${error.message}`, 'error');
                     btn.disabled = false;
-                    btn.textContent = `Disattiva Monitoraggio ${sourceType === 'youtube' ? 'YouTube' : 'RSS'}`;
+                    btn.textContent = `Disattiva monitoraggio ${sourceType === 'youtube' ? 'YouTube' : 'RSS'}`;
                 }
             });
         });

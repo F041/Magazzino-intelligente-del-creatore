@@ -29,7 +29,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
 ## Caratteristiche Principali
 
 *   **Autenticazione Utente (Modalità `saas`):**
-    *   Registrazione e Login sicuri basati su Email/Password (Flask-Login).
+    *   Registrazione e Login sicuri basati su Email/Password (Flask-Login), con una **lista di invitati** opzionale (`ALLOWED_EMAILS`) per limitare chi può creare un account.
     *   Gestione sessioni utente per l'interfaccia web Flask.
 *   **Gestione API Key (Modalità `saas`):**
     *   Interfaccia web (`/keys/manage`) per utenti loggati per generare, visualizzare ed eliminare chiavi API personali.
@@ -156,6 +156,9 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
         *   `FLASK_SECRET_KEY`: Genera una chiave segreta forte e casuale. Puoi usare il comando `python -c 'import secrets; print(secrets.token_hex(32))'` in un terminale Python e copiare l'output.
         *   `GOOGLE_API_KEY`: Inserisci la tua chiave API per Google AI (Gemini).
         *   `LLM_MODELS`: Inserisci una lista di modelli Gemini separati da virgola, senza spazi. L'applicazione proverà il primo e, in caso di errore (es. non disponibile o bloccato), passerà al successivo. L'ordine è importante. Esempio: `RAG_GENERATIVE_MODELS_FALLBACK_LIST="gemini-2.5-pro,gemini-2.0-flash"`
+        *   `ALLOWED_EMAILS`: **(Opzionale, ma raccomandato per la sicurezza)** Inserisci una lista di indirizzi email separati da virgola, senza spazi. Se questa variabile è impostata, solo gli utenti con queste email potranno registrarsi. Se lasciata vuota, la registrazione è aperta a chiunque. Esempio: `ALLOWED_EMAILS=mia_email@gmail.com,collaboratore@esempio.com`
+        *   `CUSTOM_REGISTRATION_DENIED_MESSAGE`: (Opzionale) Il messaggio da mostrare a un utente che tenta di registrarsi con un'email non autorizzata.
+        *   `CUSTOM_CONTACT_LINK`: (Opzionale) L'URL a cui l'utente può rivolgersi per richiedere l'accesso, mostrato insieme al messaggio qui sopra.
     *   **Verifica e configura attentamente le altre variabili nel `.env`:**
         *   `GOOGLE_CLIENT_SECRETS_FILE` dovrebbe già essere `data/client_secrets.json`.
         *   `APP_MODE`: Imposta a `single` per un uso personale self-hosted (raccomandato), o a `saas` se intendi gestire più account all'interno della tua istanza.

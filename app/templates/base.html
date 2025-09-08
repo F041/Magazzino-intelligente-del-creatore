@@ -72,6 +72,53 @@
         {% block content %}{% endblock %}
     </main>
     
-    {% block scripts %}{% endblock %}
+    {% block scripts %}
+<script>
+// --- FUNZIONE GLOBALE PER FAVICON DINAMICA ---
+(function() {
+    // Salviamo l'URL della favicon originale
+    const originalFavicon = document.querySelector("link[rel='icon']").href;
+    
+    // Creiamo una favicon "loading" al volo usando un <canvas>
+    const loadingFavicon = (function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        
+        // Disegniamo un cerchio grigio di base
+        ctx.beginPath();
+        ctx.arc(16, 16, 14, 0, 2 * Math.PI, false);
+        ctx.fillStyle = '#ced4da'; // Un grigio neutro
+        ctx.fill();
+
+        // Disegniamo un piccolo "pallino" colorato (es. blu primario)
+        ctx.beginPath();
+        ctx.arc(24, 24, 6, 0, 2 * Math.PI, false);
+        ctx.fillStyle = '#4361ee'; // Il nostro blu primario
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        return canvas.toDataURL('image/png');
+    })();
+
+    // Esponiamo la funzione a livello globale
+    window.setAppStatus = function(status) {
+        const faviconElement = document.querySelector("link[rel='icon']");
+        if (!faviconElement) return;
+
+        if (status === 'processing') {
+            faviconElement.href = loadingFavicon;
+        } else { // 'idle', 'completed', 'error', etc.
+            faviconElement.href = originalFavicon;
+        }
+    };
+})();
+</script>
+
+<!-- Gli altri script specifici della pagina verranno inseriti qui dal figlio -->
+{% endblock %}
 </body>
 </html>

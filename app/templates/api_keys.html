@@ -98,12 +98,11 @@
                         | Stato: {{ "Attiva" if key_info.is_active else "Revocata" }}
                     </span>
                 </div>
-                <div class="key-actions">
-                    {# Bottone Revoca/Riattiva (Aggiungeremo logica dopo) #}
-                    <!-- <button class="action-btn toggle-active-btn" data-key-id="{{ key_info.id }}" data-active="{{ key_info.is_active }}">
-                        {{ "Revoca" if key_info.is_active else "Riattiva" }}
-                    </button> -->
-                    {# Bottone Elimina Definitivamente (Aggiungeremo logica dopo) #}
+                <div class="key-actions">                    
+                    <button class="action-btn copy-key-btn" data-key-value="{{ key_info.key }}" style="background: var(--color-secondary);">
+                        <i class="fas fa-copy"></i>
+                        <span>Copia</span>
+                    </button>
                     <button class="action-btn delete-btn delete-key-btn" data-key-id="{{ key_info.id }}">Elimina</button>
                     <span class="action-loader delete-loader" style="display: none;">(eliminazione...)</span>
                 </div>
@@ -128,68 +127,80 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const deleteButtons = document.querySelectorAll('.delete-key-btn');
-    const messageContainer = document.querySelector('.flash-messages') || document.body; // Dove mostrare messaggi
+    const apiKeyList = document.getElementById('api-key-list');
+    if (!apiKeyList) return; // Se non c'è la lista, non fare nulla
 
+    // Funzione unica per mostrare notifiche (la sposto qui per pulizia)
     function displayMessage(text, type = 'info') {
-        // Semplice funzione per mostrare messaggi (puoi migliorarla)
+        const messageContainer = document.querySelector('.flash-messages') || document.body;
         const msgElement = document.createElement('div');
         msgElement.textContent = text;
-        msgElement.className = type === 'success' ? 'success-message' : (type === 'error' ? 'error-message' : 'info-message'); // Usa le classi CSS di base.html
+        msgElement.className = type === 'success' ? 'success-message' : 'error-message';
         msgElement.style.marginBottom = '10px';
-        // Inserisci prima della lista o del form
-        const keyList = document.getElementById('api-key-list');
-        messageContainer.insertBefore(msgElement, keyList || messageContainer.firstChild);
-        // Rimuovi dopo qualche secondo
+        messageContainer.insertBefore(msgElement, apiKeyList);
         setTimeout(() => { msgElement.remove(); }, 5000);
     }
 
+    // Unico "ascoltatore" per tutti i click all'interno della lista
+    apiKeyList.addEventListener('click', async (event) => {
+        const targetButton = event.target.closest('button'); // Trova il pulsante cliccato, anche se si clicca sull'icona
+        if (!targetButton) return; // Se il click non era su un bottone, esci
 
-    deleteButtons.forEach(button => {
-        button.addEventListener('click', async (event) => {
-            const btn = event.target;
-            const keyId = btn.dataset.keyId;
+        // --- GESTIONE PULSANTE COPIA ---
+        if (targetButton.classList.contains('copy-key-btn')) {
+            const keyValue = targetButton.dataset.keyValue;
+            if (!keyValue) return;
+
+            navigator.clipboard.writeText(keyValue).then(() => {
+                const originalHTML = targetButton.innerHTML;
+                targetButton.innerHTML = '<i class="fas fa-check"></i> <span>Copiato!</span>';
+                targetButton.style.background = 'var(--color-success)';
+                
+                setTimeout(() => {
+                    targetButton.innerHTML = originalHTML;
+                    targetButton.style.background = '';
+                }, 2000);
+            }).catch(err => {
+                console.error('Errore durante la copia:', err);
+                alert('Impossibile copiare. Fallo manualmente.');
+            });
+        }
+
+        // --- GESTIONE PULSANTE ELIMINA ---
+        if (targetButton.classList.contains('delete-key-btn')) {
+            const keyId = targetButton.dataset.keyId;
             const keyItemDiv = document.getElementById(`key-item-${keyId}`);
-            const loader = btn.nextElementSibling;
-
             if (!keyId || !keyItemDiv) return;
 
-            if (!confirm(`Sei sicuro di voler eliminare definitivamente questa chiave API? L'azione è irreversibile.`)) {
+            if (!confirm("Sei sicuro di voler eliminare definitivamente questa chiave API?")) {
                 return;
             }
 
-            btn.disabled = true;
-            btn.textContent = '...';
-            if(loader) loader.style.display = 'inline';
+            targetButton.disabled = true;
+            targetButton.textContent = '...';
 
             try {
                 const response = await fetch(`/keys/api/${keyId}`, {
                     method: 'DELETE',
                     headers: { 'Accept': 'application/json' }
                 });
-                let data = {}; let responseOk = response.ok;
-                try { data = await response.json(); } catch(e) { data.message = responseOk ? 'Risposta non valida' : `Errore ${response.status}`; data.success = false; if(responseOk) responseOk = false;}
-
-                if (responseOk && data.success) {
-                    keyItemDiv.remove(); // Rimuovi l'elemento dalla pagina
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    keyItemDiv.remove();
                     displayMessage(data.message || 'Chiave API eliminata.', 'success');
-                     // Controlla se la lista è vuota ora
-                    const keyList = document.getElementById('api-key-list');
-                     if (keyList && !keyList.querySelector('.key-list-item')) {
-                         keyList.innerHTML = '<p class="no-items-message">Non hai più chiavi API attive.</p>';
-                     }
+                    if (!apiKeyList.querySelector('.key-list-item')) {
+                        apiKeyList.innerHTML = '<p class="no-items-message">Non hai più chiavi API attive.</p>';
+                    }
                 } else {
                     throw new Error(data.message || `Errore ${response.status}`);
                 }
-
             } catch (error) {
                 console.error(`Errore eliminazione chiave ${keyId}:`, error);
                 displayMessage(`Errore eliminazione: ${error.message}`, 'error');
-                btn.disabled = false; // Riabilita per riprovare
-                btn.textContent = 'Elimina';
-                if(loader) loader.style.display = 'none';
+                targetButton.disabled = false;
+                targetButton.textContent = 'Elimina';
             }
-        });
+        }
     });
 });
 </script>

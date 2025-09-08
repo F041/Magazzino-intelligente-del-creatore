@@ -661,29 +661,59 @@ def create_app(config_object=AppConfig):
 
     @app.route('/register', methods=['GET', 'POST'])
     def register():
-        # Se l'utente è già loggato, reindirizzalo ad ingresso dati
         if current_user.is_authenticated:
             return redirect(url_for('data_entry'))
 
         if request.method == 'POST':
+            # --- INIZIO LOGICA DI CONTROLLO "LISTA INVITATI" (con DEBUG) ---
+            allowed_emails_str = os.getenv('ALLOWED_EMAILS')
+            logger.debug(f"CONTROLLO REGISTRAZIONE: Valore di ALLOWED_EMAILS da .env: '{allowed_emails_str}'")
+
+            if allowed_emails_str:
+                allowed_emails = [email.strip() for email in allowed_emails_str.split(',')]
+                user_email_to_register = request.form.get('email')
+                
+                logger.debug(f"CONTROLLO REGISTRAZIONE: Email da registrare: '{user_email_to_register}'")
+                logger.debug(f"CONTROLLO REGISTRAZIONE: Lista email permesse: {allowed_emails}")
+                
+                if user_email_to_register not in allowed_emails:
+                    logger.warning(f"BLOCCO REGISTRAZIONE: L'email '{user_email_to_register}' non e' in lista. Blocco.")
+                    
+                    custom_message = os.getenv('CUSTOM_REGISTRATION_DENIED_MESSAGE')
+                    contact_link = os.getenv('CUSTOM_CONTACT_LINK')
+                    
+                    if custom_message and contact_link and contact_link.startswith(('http://', 'https://')):
+                        from markupsafe import Markup
+                        final_message = Markup(f'{custom_message} <a href="{contact_link}" target="_blank" rel="noopener noreferrer">Clicca qui</a>.')
+                    elif custom_message:
+                        final_message = custom_message
+                    else:
+                        final_message = "Non sei autorizzato a registrare un account."
+
+                    flash(final_message, "error")
+                    return redirect(url_for('register'))
+                else:
+                    logger.debug(f"CONTROLLO REGISTRAZIONE: L'email '{user_email_to_register}' e' in lista. Procedo.")
+            else:
+                logger.debug("CONTROLLO REGISTRAZIONE: ALLOWED_EMAILS e' vuota, registrazione aperta a tutti.")
+            # --- FINE LOGICA DI CONTROLLO ---
+
+            # Il resto della funzione originale per la registrazione effettiva
             email = request.form.get('email')
-            name = request.form.get('name') # Può essere vuoto
+            name = request.form.get('name')
             password = request.form.get('password')
             confirm_password = request.form.get('confirm_password')
 
-            # --- Validazioni Input ---
             if not email or not password or not confirm_password:
                 flash('Email, password e conferma password sono richiesti.', 'error')
                 return redirect(url_for('register'))
             if password != confirm_password:
                 flash('Le password non coincidono.', 'error')
                 return redirect(url_for('register'))
-            # Aggiungere validazioni più robuste qui (es. lunghezza password, formato email)
-            if len(password) < 8: # Esempio validazione lunghezza
+            if len(password) < 8:
                  flash('La password deve essere lunga almeno 8 caratteri.', 'error')
                  return redirect(url_for('register'))
 
-            # --- Controlla se l'email esiste già ---
             db_path = current_app.config.get('DATABASE_FILE')
             conn = None
             try:
@@ -693,36 +723,27 @@ def create_app(config_object=AppConfig):
                 existing_user = cursor.fetchone()
                 if existing_user:
                     flash('Email già registrata. Effettua il login.', 'error')
-                    conn.close()
                     return redirect(url_for('register'))
 
-                # --- Crea Nuovo Utente ---
                 new_user_id = User.generate_id()
                 new_user = User(id=new_user_id, email=email, name=name if name else None)
-                new_user.set_password(password) # Hash della password
+                new_user.set_password(password)
 
-                # Inserisci nel DB
                 cursor.execute("INSERT INTO users (id, email, password_hash, name) VALUES (?, ?, ?, ?)",
                                (new_user.id, new_user.email, new_user.password_hash, new_user.name))
                 conn.commit()
                 logger.info(f"Nuovo utente registrato: {new_user.email} (ID: {new_user.id})")
                 flash('Registrazione completata! Ora puoi effettuare il login.', 'info')
-                conn.close()
-                return redirect(url_for('login')) # Reindirizza al login dopo registrazione
+                return redirect(url_for('login'))
 
             except sqlite3.Error as e:
                 logger.error(f"Errore DB durante registrazione per email {email}: {e}")
-                if conn: conn.rollback(); conn.close()
+                if conn: conn.rollback()
                 flash('Errore durante la registrazione. Riprova più tardi.', 'error')
                 return redirect(url_for('register'))
             finally:
-                # Assicurati che la connessione sia chiusa se non lo è già
-                if conn and not getattr(conn, 'closed', True): # Controllo un po' più robusto
-                     try: conn.close()
-                     except: pass # Ignora errori chiusura
+                if conn: conn.close()
 
-
-        # Se il metodo è GET, mostra il template
         return render_template('register.html')
 
 

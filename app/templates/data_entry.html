@@ -1,21 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %} Ingresso dati - Magazzino del Creatore{% endblock %}
+{% block title %}Ingresso Dati - Magazzino del Creatore{% endblock %}
 
 {% block content %}
-    <h1>Magazzino del Creatore - Ingresso dati</h1>
+    <h1>Ingresso Dati</h1>
     <p>Seleziona il tipo di contenuto da aggiungere o aggiornare.</p>
 
     <div class="accordion-container">
         <!-- Sezione Documenti -->
         <div class="accordion-item">
             <div class="accordion-header">
-                <span class="accordion-title">
-                    <!-- CORREZIONE: Sostituito <span> con <i> e nome icona corretto -->
-                    <i class="fas fa-file-alt"></i>
-                    Documenti
-                </span>
-                <!-- CORREZIONE: Sostituito <span> con <i> per la freccia -->
+                <span class="accordion-title"><i class="fas fa-file-alt"></i> Documenti</span>
                 <i class="fas fa-chevron-down accordion-arrow"></i>
             </div>
             <div class="accordion-content">
@@ -33,11 +28,7 @@
         <!-- Sezione Blog -->
         <div class="accordion-item">
             <div class="accordion-header">
-                <span class="accordion-title">
-                    <!-- CORREZIONE: Sostituito <span> con <i> e nome icona corretto -->
-                    <i class="fas fa-rss"></i>
-                    Blog / RSS
-                </span>
+                <span class="accordion-title"><i class="fas fa-rss"></i> Blog / RSS</span>
                 <i class="fas fa-chevron-down accordion-arrow"></i>
             </div>
             <div class="accordion-content">
@@ -56,11 +47,7 @@
         <!-- Sezione Video YouTube -->
         <div class="accordion-item">
             <div class="accordion-header">
-                <span class="accordion-title">
-                    <!-- CORREZIONE: Sostituito <span> con <i> e nome icona corretto -->
-                    <i class="fas fa-video"></i>
-                    Video YouTube
-                </span>
+                <span class="accordion-title"><i class="fas fa-video"></i> Video YouTube</span>
                 <i class="fas fa-chevron-down accordion-arrow"></i>
             </div>
             <div class="accordion-content">
@@ -88,41 +75,26 @@
 
 
 {% block scripts %}
+{{ super() }}
 <script>
-    // Lo script JavaScript rimane identico a prima, non c'è bisogno di modificarlo.
-    // Lo includo qui per completezza del file.
     document.addEventListener('DOMContentLoaded', function() {
-        // --- LOGICA ACCORDION ---
         const accordionItems = document.querySelectorAll('.accordion-item');
         accordionItems.forEach(item => {
             const header = item.querySelector('.accordion-header');
             if (header) {
                 header.addEventListener('click', () => {
-                    // Chiudi tutti gli altri pannelli
-                    accordionItems.forEach(otherItem => {
-                        if (otherItem !== item) {
-                            otherItem.classList.remove('open');
-                        }
-                    });
-                    // Apri o chiudi il pannello cliccato
+                    accordionItems.forEach(otherItem => { if (otherItem !== item) { otherItem.classList.remove('open'); } });
                     item.classList.toggle('open');
                 });
             }
         });
-        // Apri il primo di default
-        if (accordionItems.length > 0) {
-            accordionItems[0].classList.add('open');
-        }
+        if (accordionItems.length > 0) { accordionItems[0].classList.add('open'); }
 
-        // --- LOGICA DRAG & DROP ---
         const dropArea = document.getElementById('file-drop-label');
         const fileInput = document.getElementById('file-input');
         if(dropArea && fileInput) {
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropArea.addEventListener(eventName, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }, false);
+                dropArea.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
             });
             ['dragenter', 'dragover'].forEach(eventName => {
                 dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
@@ -137,7 +109,6 @@
             }, false);
         }
 
-        // --- GESTIONE DEI FORM E DEL POLLING (invariato) ---
         const formYoutube = document.getElementById('youtube-form');
         const processBtnYoutube = document.getElementById('process-videos-btn');
         const channelUrlInputYoutube = document.getElementById('channel_url');
@@ -153,8 +124,9 @@
         const progressBarContainerAsync = document.getElementById('progress-bar-container');
         const progressBarAsync = document.getElementById('progress-bar');
         
-        let progressIntervalYoutube = null;
-        let progressIntervalRss = null;
+        let progressInterval = null;
+        let timerInterval = null;
+        let secondsElapsed = 0;
         let currentPollingType = null;
         let lastProcessedYoutubeUrl = null;
         let lastProcessedRssUrl = null;
@@ -166,14 +138,12 @@
             if(fileInput) fileInput.disabled = true;
             if(processRssBtn) processRssBtn.disabled = true;
             if(rssUrlInput) rssUrlInput.disabled = true;
-            if(scheduleYoutubeBtn) { scheduleYoutubeBtn.style.pointerEvents = 'none'; scheduleYoutubeBtn.style.opacity = '0.6'; }
-            if(scheduleRssBtn) { scheduleRssBtn.style.pointerEvents = 'none'; scheduleRssBtn.style.opacity = '0.6'; }
         }
 
         function enableAllForms() {
             if(processBtnYoutube) processBtnYoutube.disabled = false;
             if(channelUrlInputYoutube) channelUrlInputYoutube.disabled = false;
-            if(uploadDocBtnDocs && fileInput && fileInput.files.length === 0) {
+            if(uploadDocBtnDocs && fileInput.files.length === 0) {
                 uploadDocBtnDocs.disabled = true;
             } else if (uploadDocBtnDocs) {
                 uploadDocBtnDocs.disabled = false;
@@ -181,35 +151,55 @@
             if(fileInput) fileInput.disabled = false;
             if(processRssBtn) processRssBtn.disabled = false;
             if(rssUrlInput) rssUrlInput.disabled = false;
-            if(scheduleYoutubeBtn) { scheduleYoutubeBtn.style.pointerEvents = 'auto'; scheduleYoutubeBtn.style.opacity = '1'; }
-            if(scheduleRssBtn) { scheduleRssBtn.style.pointerEvents = 'auto'; scheduleRssBtn.style.opacity = '1'; }
         }
 
         function resetAsyncStatusUI() {
             if(statusDivAsync) statusDivAsync.style.display = 'none';
-            if(statusMessageSpanAsync) statusMessageSpanAsync.textContent = 'In attesa...';
-            if(progressBarContainerAsync) progressBarContainerAsync.style.display = 'none';
-            if(progressBarAsync) progressBarAsync.style.width = '0%';
-            if(statusDivAsync) statusDivAsync.className = '';
             if(scheduleYoutubeBtn) scheduleYoutubeBtn.style.display = 'none';
             if(scheduleRssBtn) scheduleRssBtn.style.display = 'none';
-            if(docUploadStatusDocs) { docUploadStatusDocs.innerHTML = ''; docUploadStatusDocs.style.display = 'none'; }
         }
 
-        function updateAsyncStatusUI(message, statusClass = 'processing', progressPercent = null) {
+        function updateAsyncStatusUI(message, statusClass, progressPercent = null) {
             if(!statusDivAsync || !statusMessageSpanAsync) return;
             statusDivAsync.style.display = 'block';
-            statusDivAsync.className = statusClass.includes('-message') ? statusClass : '';
-            if(statusClass === 'processing') {
-                statusDivAsync.className = 'success-message'; // Usa uno stile neutro/positivo per il processing
-                statusDivAsync.style.borderColor = 'var(--color-info)';
-            }
+            statusDivAsync.className = statusClass;
             statusMessageSpanAsync.innerHTML = message;
+
             if (progressPercent !== null && progressBarContainerAsync && progressBarAsync) {
                 progressBarContainerAsync.style.display = 'block';
                 progressBarAsync.style.width = `${progressPercent}%`;
             } else if (progressBarContainerAsync) {
                 progressBarContainerAsync.style.display = 'none';
+            }
+        }
+        
+        function startTimer() {
+            stopTimer();
+            secondsElapsed = 0;
+            const existingTimer = document.getElementById('async-timer');
+            if(existingTimer) existingTimer.remove();
+
+            const timerElement = document.createElement('span');
+            timerElement.id = 'async-timer';
+            timerElement.style.marginLeft = '15px';
+            timerElement.style.fontStyle = 'italic';
+            timerElement.style.color = 'var(--color-text-secondary)';
+            if(statusDivAsync) statusDivAsync.appendChild(timerElement);
+            
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                timerElement.textContent = `(${secondsElapsed}s)`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            const timerElement = document.getElementById('async-timer');
+            if (timerElement) {
+                // Non aggiungiamo più testo alla fine per pulizia
             }
         }
 
@@ -220,10 +210,12 @@
                 const channelUrl = channelUrlInputYoutube.value;
                 if (!channelUrl) return;
 
+                if (window.setAppStatus) window.setAppStatus('processing');
+                startTimer();
                 lastProcessedYoutubeUrl = channelUrl;
                 disableAllForms();
                 resetAsyncStatusUI();
-                updateAsyncStatusUI('Avvio elaborazione canale... <span class="loading-spinner" style="border-top-color: var(--color-primary); width: 1em; height: 1em; display: inline-block; vertical-align: middle; margin-left: 8px; animation: spin 1s linear infinite;"></span>', 'processing');
+                updateAsyncStatusUI('Avvio elaborazione canale... <span class="loading-spinner"></span>', 'success-message');
                 processBtnYoutube.textContent = 'Elaborazione...';
                 currentPollingType = 'youtube';
 
@@ -235,97 +227,130 @@
                     });
                     const data = await response.json();
                     if (response.status === 202 && data.success) {
-                        updateAsyncStatusUI('Elaborazione avviata... <span class="loading-spinner" style="border-top-color: var(--color-primary); width: 1em; height: 1em; display: inline-block; vertical-align: middle; margin-left: 8px; animation: spin 1s linear infinite;"></span>', 'processing');
-                        startProgressPollingYoutube();
-                    } else {
-                        throw new Error(data.message || `Errore ${response.status}`);
-                    }
+                        startProgressPolling('youtube');
+                    } else { throw new Error(data.message || `Errore ${response.status}`); }
                 } catch (error) {
                      updateAsyncStatusUI(`Errore: ${error.message}`, 'error-message');
                      enableAllForms();
                      processBtnYoutube.textContent = 'Processa Video';
                      currentPollingType = null;
+                     if (window.setAppStatus) window.setAppStatus('idle');
+                     stopTimer();
                 }
             });
         }
         
-        function startProgressPollingYoutube() {
-             clearInterval(progressIntervalYoutube);
-             clearInterval(progressIntervalRss);
-             progressIntervalYoutube = setInterval(checkProgressYoutube, 2000);
+        if(processRssBtn) {
+            processRssBtn.addEventListener('click', async () => {
+                if (currentPollingType) return;
+                const feedUrl = rssUrlInput.value.trim();
+                if (!feedUrl) return;
+
+                if (window.setAppStatus) window.setAppStatus('processing');
+                startTimer();
+                lastProcessedRssUrl = feedUrl;
+                disableAllForms();
+                resetAsyncStatusUI();
+                updateAsyncStatusUI('Avvio elaborazione RSS... <span class="loading-spinner"></span>', 'success-message');
+                processRssBtn.textContent = 'Processo...';
+                currentPollingType = 'rss';
+
+                try {
+                     const response = await fetch('/api/rss/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rss_url: feedUrl }) });
+                     const data = await response.json();
+                     if (response.status === 202) {
+                         startProgressPolling('rss');
+                     } else { throw new Error(data.message); }
+                } catch (error) {
+                     updateAsyncStatusUI(`Errore: ${error.message}`, 'error-message');
+                     enableAllForms();
+                     processRssBtn.textContent = 'Processa Feed';
+                     currentPollingType = null;
+                     if (window.setAppStatus) window.setAppStatus('idle');
+                     stopTimer();
+                }
+            });
+        }
+        
+        function startProgressPolling(type) {
+             clearInterval(progressInterval);
+             currentPollingType = type;
+             progressInterval = setInterval(() => checkProgress(type), 2000);
         }
 
-        async function checkProgressYoutube() {
-            if (currentPollingType !== 'youtube') {
-                clearInterval(progressIntervalYoutube); return;
-            }
+        async function checkProgress(type) {
+            const endpoint = type === 'youtube' ? '/api/videos/progress' : '/api/rss/progress';
             try {
-                const response = await fetch('/api/videos/progress');
+                const response = await fetch(endpoint);
                 const progressData = await response.json();
+                
                 if (progressData.is_processing) {
                     let msg = progressData.message || 'Elaborazione in corso...';
                     let perc = null;
-                    if (progressData.current_video) {
-                         const current = progressData.current_video.index;
-                         const total = progressData.current_video.total;
-                         perc = total > 0 ? Math.round((current / total) * 100) : 0;
-                         msg = `(${current}/${total}) ${progressData.current_video.title || 'video...'}`;
+                    if (type === 'youtube' && progressData.current_video && progressData.current_video.total > 0) {
+                        const current = progressData.current_video.index || 0;
+                        const total = progressData.current_video.total;
+                        perc = Math.round((current / total) * 100);
+                        msg = `(${current}/${total}) ${progressData.current_video.title || 'video...'}`;
                     }
-                    updateAsyncStatusUI(`${msg} <span class="loading-spinner" style="border-top-color: var(--color-primary); width: 1em; height: 1em; display: inline-block; vertical-align: middle; margin-left: 8px; animation: spin 1s linear infinite;"></span>`, 'processing', perc);
+                    updateAsyncStatusUI(`${msg} <span class="loading-spinner"></span>`, 'success-message', perc);
                 } else {
-                    clearInterval(progressIntervalYoutube);
+                    clearInterval(progressInterval);
+                    stopTimer();
+                    if (window.setAppStatus) window.setAppStatus('idle');
+                    
                     const finalMessage = progressData.message || 'Elaborazione completata.';
-                    const finalStatusClass = finalMessage.toLowerCase().includes("errore") ? 'error-message' : 'success-message';
-                    updateAsyncStatusUI(finalMessage, finalStatusClass, 100);
+                    const finalStatusClass = progressData.error ? 'error-message' : 'success-message';
+                    
+                    const finalPerc = (type === 'youtube' && !progressData.error) ? 100 : null;
+                    updateAsyncStatusUI(progressData.error || finalMessage, finalStatusClass, finalPerc);
+                    
                     enableAllForms();
-                    processBtnYoutube.textContent = 'Processa Video';
+                    if(type === 'youtube') processBtnYoutube.textContent = 'Processa Video';
+                    if(type === 'rss') processRssBtn.textContent = 'Processa Feed';
                     currentPollingType = null;
-                    if (finalStatusClass === 'success-message' && lastProcessedYoutubeUrl && scheduleYoutubeBtn) {
-                        scheduleYoutubeBtn.setAttribute('data-url', lastProcessedYoutubeUrl);
-                        scheduleYoutubeBtn.style.display = 'inline-block';
+
+                    if (finalStatusClass === 'success-message') {
+                        const url = type === 'youtube' ? lastProcessedYoutubeUrl : lastProcessedRssUrl;
+                        const btn = type === 'youtube' ? scheduleYoutubeBtn : scheduleRssBtn;
+                        if(url && btn) {
+                            btn.setAttribute('data-url', url);
+                            btn.style.display = 'inline-flex';
+                        }
                     }
                 }
             } catch (error) {
-                 clearInterval(progressIntervalYoutube);
+                 clearInterval(progressInterval);
+                 stopTimer();
+                 if (window.setAppStatus) window.setAppStatus('idle');
                  updateAsyncStatusUI('Errore nel controllo dello stato.', 'error-message');
                  enableAllForms();
-                 processBtnYoutube.textContent = 'Processa Video';
+                 if(type === 'youtube') processBtnYoutube.textContent = 'Processa Video';
+                 if(type === 'rss') processRssBtn.textContent = 'Processa Feed';
                  currentPollingType = null;
             }
         }
-
-        if (fileInput) {
-            fileInput.addEventListener('change', () => {
-                if (fileInput.files.length > 0) {
-                     selectedFileInfoDocs.textContent = `${fileInput.files.length} file selezionati.`;
-                     uploadDocBtnDocs.disabled = false;
-                 } else {
-                     selectedFileInfoDocs.textContent = '';
-                     uploadDocBtnDocs.disabled = true;
-                 }
-            });
-        }
         
         if (uploadDocBtnDocs) {
+            fileInput.addEventListener('change', () => {
+                uploadDocBtnDocs.disabled = fileInput.files.length === 0;
+                selectedFileInfoDocs.textContent = fileInput.files.length > 0 ? `${fileInput.files.length} file selezionati.` : '';
+            });
             uploadDocBtnDocs.addEventListener('click', async () => {
-                if (fileInput.files.length === 0) return;
                 const formData = new FormData();
                 for (const file of fileInput.files) { formData.append('documents', file); }
-                
-                docUploadStatusDocs.innerHTML = `Caricamento... <span class="loading-spinner" style="border-top-color: var(--color-primary); width: 1em; height: 1em; display: inline-block; vertical-align: middle; margin-left: 8px; animation: spin 1s linear infinite;"></span>`;
-                docUploadStatusDocs.className = 'success-message'; // Stile neutro
+                docUploadStatusDocs.innerHTML = `Caricamento... <span class="loading-spinner"></span>`;
+                docUploadStatusDocs.className = 'success-message';
                 docUploadStatusDocs.style.display = 'block';
                 uploadDocBtnDocs.disabled = true;
 
                 try {
                     const response = await fetch('/api/documents/upload', { method: 'POST', body: formData });
                     const data = await response.json();
-                    if (response.ok) {
-                        docUploadStatusDocs.textContent = data.message || `Caricamento completato!`;
+                    if (response.ok && data.success) {
+                        docUploadStatusDocs.textContent = data.message;
                         docUploadStatusDocs.className = 'success-message';
-                    } else {
-                         throw new Error(data.message || `Errore ${response.status}`);
-                    }
+                    } else { throw new Error(data.message); }
                 } catch (error) {
                     docUploadStatusDocs.textContent = `Errore: ${error.message}`;
                     docUploadStatusDocs.className = 'error-message';
@@ -335,72 +360,6 @@
                     selectedFileInfoDocs.textContent = '';
                 }
             });
-        }
-
-        if(processRssBtn) {
-            processRssBtn.addEventListener('click', async () => {
-                if (currentPollingType) return;
-                const feedUrl = rssUrlInput.value.trim();
-                if (!feedUrl) return;
-
-                lastProcessedRssUrl = feedUrl;
-                disableAllForms();
-                resetAsyncStatusUI();
-                updateAsyncStatusUI('Avvio elaborazione RSS... <span class="loading-spinner" style="border-top-color: var(--color-primary); width: 1em; height: 1em; display: inline-block; vertical-align: middle; margin-left: 8px; animation: spin 1s linear infinite;"></span>', 'processing');
-                processRssBtn.textContent = 'Processo...';
-                currentPollingType = 'rss';
-
-                try {
-                     const response = await fetch('/api/rss/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rss_url: feedUrl }) });
-                     const data = await response.json();
-                     if (response.status === 202) {
-                         updateAsyncStatusUI('Elaborazione RSS avviata... <span class="loading-spinner" style="border-top-color: var(--color-primary); width: 1em; height: 1em; display: inline-block; vertical-align: middle; margin-left: 8px; animation: spin 1s linear infinite;"></span>', 'processing');
-                         startProgressPollingRss();
-                     } else {
-                         throw new Error(data.message || `Errore ${response.status}`);
-                     }
-                } catch (error) {
-                     updateAsyncStatusUI(`Errore: ${error.message}`, 'error-message');
-                     enableAllForms();
-                     processRssBtn.textContent = 'Processa Feed';
-                     currentPollingType = null;
-                }
-            });
-        }
-        
-        function startProgressPollingRss() {
-             clearInterval(progressIntervalRss);
-             clearInterval(progressIntervalYoutube);
-             progressIntervalRss = setInterval(checkProgressRss, 2000);
-        }
-
-        async function checkProgressRss() {
-            if (currentPollingType !== 'rss') { clearInterval(progressIntervalRss); return; }
-            try {
-                const response = await fetch('/api/rss/progress');
-                const progressData = await response.json();
-                if (progressData.is_processing) {
-                    updateAsyncStatusUI(`${progressData.message || 'Elaborazione RSS...'} <span class="loading-spinner" style="border-top-color: var(--color-primary); width: 1em; height: 1em; display: inline-block; vertical-align: middle; margin-left: 8px; animation: spin 1s linear infinite;"></span>`, 'processing');
-                } else {
-                    clearInterval(progressIntervalRss);
-                    const finalMessage = progressData.message || 'Elaborazione RSS completata.';
-                    const finalStatusClass = progressData.error ? 'error-message' : 'success-message';
-                    updateAsyncStatusUI(progressData.error || finalMessage, finalStatusClass);
-                    enableAllForms();
-                    processRssBtn.textContent = 'Processa Feed';
-                    currentPollingType = null;
-                    if (finalStatusClass === 'success-message' && lastProcessedRssUrl && scheduleRssBtn) {
-                        scheduleRssBtn.setAttribute('data-url', lastProcessedRssUrl);
-                        scheduleRssBtn.style.display = 'inline-block';
-                    }
-                }
-            } catch (error) {
-                 clearInterval(progressIntervalRss);
-                 updateAsyncStatusUI('Errore nel controllo dello stato.', 'error-message');
-                 enableAllForms();
-                 processRssBtn.textContent = 'Processa Feed';
-                 currentPollingType = null;
-            }
         }
         
         if(scheduleYoutubeBtn) {

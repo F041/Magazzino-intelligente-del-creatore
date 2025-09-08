@@ -99,6 +99,20 @@
         visibility: visible;
         opacity: 1;
     }
+        /* Stile per l'icona di avviso 'warning' */
+    .warning-tooltip i {
+        color: var(--color-warning); /* Usa il nostro colore giallo per gli avvisi */
+        font-size: 1.6em; /* Leggermente più grande per attirare l'attenzione */
+        vertical-align: middle;
+    }
+    .warning-tooltip .tooltip-text {
+        background-color: var(--color-warning);
+        color: var(--color-text-main); /* Testo scuro per leggibilità su sfondo giallo */
+        border: 1px solid #e6a23c; /* Bordo più scuro */
+    }
+    .warning-tooltip .tooltip-text::after {
+        border-color: var(--color-warning) transparent transparent transparent;
+    }
 </style>
 
 {% endblock %}
@@ -151,16 +165,24 @@
                     <div class="label-wrapper">
                         <label for="llm_model_name">Modello IA per generazione</label>
                         <div class="tooltip-group">
+                            <!-- Icona 'i' per informazioni generali -->
                             <span class="info-tooltip">
                                 <span class="fa-stack">
                                   <i class="fas fa-circle fa-stack-2x"></i>
                                   <i class="fas fa-info fa-stack-1x fa-inverse"></i>
                                 </span>
-                                <span class="tooltip-text">Il "motore" che crea le risposte. Inserisci qui il nome del modello che vuoi usare (es. `gemini-2.5-pro`).</span>
+                                <span class="tooltip-text">Il "motore" che crea le risposte. Inserisci qui il nome del modello che vuoi usare.</span>
+                            </span>
+                            <!-- NUOVA ICONA DI AVVISO -->
+                            <span class="info-tooltip warning-tooltip">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span class="tooltip-text">
+                                    <strong>Modello Consigliato:</strong> Questo servizio è stato testato e ottimizzato per `gemini-2.5-pro`. L'uso di altri modelli è possibile ma potrebbe produrre risultati inaspettati.
+                                </span>
                             </span>
                         </div>
                     </div>
-                    <input type="text" id="llm_model_name" name="llm_model_name" value="{{ settings.get('llm_model_name', '') }}" placeholder="Default: gemini-2.5-pro">
+                    <input type="text" id="llm_model_name" name="llm_model_name" value="{{ settings.get('llm_model_name', '') }}" placeholder="Consigliato: gemini-2.5-pro">
                 </div>
 
                 <div class="form-group">
