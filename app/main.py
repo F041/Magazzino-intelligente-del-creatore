@@ -828,37 +828,54 @@ def create_app(config_object=AppConfig):
     @app.route('/my-articles')
     @login_required
     def my_articles():
-        """Mostra la pagina con l'elenco degli articoli aggiunti da feed."""
-        app_mode = current_app.config.get('APP_MODE', 'single') # Leggi APP_MODE
+        app_mode = current_app.config.get('APP_MODE', 'single')
         current_user_id = current_user.id if current_user.is_authenticated else None
 
-
-        # Ottieni User ID Fittizio se in SAAS
         if app_mode == 'saas' and not current_user_id:
             return redirect(url_for('login'))
-        elif app_mode == 'saas': logger.info(f"/my-articles: Modalità SAAS, filtro per user '{current_user_id}'")
-        else: logger.info(f"/my-articles: Modalità SINGLE, mostro tutti gli articoli."); current_user_id = None
+
         articles_from_db = []
         db_path = current_app.config.get('DATABASE_FILE')
         if not db_path:
             logger.error("Percorso DATABASE_FILE non configurato per /my-articles.")
         else:
             try:
-                conn = sqlite3.connect(db_path); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
                 sql_query = 'SELECT * FROM articles'
                 params = []
                 if app_mode == 'saas':
                     sql_query += ' WHERE user_id = ?'
                     params.append(current_user_id)
                 sql_query += ' ORDER BY added_at DESC'
+                
                 cursor.execute(sql_query, tuple(params))
-                articles_from_db = cursor.fetchall()
+                
+                # NUOVA LOGICA: Leggiamo l'anteprima per ogni articolo
+                for row in cursor.fetchall():
+                    article_dict = dict(row) # Converti la riga in un dizionario
+                    preview_text = None
+                    content_path = article_dict.get('extracted_content_path')
+                    
+                    if content_path and os.path.exists(content_path):
+                        try:
+                            with open(content_path, 'r', encoding='utf-8') as f:
+                                # Leggiamo solo i primi 200 caratteri per l'anteprima
+                                preview_text = f.read(200) 
+                        except Exception as e:
+                            logger.warning(f"Impossibile leggere il file di anteprima {content_path}: {e}")
+                    
+                    article_dict['content_preview'] = preview_text
+                    articles_from_db.append(article_dict)
+
                 conn.close()
-                logger.info(f"/my-articles: Recuperati {len(articles_from_db)} articoli dal DB.")
+                logger.info(f"/my-articles: Recuperati {len(articles_from_db)} articoli e le loro anteprime dal DB.")
             except sqlite3.Error as e:
                 logger.error(f"Errore lettura DB per /my-articles: {e}")
 
-        return render_template('my_articles.html', articles=articles_from_db)
+        return render_template('my_articles.html', articles=articles_from_db, config=current_app.config)
 
     @app.route('/api/docs')
     def api_docs():

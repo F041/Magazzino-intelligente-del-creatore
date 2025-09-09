@@ -42,7 +42,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Autenticazione OAuth 2.0 sicura per l'API YouTube (token salvato in `token.pickle`/`.json`).
     *   Recupera metadati e trascrizioni (manuali e automatiche) per i video di un canale specificato.
     *   **Elaborazione Asincrona:** L'elaborazione del canale (recupero, trascrizione, embedding) viene avviata in un thread separato per non bloccare l'interfaccia web.
-    *   **Feedback di Avanzamento:** ingresso_dati mostra lo stato e l'avanzamento dell'elaborazione del canale interrogando un endpoint API dedicato (`/api/videos/progress`).
+    *   **Feedback di Avanzamento:** La pagina "Ingresso Dati" mostra lo stato e l'avanzamento (con una barra di progresso e un cronometro) dell'elaborazione del canale. Al termine, fornisce un messaggio chiaro, distinguendo tra l'aggiunta di nuovi video e il caso in cui il canale sia già completamente aggiornato.
 *   **Gestione Documenti:**
     *   Upload di file PDF, DOCX, TXT tramite interfaccia web (`/data-entry`).
     *   Conversione automatica in Markdown (`.md`).

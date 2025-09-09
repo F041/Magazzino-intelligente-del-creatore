@@ -262,8 +262,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentStatusMessageElement && chatWindow.contains(currentStatusMessageElement)) {
                 currentStatusMessageElement.remove();
             }
-            addMessage(`Si è verificato un errore: ${error.message}`, 'bot', null, true);
-            enableUI(true);
+            // NUOVA LOGICA DI GESTIONE ERRORE
+            let errorMessage = `Si è verificato un errore: ${error.message}`;
+            if (error instanceof TypeError) { // Anche qui, intercettiamo il crash del server
+                errorMessage = "Il server ha impiegato troppo tempo a rispondere. Potrebbe essere sovraccarico. Riprova la tua domanda.";
+            }
+            addMessage(errorMessage, 'bot', null, true);
+            enableAllForms(true);
         }
     }
 

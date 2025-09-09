@@ -1,207 +1,240 @@
 <!-- FILE: app/templates/api_keys.html -->
-{% extends "base.html" %}
-
-{% block title %}Gestione chiavi API - Magazzino del Creatore{% endblock %}
-
-{% block head_styles %}
+{% extends "base.html" %} {% block title %}Gestione chiavi API - Magazzino del
+Creatore{% endblock %} {% block head_styles %}
 <style>
-    /* Stili specifici per questa pagina */
-    .key-list-item {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        padding: 15px;
-        margin-bottom: 10px;
-        border-radius: 5px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap; /* Per andare a capo su schermi piccoli */
-    }
-    .key-details {
-        flex-grow: 1;
-        margin-right: 15px; /* Spazio prima dei bottoni */
-    }
-    .key-details code {
-        font-family: monospace;
-        background-color: #e9ecef;
-        padding: 3px 6px;
-        border-radius: 3px;
-        word-break: break-all; /* Manda a capo chiavi lunghe */
-        display: inline-block; /* Per padding corretto */
-        margin-bottom: 5px; /* Spazio sotto la chiave */
-    }
-    .key-details .key-name {
-        font-weight: bold;
-        display: block; /* Nome su riga separata */
-        margin-bottom: 5px;
-    }
-    .key-details .key-info {
-        font-size: 0.9em;
-        color: #6c757d;
-        display: block;
-    }
-    .key-actions button {
-        margin-left: 5px; /* Spazio tra bottoni */
-    }
-    .generate-key-form {
-        margin-top: 30px;
-        padding: 20px;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-    }
-     .generate-key-form label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: bold;
-    }
-    .generate-key-form input[type="text"] {
-        width: 100%;
-        max-width: 400px; /* Limita larghezza input */
-        padding: 8px;
-        margin-bottom: 10px;
-        border: 1px solid #ced4da;
-        border-radius: 4px;
-        box-sizing: border-box;
-    }
+  /* Stili specifici per questa pagina */
+  .key-list-item {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Per andare a capo su schermi piccoli */
+  }
+  .key-details {
+    flex-grow: 1;
+    margin-right: 15px; /* Spazio prima dei bottoni */
+  }
+  .key-details code {
+    font-family: monospace;
+    background-color: #e9ecef;
+    padding: 3px 6px;
+    border-radius: 3px;
+    word-break: break-all; /* Manda a capo chiavi lunghe */
+    display: inline-block; /* Per padding corretto */
+    margin-bottom: 5px; /* Spazio sotto la chiave */
+  }
+  .key-details .key-name {
+    font-weight: bold;
+    display: block; /* Nome su riga separata */
+    margin-bottom: 5px;
+  }
+  .key-details .key-info {
+    font-size: 0.9em;
+    color: #6c757d;
+    display: block;
+  }
+  .key-actions button {
+    margin-left: 5px; /* Spazio tra bottoni */
+  }
+  .generate-key-form {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+  }
+  .generate-key-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+  }
+  .generate-key-form input[type="text"] {
+    width: 100%;
+    max-width: 400px; /* Limita larghezza input */
+    padding: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
 </style>
-{% endblock %}
+{% endblock %} {% block content %}
+<h1>Gestione chiavi API</h1>
+<p>
+  Le chiavi API ti permettono di accedere ai dati tramite script o applicazioni
+  esterne.
+</p>
+<p>
+  <strong>Tratta le tue chiavi API come password!</strong> Non condividerle
+  pubblicamente.
+</p>
 
-{% block content %}
-    <h1>Gestione chiavi API</h1>
-    <p>Le chiavi API ti permettono di accedere ai dati tramite script o applicazioni esterne.</p>
-    <p><strong>Tratta le tue chiavi API come password!</strong> Non condividerle pubblicamente.</p>
+{# Mostra messaggi flash (es. successo/errore generazione) #} {% with messages =
+get_flashed_messages(with_categories=true) %} {% if messages %}
+<ul class="flash-messages" style="padding: 0; list-style: none">
+  {% for category, message in messages %}
+  <li
+    class="{{ 'success-message' if category == 'success' else 'error-message' }}"
+    style="margin-bottom: 10px"
+  >
+    {{ message }}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %} {% endwith %}
 
-    {# Mostra messaggi flash (es. successo/errore generazione) #}
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <ul class="flash-messages" style="padding: 0; list-style: none;">
-        {% for category, message in messages %}
-          <li class="{{ 'success-message' if category == 'success' else 'error-message' }}" style="margin-bottom: 10px;">{{ message }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
-
-    <h2>Le tue chiavi API</h2>
-    <div id="api-key-list">
-        {% if api_keys %}
-            {% for key_info in api_keys %}
-            <div class="key-list-item" id="key-item-{{ key_info.id }}">
-                <div class="key-details">
-                    <span class="key-name">{{ key_info.name if key_info.name else 'Chiave senza nome' }}</span>
-                    {# Mostra solo una parte della chiave per sicurezza? O tutta? Mostriamo tutta per ora #}
-                    <code>{{ key_info.key }}</code>
-                    <span class="key-info">
-                        Creata: {{ key_info.created_at | format_date('%d %b %Y') }}
-                        {% if key_info.last_used_at %} | Ultimo uso: {{ key_info.last_used_at | format_date('%d %b %Y %H:%M') }} {% endif %}
-                        | Stato: {{ "Attiva" if key_info.is_active else "Revocata" }}
-                    </span>
-                </div>
-                <div class="key-actions">                    
-                    <button class="action-btn copy-key-btn" data-key-value="{{ key_info.key }}" style="background: var(--color-secondary);">
-                        <i class="fas fa-copy"></i>
-                        <span>Copia</span>
-                    </button>
-                    <button class="action-btn delete-btn delete-key-btn" data-key-id="{{ key_info.id }}">Elimina</button>
-                    <span class="action-loader delete-loader" style="display: none;">(eliminazione...)</span>
-                </div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <p class="no-items-message">Non hai ancora generato nessuna chiave API.</p>
-        {% endif %}
+<h2>Le tue chiavi API</h2>
+<div id="api-key-list">
+  {% if api_keys %} {% for key_info in api_keys %}
+  <div class="key-list-item" id="key-item-{{ key_info.id }}">
+    <div class="key-details">
+      <span class="key-name"
+        >{{ key_info.name if key_info.name else 'Chiave senza nome' }}</span
+      >
+      {# Mostra solo una parte della chiave per sicurezza? O tutta? Mostriamo
+      tutta per ora #}
+      <code>{{ key_info.key }}</code>
+      <span class="key-info">
+        Creata: {{ key_info.created_at | format_date('%d %b %Y') }} {% if
+        key_info.last_used_at %} | Ultimo uso: {{ key_info.last_used_at |
+        format_date('%d %b %Y %H:%M') }} {% endif %} | Stato: {{ "Attiva" if
+        key_info.is_active else "Revocata" }}
+      </span>
     </div>
-
-    <div class="generate-key-form">
-        <h2>Genera Nuova Chiave API</h2>
-        <form method="POST" action="{{ url_for('keys.generate_api_key_action') }}">
-            <label for="key_name">Nome Chiave (opzionale, per tuo riferimento):</label>
-            <input type="text" id="key_name" name="key_name" placeholder="Es: Streamlit App">
-            <button type="submit" class="action-btn">Genera Chiave</button>
-        </form>
+    <div class="key-actions">
+      <button
+        class="action-btn copy-key-btn"
+        data-key-value="{{ key_info.key }}"
+        style="background: var(--color-secondary)"
+      >
+        <i class="fas fa-copy"></i>
+        <span>Copia</span>
+      </button>
+      <button
+        class="action-btn delete-btn delete-key-btn"
+        data-key-id="{{ key_info.id }}"
+      >
+        Elimina
+      </button>
+      <span class="action-loader delete-loader" style="display: none"
+        >(eliminazione...)</span
+      >
     </div>
+  </div>
+  {% endfor %} {% else %}
+  <p class="no-items-message">Non hai ancora generato nessuna chiave API.</p>
+  {% endif %}
+</div>
 
-{% endblock %}
+<div class="generate-key-form">
+  <h2>Genera Nuova Chiave API</h2>
+  <form method="POST" action="{{ url_for('keys.generate_api_key_action') }}">
+    <label for="key_name">Nome Chiave (opzionale, per tuo riferimento):</label>
+    <input
+      type="text"
+      id="key_name"
+      name="key_name"
+      placeholder="Es: Streamlit App"
+    />
+    <button type="submit" class="action-btn">Genera Chiave</button>
+  </form>
+</div>
 
-{% block scripts %}
+{% endblock %} {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    const apiKeyList = document.getElementById('api-key-list');
+  document.addEventListener("DOMContentLoaded", () => {
+    const apiKeyList = document.getElementById("api-key-list");
     if (!apiKeyList) return; // Se non c'è la lista, non fare nulla
 
     // Funzione unica per mostrare notifiche (la sposto qui per pulizia)
-    function displayMessage(text, type = 'info') {
-        const messageContainer = document.querySelector('.flash-messages') || document.body;
-        const msgElement = document.createElement('div');
-        msgElement.textContent = text;
-        msgElement.className = type === 'success' ? 'success-message' : 'error-message';
-        msgElement.style.marginBottom = '10px';
-        messageContainer.insertBefore(msgElement, apiKeyList);
-        setTimeout(() => { msgElement.remove(); }, 5000);
+    function displayMessage(text, type = "info") {
+      const messageContainer =
+        document.querySelector(".flash-messages") || document.body;
+      const msgElement = document.createElement("div");
+      msgElement.textContent = text;
+      msgElement.className =
+        type === "success" ? "success-message" : "error-message";
+      msgElement.style.marginBottom = "10px";
+      messageContainer.insertBefore(msgElement, apiKeyList);
+      setTimeout(() => {
+        msgElement.remove();
+      }, 5000);
     }
 
     // Unico "ascoltatore" per tutti i click all'interno della lista
-    apiKeyList.addEventListener('click', async (event) => {
-        const targetButton = event.target.closest('button'); // Trova il pulsante cliccato, anche se si clicca sull'icona
-        if (!targetButton) return; // Se il click non era su un bottone, esci
+    apiKeyList.addEventListener("click", async (event) => {
+      const targetButton = event.target.closest("button"); // Trova il pulsante cliccato, anche se si clicca sull'icona
+      if (!targetButton) return; // Se il click non era su un bottone, esci
 
-        // --- GESTIONE PULSANTE COPIA ---
-        if (targetButton.classList.contains('copy-key-btn')) {
-            const keyValue = targetButton.dataset.keyValue;
-            if (!keyValue) return;
+      // --- GESTIONE PULSANTE COPIA ---
+      if (targetButton.classList.contains("copy-key-btn")) {
+        const keyValue = targetButton.dataset.keyValue;
+        if (!keyValue) return;
 
-            navigator.clipboard.writeText(keyValue).then(() => {
-                const originalHTML = targetButton.innerHTML;
-                targetButton.innerHTML = '<i class="fas fa-check"></i> <span>Copiato!</span>';
-                targetButton.style.background = 'var(--color-success)';
-                
-                setTimeout(() => {
-                    targetButton.innerHTML = originalHTML;
-                    targetButton.style.background = '';
-                }, 2000);
-            }).catch(err => {
-                console.error('Errore durante la copia:', err);
-                alert('Impossibile copiare. Fallo manualmente.');
-            });
+        navigator.clipboard
+          .writeText(keyValue)
+          .then(() => {
+            const originalHTML = targetButton.innerHTML;
+            targetButton.innerHTML =
+              '<i class="fas fa-check"></i> <span>Copiato!</span>';
+            targetButton.style.background = "var(--color-success)";
+
+            setTimeout(() => {
+              targetButton.innerHTML = originalHTML;
+              targetButton.style.background = "";
+            }, 2000);
+          })
+          .catch((err) => {
+            console.error("Errore durante la copia:", err);
+            alert("Impossibile copiare. Fallo manualmente.");
+          });
+      }
+
+      // --- GESTIONE PULSANTE ELIMINA ---
+      if (targetButton.classList.contains("delete-key-btn")) {
+        const keyId = targetButton.dataset.keyId;
+        const keyItemDiv = document.getElementById(`key-item-${keyId}`);
+        if (!keyId || !keyItemDiv) return;
+
+        if (
+          !confirm(
+            "Sei sicuro di voler eliminare definitivamente questa chiave API?"
+          )
+        ) {
+          return;
         }
 
-        // --- GESTIONE PULSANTE ELIMINA ---
-        if (targetButton.classList.contains('delete-key-btn')) {
-            const keyId = targetButton.dataset.keyId;
-            const keyItemDiv = document.getElementById(`key-item-${keyId}`);
-            if (!keyId || !keyItemDiv) return;
+        targetButton.disabled = true;
+        targetButton.textContent = "...";
 
-            if (!confirm("Sei sicuro di voler eliminare definitivamente questa chiave API?")) {
-                return;
+        try {
+          const response = await fetch(`/keys/api/${keyId}`, {
+            method: "DELETE",
+            headers: { Accept: "application/json" },
+          });
+          const data = await response.json();
+          if (response.ok && data.success) {
+            keyItemDiv.remove();
+            displayMessage(data.message || "Chiave API eliminata.", "success");
+            if (!apiKeyList.querySelector(".key-list-item")) {
+              apiKeyList.innerHTML =
+                '<p class="no-items-message">Non hai più chiavi API attive.</p>';
             }
-
-            targetButton.disabled = true;
-            targetButton.textContent = '...';
-
-            try {
-                const response = await fetch(`/keys/api/${keyId}`, {
-                    method: 'DELETE',
-                    headers: { 'Accept': 'application/json' }
-                });
-                const data = await response.json();
-                if (response.ok && data.success) {
-                    keyItemDiv.remove();
-                    displayMessage(data.message || 'Chiave API eliminata.', 'success');
-                    if (!apiKeyList.querySelector('.key-list-item')) {
-                        apiKeyList.innerHTML = '<p class="no-items-message">Non hai più chiavi API attive.</p>';
-                    }
-                } else {
-                    throw new Error(data.message || `Errore ${response.status}`);
-                }
-            } catch (error) {
-                console.error(`Errore eliminazione chiave ${keyId}:`, error);
-                displayMessage(`Errore eliminazione: ${error.message}`, 'error');
-                targetButton.disabled = false;
-                targetButton.textContent = 'Elimina';
-            }
+          } else {
+            throw new Error(data.message || `Errore ${response.status}`);
+          }
+        } catch (error) {
+          console.error(`Errore eliminazione chiave ${keyId}:`, error);
+          displayMessage(`Errore eliminazione: ${error.message}`, "error");
+          targetButton.disabled = false;
+          targetButton.textContent = "Elimina";
         }
+      }
     });
-});
+  });
 </script>
 {% endblock %}

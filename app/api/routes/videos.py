@@ -259,7 +259,11 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                        f"C:{chroma_errors}, G:{generic_errors}. Successo Generale: {overall_success}")
         if overall_success: logger.info(log_summary)
         else: logger.error(log_summary)
-    return overall_success
+    return {
+        "success": overall_success,
+        "new_videos_processed": saved_ok_count,
+        "total_videos_on_yt": yt_count
+    }
 
 
 def _background_channel_processing(app_context, channel_url: str, user_id: Optional[str], initial_status: dict):
@@ -283,6 +287,14 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
 
     with app_context: # Esegui nel contesto app per accedere a config, etc.
         try:
+            from app.main import load_credentials
+            if not load_credentials():
+                logger.error("BACKGROUND THREAD YT: Credenziali non trovate. Processo interrotto.")
+                with status_lock:
+                    processing_status['is_processing'] = False
+                    # Questo messaggio apparirà nel banner di stato
+                    processing_status['message'] = "Errore: Autorizzazione Google richiesta. Vai alla home e accedi con Google per riattivarla."
+                return # Interrompe la funzione in modo pulito
             # --- 1. Estrai Channel ID ---
             # È meglio farlo qui piuttosto che nella funzione core,
             # perché l'URL potrebbe essere fornito in vari formati.
@@ -321,20 +333,21 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
                 logger.info(f"BACKGROUND THREAD YT: Dizionario 'core_config_dict' preparato per canale {channel_id_extracted} con chiavi: {list(core_config_dict.keys())}")
             
             # 2. Chiama la Funzione Core con tre argomenti
-            job_success = _process_youtube_channel_core(
+            result_data = _process_youtube_channel_core(
                 channel_id_extracted,
                 user_id,
                 core_config_dict
             )
+            job_success = result_data.get("success", False)
+            new_videos_count = result_data.get("new_videos_processed", 0)
 
-
-            # --- 3. Prepara Messaggio Finale per UI ---
             if job_success:
-                 # Possiamo leggere un riepilogo più dettagliato se _process_... lo restituisse,
-                 # ma per ora usiamo un messaggio generico.
-                 thread_final_message = f"Processo canale {channel_id_extracted} completato."
+                if new_videos_count > 0:
+                    thread_final_message = f"Processo completato! Aggiunti {new_videos_count} nuovi video."
+                else:
+                    thread_final_message = "Canale già aggiornato. Nessun nuovo video trovato."
             else:
-                 thread_final_message = f"Si sono verificati errori durante il processo del canale {channel_id_extracted}. Controllare i log del server."
+                 thread_final_message = f"Si sono verificati errori durante il processo del canale. Controllare i log del server."
 
         except Exception as e_thread:
             logger.exception(f"BACKGROUND THREAD YT: ERRORE CRITICO.")
@@ -442,6 +455,18 @@ def reprocess_single_video(video_id):
     Forza il riprocessamento completo di un singolo video (verifica utente,
     trascrizione, chunking, embedding, pulizia ChromaDB, upsert ChromaDB, update SQLite).
     """
+    with current_app.app_context():
+        from app.main import load_credentials
+        credentials = load_credentials()
+        if not credentials or not credentials.valid:
+            logger.warning(f"Tentativo di riprocessare {video_id} senza credenziali valide.")
+            # Restituiamo un JSON di errore specifico che JavaScript può interpretare
+            return jsonify({
+                'success': False,
+                'error_code': 'REAUTH_REQUIRED',
+                'message': 'Autorizzazione Google richiesta.',
+                'redirect_url': '/authorize' # Scriviamo l'URL direttamente, più robusto in contesti API
+                }), 401 # 401 Unauthorized è il codice HTTP corretto
     app_mode = current_app.config.get('APP_MODE', 'single')
     logger.info(f"[Reprocess Single] Richiesta per video ID: {video_id} (Modalità: {app_mode})")
 

@@ -1,381 +1,583 @@
-{% extends "base.html" %}
+{% extends "base.html" %} {% block title %}Ingresso Dati - Magazzino del
+Creatore{% endblock %} {% block content %}
+<h1>Ingresso dati</h1>
+<p>Seleziona il tipo di contenuto da aggiungere o aggiornare.</p>
 
-{% block title %}Ingresso Dati - Magazzino del Creatore{% endblock %}
-
-{% block content %}
-    <h1>Ingresso Dati</h1>
-    <p>Seleziona il tipo di contenuto da aggiungere o aggiornare.</p>
-
-    <div class="accordion-container">
-        <!-- Sezione Documenti -->
-        <div class="accordion-item">
-            <div class="accordion-header">
-                <span class="accordion-title"><i class="fas fa-file-alt"></i> Documenti</span>
-                <i class="fas fa-chevron-down accordion-arrow"></i>
-            </div>
-            <div class="accordion-content">
-                <p>Carica file PDF, DOCX, TXT per aggiungerli alla base di conoscenza.</p>
-                <label for="file-input" class="file-drop-area" id="file-drop-label">
-                    <span>Trascina i file qui oppure <strong>scegli i file...</strong></span>
-                    <input type="file" id="file-input" name="documents" multiple style="display: none;">
-                </label>
-                <div id="selected-file-info" style="margin-top: 10px; font-style: italic; color: var(--color-text-light);"></div>
-                <button type="button" id="upload-doc-btn" class="action-btn" style="margin-top: 15px;" disabled>Carica Documenti</button>
-                <div id="doc-upload-status" style="margin-top:15px;"></div>
-            </div>
-        </div>
-
-        <!-- Sezione Blog -->
-        <div class="accordion-item">
-            <div class="accordion-header">
-                <span class="accordion-title"><i class="fas fa-rss"></i> Blog / RSS</span>
-                <i class="fas fa-chevron-down accordion-arrow"></i>
-            </div>
-            <div class="accordion-content">
-                <p>Inserisci l'URL del feed RSS del tuo blog per indicizzare gli articoli.</p>
-                <form id="rss-form">
-                    <label for="rss-url">URL Feed RSS:</label>
-                    <input type="url" id="rss-url" name="rss_url" placeholder="https://esempio.com/feed/">
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: var(--spacing-sm);">
-                        <button type="button" id="process-rss-btn" class="action-btn">Processa Feed</button>
-                        <a href="#" id="schedule-rss-btn" class="action-btn" style="display: none; background-color: var(--color-info);" data-url="">Pianifica Ingestione</a>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Sezione Video YouTube -->
-        <div class="accordion-item">
-            <div class="accordion-header">
-                <span class="accordion-title"><i class="fas fa-video"></i> Video YouTube</span>
-                <i class="fas fa-chevron-down accordion-arrow"></i>
-            </div>
-            <div class="accordion-content">
-                <p>Inserisci l'URL del tuo canale YouTube per aggiungere o aggiornare i video.</p>
-                <form id="youtube-form">
-                    <label for="channel_url">URL Canale YouTube:</label>
-                    <input type="url" id="channel_url" name="channel_url" required placeholder="https://www.youtube.com/@tuocanale">
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: var(--spacing-sm);">
-                        <button type="submit" id="process-videos-btn" class="action-btn">Processa Video</button>
-                        <a href="#" id="schedule-youtube-btn" class="action-btn" style="display: none; background-color: var(--color-info);" data-url="">Pianifica Ingestione</a>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div> <!-- /accordion-container -->
-
-    <!-- Area di stato per processi asincroni -->
-    <div id="process-status" style="margin-top: 25px; display: none;">
-         <span id="status-message">In attesa...</span>
-         <div id="progress-bar-container" style="display: none; margin-top: var(--spacing-sm); height: 8px; background-color: var(--color-border-light); border-radius: 4px; overflow: hidden;">
-             <div id="progress-bar" style="width: 0%; height: 100%; background: var(--gradient-primary); transition: width 0.5s ease;"></div>
-         </div>
+<div class="accordion-container">
+  <!-- Sezione Documenti -->
+  <div class="accordion-item">
+    <div class="accordion-header">
+      <span class="accordion-title"
+        ><i class="fas fa-file-alt"></i> Documenti</span
+      >
+      <i class="fas fa-chevron-down accordion-arrow"></i>
     </div>
-{% endblock %}
+    <div class="accordion-content" id="accordion-content-docs">
+      <p>Carica file PDF, DOCX, TXT per aggiungerli alla base di conoscenza.</p>
+      <label for="file-input" class="file-drop-area" id="file-drop-label">
+        <span
+          >Trascina i file qui oppure <strong>scegli i file...</strong></span
+        >
+        <input
+          type="file"
+          id="file-input"
+          name="documents"
+          multiple
+          style="display: none"
+        />
+      </label>
+      <div
+        id="selected-file-info"
+        style="
+          margin-top: 10px;
+          font-style: italic;
+          color: var(--color-text-light);
+        "
+      ></div>
+      <button
+        type="button"
+        id="upload-doc-btn"
+        class="action-btn"
+        style="margin-top: 15px"
+        disabled
+      >
+        Carica Documenti
+      </button>
+      <div id="doc-upload-status" style="margin-top: 15px"></div>
+    </div>
+  </div>
 
+  <!-- Sezione Blog -->
+  <div class="accordion-item">
+    <div class="accordion-header">
+      <span class="accordion-title"><i class="fas fa-rss"></i> Blog / RSS</span>
+      <i class="fas fa-chevron-down accordion-arrow"></i>
+    </div>
+    <div class="accordion-content" id="accordion-content-rss">
+      <p>
+        Inserisci l'URL del feed RSS del tuo blog per indicizzare gli articoli.
+      </p>
+      <form id="rss-form">
+        <label for="rss-url">URL Feed RSS:</label>
+        <input
+          type="url"
+          id="rss-url"
+          name="rss_url"
+          placeholder="https://esempio.com/feed/"
+        />
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: var(--spacing-sm);
+          "
+        >
+          <button type="button" id="process-rss-btn" class="action-btn">
+            Processa Feed
+          </button>
+          <a
+            href="#"
+            id="schedule-rss-btn"
+            class="action-btn"
+            style="display: none; background-color: var(--color-info)"
+            data-url=""
+            >Pianifica Ingestione</a
+          >
+        </div>
+      </form>
+    </div>
+  </div>
 
-{% block scripts %}
-{{ super() }}
+  <!-- Sezione Video YouTube -->
+  <div class="accordion-item">
+    <div class="accordion-header">
+      <span class="accordion-title"
+        ><i class="fas fa-video"></i> Video YouTube</span
+      >
+      <i class="fas fa-chevron-down accordion-arrow"></i>
+    </div>
+    <div class="accordion-content" id="accordion-content-youtube">
+      <p>
+        Inserisci l'URL del tuo canale YouTube per aggiungere o aggiornare i
+        video.
+      </p>
+      <form id="youtube-form">
+        <label for="channel_url">URL Canale YouTube:</label>
+        <input
+          type="url"
+          id="channel_url"
+          name="channel_url"
+          required
+          placeholder="https://www.youtube.com/@tuocanale"
+        />
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: var(--spacing-sm);
+          "
+        >
+          <button type="submit" id="process-videos-btn" class="action-btn">
+            Processa Video
+          </button>
+          <a
+            href="#"
+            id="schedule-youtube-btn"
+            class="action-btn"
+            style="display: none; background-color: var(--color-info)"
+            data-url=""
+            >Pianifica Ingestione</a
+          >
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- /accordion-container -->
+
+<div id="process-status" style="margin-top: 25px; display: none">
+  <span id="status-message">In attesa...</span>
+  <div
+    id="progress-bar-container"
+    style="
+      display: none;
+      margin-top: var(--spacing-sm);
+      height: 8px;
+      background-color: var(--color-border-light);
+      border-radius: 4px;
+      overflow: hidden;
+    "
+  >
+    <div
+      id="progress-bar"
+      style="
+        width: 0%;
+        height: 100%;
+        background: var(--gradient-primary);
+        transition: width 0.5s ease;
+      "
+    ></div>
+  </div>
+</div>
+{% endblock %} {% block scripts %} {{ super() }}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const accordionItems = document.querySelectorAll('.accordion-item');
-        accordionItems.forEach(item => {
-            const header = item.querySelector('.accordion-header');
-            if (header) {
-                header.addEventListener('click', () => {
-                    accordionItems.forEach(otherItem => { if (otherItem !== item) { otherItem.classList.remove('open'); } });
-                    item.classList.toggle('open');
-                });
-            }
+  document.addEventListener("DOMContentLoaded", function () {
+    // --- CHIAVI E LOGICA ACCORDION (CON MEMORIA) ---
+    const ACCORDION_STORAGE_KEY = "magazzino_active_accordion";
+    const accordionItems = document.querySelectorAll(".accordion-item");
+    const lastActiveId = localStorage.getItem(ACCORDION_STORAGE_KEY);
+
+    accordionItems.forEach((item) => {
+      const header = item.querySelector(".accordion-header");
+      const content = item.querySelector(".accordion-content");
+      if (!header || !content) return;
+
+      if (content.id && content.id === lastActiveId) {
+        item.classList.add("open");
+      }
+
+      header.addEventListener("click", () => {
+        const isOpen = item.classList.contains("open");
+        accordionItems.forEach((otherItem) => {
+          otherItem.classList.remove("open");
         });
-        if (accordionItems.length > 0) { accordionItems[0].classList.add('open'); }
-
-        const dropArea = document.getElementById('file-drop-label');
-        const fileInput = document.getElementById('file-input');
-        if(dropArea && fileInput) {
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropArea.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
-            });
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
-            });
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
-            });
-            dropArea.addEventListener('drop', (e) => {
-                fileInput.files = e.dataTransfer.files;
-                const event = new Event('change');
-                fileInput.dispatchEvent(event);
-            }, false);
+        if (!isOpen) {
+          item.classList.add("open");
+          localStorage.setItem(ACCORDION_STORAGE_KEY, content.id);
+        } else {
+          localStorage.removeItem(ACCORDION_STORAGE_KEY);
         }
-
-        const formYoutube = document.getElementById('youtube-form');
-        const processBtnYoutube = document.getElementById('process-videos-btn');
-        const channelUrlInputYoutube = document.getElementById('channel_url');
-        const scheduleYoutubeBtn = document.getElementById('schedule-youtube-btn');
-        const uploadDocBtnDocs = document.getElementById('upload-doc-btn');
-        const docUploadStatusDocs = document.getElementById('doc-upload-status');
-        const selectedFileInfoDocs = document.getElementById('selected-file-info');
-        const rssUrlInput = document.getElementById('rss-url');
-        const processRssBtn = document.getElementById('process-rss-btn');
-        const scheduleRssBtn = document.getElementById('schedule-rss-btn');
-        const statusDivAsync = document.getElementById('process-status');
-        const statusMessageSpanAsync = document.getElementById('status-message');
-        const progressBarContainerAsync = document.getElementById('progress-bar-container');
-        const progressBarAsync = document.getElementById('progress-bar');
-        
-        let progressInterval = null;
-        let timerInterval = null;
-        let secondsElapsed = 0;
-        let currentPollingType = null;
-        let lastProcessedYoutubeUrl = null;
-        let lastProcessedRssUrl = null;
-
-        function disableAllForms() {
-            if(processBtnYoutube) processBtnYoutube.disabled = true;
-            if(channelUrlInputYoutube) channelUrlInputYoutube.disabled = true;
-            if(uploadDocBtnDocs) uploadDocBtnDocs.disabled = true;
-            if(fileInput) fileInput.disabled = true;
-            if(processRssBtn) processRssBtn.disabled = true;
-            if(rssUrlInput) rssUrlInput.disabled = true;
-        }
-
-        function enableAllForms() {
-            if(processBtnYoutube) processBtnYoutube.disabled = false;
-            if(channelUrlInputYoutube) channelUrlInputYoutube.disabled = false;
-            if(uploadDocBtnDocs && fileInput.files.length === 0) {
-                uploadDocBtnDocs.disabled = true;
-            } else if (uploadDocBtnDocs) {
-                uploadDocBtnDocs.disabled = false;
-            }
-            if(fileInput) fileInput.disabled = false;
-            if(processRssBtn) processRssBtn.disabled = false;
-            if(rssUrlInput) rssUrlInput.disabled = false;
-        }
-
-        function resetAsyncStatusUI() {
-            if(statusDivAsync) statusDivAsync.style.display = 'none';
-            if(scheduleYoutubeBtn) scheduleYoutubeBtn.style.display = 'none';
-            if(scheduleRssBtn) scheduleRssBtn.style.display = 'none';
-        }
-
-        function updateAsyncStatusUI(message, statusClass, progressPercent = null) {
-            if(!statusDivAsync || !statusMessageSpanAsync) return;
-            statusDivAsync.style.display = 'block';
-            statusDivAsync.className = statusClass;
-            statusMessageSpanAsync.innerHTML = message;
-
-            if (progressPercent !== null && progressBarContainerAsync && progressBarAsync) {
-                progressBarContainerAsync.style.display = 'block';
-                progressBarAsync.style.width = `${progressPercent}%`;
-            } else if (progressBarContainerAsync) {
-                progressBarContainerAsync.style.display = 'none';
-            }
-        }
-        
-        function startTimer() {
-            stopTimer();
-            secondsElapsed = 0;
-            const existingTimer = document.getElementById('async-timer');
-            if(existingTimer) existingTimer.remove();
-
-            const timerElement = document.createElement('span');
-            timerElement.id = 'async-timer';
-            timerElement.style.marginLeft = '15px';
-            timerElement.style.fontStyle = 'italic';
-            timerElement.style.color = 'var(--color-text-secondary)';
-            if(statusDivAsync) statusDivAsync.appendChild(timerElement);
-            
-            timerInterval = setInterval(() => {
-                secondsElapsed++;
-                timerElement.textContent = `(${secondsElapsed}s)`;
-            }, 1000);
-        }
-
-        function stopTimer() {
-            if (timerInterval) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-            }
-            const timerElement = document.getElementById('async-timer');
-            if (timerElement) {
-                // Non aggiungiamo più testo alla fine per pulizia
-            }
-        }
-
-        if (formYoutube) {
-            formYoutube.addEventListener('submit', async function(event) {
-                event.preventDefault();
-                if (currentPollingType) return;
-                const channelUrl = channelUrlInputYoutube.value;
-                if (!channelUrl) return;
-
-                if (window.setAppStatus) window.setAppStatus('processing');
-                startTimer();
-                lastProcessedYoutubeUrl = channelUrl;
-                disableAllForms();
-                resetAsyncStatusUI();
-                updateAsyncStatusUI('Avvio elaborazione canale... <span class="loading-spinner"></span>', 'success-message');
-                processBtnYoutube.textContent = 'Elaborazione...';
-                currentPollingType = 'youtube';
-
-                try {
-                    const response = await fetch('/api/videos/channel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                        body: JSON.stringify({ channel_url: channelUrl })
-                    });
-                    const data = await response.json();
-                    if (response.status === 202 && data.success) {
-                        startProgressPolling('youtube');
-                    } else { throw new Error(data.message || `Errore ${response.status}`); }
-                } catch (error) {
-                     updateAsyncStatusUI(`Errore: ${error.message}`, 'error-message');
-                     enableAllForms();
-                     processBtnYoutube.textContent = 'Processa Video';
-                     currentPollingType = null;
-                     if (window.setAppStatus) window.setAppStatus('idle');
-                     stopTimer();
-                }
-            });
-        }
-        
-        if(processRssBtn) {
-            processRssBtn.addEventListener('click', async () => {
-                if (currentPollingType) return;
-                const feedUrl = rssUrlInput.value.trim();
-                if (!feedUrl) return;
-
-                if (window.setAppStatus) window.setAppStatus('processing');
-                startTimer();
-                lastProcessedRssUrl = feedUrl;
-                disableAllForms();
-                resetAsyncStatusUI();
-                updateAsyncStatusUI('Avvio elaborazione RSS... <span class="loading-spinner"></span>', 'success-message');
-                processRssBtn.textContent = 'Processo...';
-                currentPollingType = 'rss';
-
-                try {
-                     const response = await fetch('/api/rss/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rss_url: feedUrl }) });
-                     const data = await response.json();
-                     if (response.status === 202) {
-                         startProgressPolling('rss');
-                     } else { throw new Error(data.message); }
-                } catch (error) {
-                     updateAsyncStatusUI(`Errore: ${error.message}`, 'error-message');
-                     enableAllForms();
-                     processRssBtn.textContent = 'Processa Feed';
-                     currentPollingType = null;
-                     if (window.setAppStatus) window.setAppStatus('idle');
-                     stopTimer();
-                }
-            });
-        }
-        
-        function startProgressPolling(type) {
-             clearInterval(progressInterval);
-             currentPollingType = type;
-             progressInterval = setInterval(() => checkProgress(type), 2000);
-        }
-
-        async function checkProgress(type) {
-            const endpoint = type === 'youtube' ? '/api/videos/progress' : '/api/rss/progress';
-            try {
-                const response = await fetch(endpoint);
-                const progressData = await response.json();
-                
-                if (progressData.is_processing) {
-                    let msg = progressData.message || 'Elaborazione in corso...';
-                    let perc = null;
-                    if (type === 'youtube' && progressData.current_video && progressData.current_video.total > 0) {
-                        const current = progressData.current_video.index || 0;
-                        const total = progressData.current_video.total;
-                        perc = Math.round((current / total) * 100);
-                        msg = `(${current}/${total}) ${progressData.current_video.title || 'video...'}`;
-                    }
-                    updateAsyncStatusUI(`${msg} <span class="loading-spinner"></span>`, 'success-message', perc);
-                } else {
-                    clearInterval(progressInterval);
-                    stopTimer();
-                    if (window.setAppStatus) window.setAppStatus('idle');
-                    
-                    const finalMessage = progressData.message || 'Elaborazione completata.';
-                    const finalStatusClass = progressData.error ? 'error-message' : 'success-message';
-                    
-                    const finalPerc = (type === 'youtube' && !progressData.error) ? 100 : null;
-                    updateAsyncStatusUI(progressData.error || finalMessage, finalStatusClass, finalPerc);
-                    
-                    enableAllForms();
-                    if(type === 'youtube') processBtnYoutube.textContent = 'Processa Video';
-                    if(type === 'rss') processRssBtn.textContent = 'Processa Feed';
-                    currentPollingType = null;
-
-                    if (finalStatusClass === 'success-message') {
-                        const url = type === 'youtube' ? lastProcessedYoutubeUrl : lastProcessedRssUrl;
-                        const btn = type === 'youtube' ? scheduleYoutubeBtn : scheduleRssBtn;
-                        if(url && btn) {
-                            btn.setAttribute('data-url', url);
-                            btn.style.display = 'inline-flex';
-                        }
-                    }
-                }
-            } catch (error) {
-                 clearInterval(progressInterval);
-                 stopTimer();
-                 if (window.setAppStatus) window.setAppStatus('idle');
-                 updateAsyncStatusUI('Errore nel controllo dello stato.', 'error-message');
-                 enableAllForms();
-                 if(type === 'youtube') processBtnYoutube.textContent = 'Processa Video';
-                 if(type === 'rss') processRssBtn.textContent = 'Processa Feed';
-                 currentPollingType = null;
-            }
-        }
-        
-        if (uploadDocBtnDocs) {
-            fileInput.addEventListener('change', () => {
-                uploadDocBtnDocs.disabled = fileInput.files.length === 0;
-                selectedFileInfoDocs.textContent = fileInput.files.length > 0 ? `${fileInput.files.length} file selezionati.` : '';
-            });
-            uploadDocBtnDocs.addEventListener('click', async () => {
-                const formData = new FormData();
-                for (const file of fileInput.files) { formData.append('documents', file); }
-                docUploadStatusDocs.innerHTML = `Caricamento... <span class="loading-spinner"></span>`;
-                docUploadStatusDocs.className = 'success-message';
-                docUploadStatusDocs.style.display = 'block';
-                uploadDocBtnDocs.disabled = true;
-
-                try {
-                    const response = await fetch('/api/documents/upload', { method: 'POST', body: formData });
-                    const data = await response.json();
-                    if (response.ok && data.success) {
-                        docUploadStatusDocs.textContent = data.message;
-                        docUploadStatusDocs.className = 'success-message';
-                    } else { throw new Error(data.message); }
-                } catch (error) {
-                    docUploadStatusDocs.textContent = `Errore: ${error.message}`;
-                    docUploadStatusDocs.className = 'error-message';
-                } finally {
-                    uploadDocBtnDocs.disabled = true;
-                    fileInput.value = '';
-                    selectedFileInfoDocs.textContent = '';
-                }
-            });
-        }
-        
-        if(scheduleYoutubeBtn) {
-            scheduleYoutubeBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                const url = e.target.getAttribute('data-url');
-                if(url) window.location.href = `/automations?type=youtube&url=${encodeURIComponent(url)}`;
-            });
-        }
-        if(scheduleRssBtn) {
-            scheduleRssBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                const url = e.target.getAttribute('data-url');
-                if(url) window.location.href = `/automations?type=rss&url=${encodeURIComponent(url)}`;
-            });
-        }
+      });
     });
+
+    if (!lastActiveId && accordionItems.length > 0) {
+      accordionItems[0].classList.add("open");
+    }
+
+    // --- CHIAVI E LOGICA INPUT (CON MEMORIA) ---
+    const YOUTUBE_URL_KEY = "magazzino_last_youtube_url";
+    const RSS_URL_KEY = "magazzino_last_rss_url";
+    const channelUrlInputYoutube = document.getElementById("channel_url");
+    const rssUrlInput = document.getElementById("rss-url");
+    if (channelUrlInputYoutube) {
+      const savedYoutubeUrl = localStorage.getItem(YOUTUBE_URL_KEY);
+      if (savedYoutubeUrl) {
+        channelUrlInputYoutube.value = savedYoutubeUrl;
+      }
+    }
+    if (rssUrlInput) {
+      const savedRssUrl = localStorage.getItem(RSS_URL_KEY);
+      if (savedRssUrl) {
+        rssUrlInput.value = savedRssUrl;
+      }
+    }
+
+    // --- LOGICA DRAG & DROP ---
+    const dropArea = document.getElementById("file-drop-label");
+    const fileInput = document.getElementById("file-input");
+    if (dropArea && fileInput) {
+      ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+        dropArea.addEventListener(
+          eventName,
+          (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          },
+          false
+        );
+      });
+      ["dragenter", "dragover"].forEach((eventName) => {
+        dropArea.addEventListener(
+          eventName,
+          () => dropArea.classList.add("dragover"),
+          false
+        );
+      });
+      ["dragleave", "drop"].forEach((eventName) => {
+        dropArea.addEventListener(
+          eventName,
+          () => dropArea.classList.remove("dragover"),
+          false
+        );
+      });
+      dropArea.addEventListener(
+        "drop",
+        (e) => {
+          fileInput.files = e.dataTransfer.files;
+          const event = new Event("change");
+          fileInput.dispatchEvent(event);
+        },
+        false
+      );
+    }
+
+    // --- SELEZIONE ALTRI ELEMENTI DOM ---
+    const formYoutube = document.getElementById("youtube-form");
+    const processBtnYoutube = document.getElementById("process-videos-btn");
+    const scheduleYoutubeBtn = document.getElementById("schedule-youtube-btn");
+    const uploadDocBtnDocs = document.getElementById("upload-doc-btn");
+    const docUploadStatusDocs = document.getElementById("doc-upload-status");
+    const selectedFileInfoDocs = document.getElementById("selected-file-info");
+    const processRssBtn = document.getElementById("process-rss-btn");
+    const scheduleRssBtn = document.getElementById("schedule-rss-btn");
+    const statusDivAsync = document.getElementById("process-status");
+    const statusMessageSpanAsync = document.getElementById("status-message");
+    const progressBarContainerAsync = document.getElementById(
+      "progress-bar-container"
+    );
+    const progressBarAsync = document.getElementById("progress-bar");
+
+    // --- VARIABILI DI STATO ---
+    let progressInterval = null;
+    let timerInterval = null;
+    let secondsElapsed = 0;
+    let currentPollingType = null;
+    let lastProcessedYoutubeUrl = null;
+    let lastProcessedRssUrl = null;
+
+    // --- FUNZIONI HELPER UI ---
+    function disableAllForms() {
+      if (processBtnYoutube) processBtnYoutube.disabled = true;
+      if (channelUrlInputYoutube) channelUrlInputYoutube.disabled = true;
+      if (uploadDocBtnDocs) uploadDocBtnDocs.disabled = true;
+      if (fileInput) fileInput.disabled = true;
+      if (processRssBtn) processRssBtn.disabled = true;
+      if (rssUrlInput) rssUrlInput.disabled = true;
+    }
+    function enableAllForms() {
+      if (processBtnYoutube) processBtnYoutube.disabled = false;
+      if (channelUrlInputYoutube) channelUrlInputYoutube.disabled = false;
+      if (uploadDocBtnDocs && fileInput.files.length === 0) {
+        uploadDocBtnDocs.disabled = true;
+      } else if (uploadDocBtnDocs) {
+        uploadDocBtnDocs.disabled = false;
+      }
+      if (fileInput) fileInput.disabled = false;
+      if (processRssBtn) processRssBtn.disabled = false;
+      if (rssUrlInput) rssUrlInput.disabled = false;
+    }
+    function resetAsyncStatusUI() {
+      if (statusDivAsync) statusDivAsync.style.display = "none";
+      if (scheduleYoutubeBtn) scheduleYoutubeBtn.style.display = "none";
+      if (scheduleRssBtn) scheduleRssBtn.style.display = "none";
+    }
+    function updateAsyncStatusUI(message, statusClass, progressPercent = null) {
+      if (!statusDivAsync || !statusMessageSpanAsync) return;
+      statusDivAsync.style.display = "block";
+      statusDivAsync.className = statusClass;
+      statusMessageSpanAsync.innerHTML = message;
+      if (
+        progressPercent !== null &&
+        progressBarContainerAsync &&
+        progressBarAsync
+      ) {
+        progressBarContainerAsync.style.display = "block";
+        progressBarAsync.style.width = `${progressPercent}%`;
+      } else if (progressBarContainerAsync) {
+        progressBarContainerAsync.style.display = "none";
+      }
+    }
+
+    // --- FUNZIONI CRONOMETRO ---
+    function startTimer() {
+      stopTimer();
+      secondsElapsed = 0;
+      const existingTimer = document.getElementById("async-timer");
+      if (existingTimer) existingTimer.remove();
+      const timerElement = document.createElement("span");
+      timerElement.id = "async-timer";
+      timerElement.style.marginLeft = "15px";
+      timerElement.style.fontStyle = "italic";
+      timerElement.style.color = "var(--color-text-secondary)";
+      if (statusDivAsync) statusDivAsync.appendChild(timerElement);
+      timerInterval = setInterval(() => {
+        secondsElapsed++;
+        timerElement.textContent = `(${secondsElapsed}s)`;
+      }, 1000);
+    }
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    // --- GESTIONE YOUTUBE ---
+    if (formYoutube) {
+      formYoutube.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        const channelUrl = channelUrlInputYoutube.value.trim();
+        if (!channelUrl) return;
+        localStorage.setItem(YOUTUBE_URL_KEY, channelUrl);
+        if (window.setAppStatus) window.setAppStatus("processing");
+        startTimer();
+        lastProcessedYoutubeUrl = channelUrl;
+        disableAllForms();
+        resetAsyncStatusUI();
+        updateAsyncStatusUI(
+          'Avvio elaborazione canale... <span class="loading-spinner"></span>',
+          "success-message"
+        );
+        processBtnYoutube.textContent = "Elaborazione...";
+        try {
+          const response = await fetch("/api/videos/channel", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({ channel_url: channelUrl }),
+          });
+          const data = await response.json();
+          if (response.status === 202 && data.success) {
+            startProgressPolling("youtube");
+          } else {
+            throw new Error(data.message || `Errore ${response.status}`);
+          }
+        } catch (error) {
+          let errorMessage = `Errore: ${error.message}`;
+          if (error instanceof TypeError) {
+            errorMessage =
+              "Il server ha impiegato troppo tempo a rispondere. Riprova tra poco.";
+          }
+          updateAsyncStatusUI(errorMessage, "error-message");
+          enableAllForms();
+          processBtnYoutube.textContent = "Processa Video";
+          if (window.setAppStatus) window.setAppStatus("idle");
+          stopTimer();
+        }
+      });
+    }
+
+    // --- GESTIONE RSS ---
+    if (processRssBtn) {
+      processRssBtn.addEventListener("click", async () => {
+        const feedUrl = rssUrlInput.value.trim();
+        if (!feedUrl) return;
+        localStorage.setItem(RSS_URL_KEY, feedUrl);
+        if (window.setAppStatus) window.setAppStatus("processing");
+        startTimer();
+        lastProcessedRssUrl = feedUrl;
+        disableAllForms();
+        resetAsyncStatusUI();
+        updateAsyncStatusUI(
+          'Avvio elaborazione RSS... <span class="loading-spinner"></span>',
+          "success-message"
+        );
+        processRssBtn.textContent = "Processo...";
+        try {
+          const response = await fetch("/api/rss/process", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rss_url: feedUrl }),
+          });
+          const data = await response.json();
+          if (response.status === 202) {
+            startProgressPolling("rss");
+          } else {
+            throw new Error(data.message);
+          }
+        } catch (error) {
+          let errorMessage = `Errore: ${error.message}`;
+          if (error instanceof TypeError) {
+            errorMessage =
+              "Il server ha impiegato troppo tempo a rispondere. Riprova tra poco.";
+          }
+          updateAsyncStatusUI(errorMessage, "error-message");
+          enableAllForms();
+          processRssBtn.textContent = "Processa Feed";
+          if (window.setAppStatus) window.setAppStatus("idle");
+          stopTimer();
+        }
+      });
+    }
+
+    // --- FUNZIONE DI POLLING ---
+    function startProgressPolling(type) {
+      clearInterval(progressInterval);
+      currentPollingType = type;
+      progressInterval = setInterval(() => checkProgress(type), 2000);
+    }
+    async function checkProgress(type) {
+      const endpoint =
+        type === "youtube" ? "/api/videos/progress" : "/api/rss/progress";
+      try {
+        const response = await fetch(endpoint);
+        const progressData = await response.json();
+        if (progressData.is_processing) {
+          let msg = progressData.message || "Elaborazione in corso...";
+          let perc = null;
+          if (
+            type === "youtube" &&
+            progressData.current_video &&
+            progressData.current_video.total > 0
+          ) {
+            const current = progressData.current_video.index || 0;
+            const total = progressData.current_video.total;
+            perc = Math.round((current / total) * 100);
+            msg = `(${current}/${total}) ${
+              progressData.current_video.title || "video..."
+            }`;
+          }
+          updateAsyncStatusUI(
+            `${msg} <span class="loading-spinner"></span>`,
+            "success-message",
+            perc
+          );
+        } else {
+          clearInterval(progressInterval);
+          stopTimer();
+          if (window.setAppStatus) window.setAppStatus("idle");
+          const finalMessage =
+            progressData.message || "Elaborazione completata.";
+          const finalStatusClass = progressData.error
+            ? "error-message"
+            : "success-message";
+          const finalPerc =
+            type === "youtube" && !progressData.error ? 100 : null;
+          updateAsyncStatusUI(
+            progressData.error || finalMessage,
+            finalStatusClass,
+            finalPerc
+          );
+          enableAllForms();
+          if (type === "youtube")
+            processBtnYoutube.textContent = "Processa Video";
+          if (type === "rss") processRssBtn.textContent = "Processa Feed";
+          currentPollingType = null;
+          if (finalStatusClass === "success-message") {
+            const url =
+              type === "youtube"
+                ? lastProcessedYoutubeUrl
+                : lastProcessedRssUrl;
+            const btn =
+              type === "youtube" ? scheduleYoutubeBtn : scheduleRssBtn;
+            if (url && btn) {
+              btn.setAttribute("data-url", url);
+              btn.style.display = "inline-flex";
+            }
+          }
+        }
+      } catch (error) {
+        clearInterval(progressInterval);
+        stopTimer();
+        if (window.setAppStatus) window.setAppStatus("idle");
+        updateAsyncStatusUI(
+          "Errore nel controllo dello stato.",
+          "error-message"
+        );
+        enableAllForms();
+        if (type === "youtube")
+          processBtnYoutube.textContent = "Processa Video";
+        if (type === "rss") processRssBtn.textContent = "Processa Feed";
+        currentPollingType = null;
+      }
+    }
+
+    // --- GESTIONE DOCUMENTI ---
+    if (uploadDocBtnDocs) {
+      fileInput.addEventListener("change", () => {
+        uploadDocBtnDocs.disabled = fileInput.files.length === 0;
+        selectedFileInfoDocs.textContent =
+          fileInput.files.length > 0
+            ? `${fileInput.files.length} file selezionati.`
+            : "";
+      });
+      uploadDocBtnDocs.addEventListener("click", async () => {
+        const formData = new FormData();
+        for (const file of fileInput.files) {
+          formData.append("documents", file);
+        }
+        docUploadStatusDocs.innerHTML = `Caricamento... <span class="loading-spinner"></span>`;
+        docUploadStatusDocs.className = "success-message";
+        docUploadStatusDocs.style.display = "block";
+        uploadDocBtnDocs.disabled = true;
+        try {
+          const response = await fetch("/api/documents/upload", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          if (response.ok && data.success) {
+            docUploadStatusDocs.textContent = data.message;
+            docUploadStatusDocs.className = "success-message";
+          } else {
+            throw new Error(data.message);
+          }
+        } catch (error) {
+          docUploadStatusDocs.textContent = `Errore: ${error.message}`;
+          docUploadStatusDocs.className = "error-message";
+        } finally {
+          uploadDocBtnDocs.disabled = true;
+          fileInput.value = "";
+          selectedFileInfoDocs.textContent = "";
+        }
+      });
+    }
+
+    // --- GESTIONE LINK "PIANIFICA" ---
+    if (scheduleYoutubeBtn) {
+      scheduleYoutubeBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        const url = e.target.getAttribute("data-url");
+        if (url)
+          window.location.href = `/automations?type=youtube&url=${encodeURIComponent(
+            url
+          )}`;
+      });
+    }
+    if (scheduleRssBtn) {
+      scheduleRssBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        const url = e.target.getAttribute("data-url");
+        if (url)
+          window.location.href = `/automations?type=rss&url=${encodeURIComponent(
+            url
+          )}`;
+      });
+    }
+  });
 </script>
 {% endblock %}

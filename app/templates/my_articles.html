@@ -4,21 +4,23 @@
 
 {% block content %}
     <h1>I tuoi articoli da Feed RSS ({{ articles|length }})</h1>
-    <div style="margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; display: flex; align-items: center; gap: 15px;">
-        {# Bottone Download Contenuto Articoli #}
-        <a href="{{ url_for('rss.download_all_articles') }}" download="all_article_contents.txt" class="action-btn" style="background-color: #28a745; color: white; text-decoration: none; display: inline-block; padding: 8px 15px;">
-            Scarica contenuto articoli (.txt)
+    
+    <div class="action-panel">
+        <a href="{{ url_for('rss.download_all_articles') }}" class="action-btn success-btn">
+            <i class="fas fa-download fa-fw"></i>
+            <span>Scarica contenuto articoli (.txt) </span>
         </a>
-        <span style="font-size: 0.9em; color: #6c757d;">(Solo articoli 'completed')</span>
-
-        {# Bottone Elimina Tutti - Solo SAAS #}
+        <span style="font-size: 0.9em; color: var(--color-text-light);">(Solo articoli 'completed')</span>
         {% if config.APP_MODE == 'saas' %}
             <button id="delete-all-articles-btn" class="action-btn delete-btn" style="margin-left: auto;">
-                Elimina Tutti gli articoli utente
+                <i class="fas fa-trash-alt fa-fw"></i>
+                <span>Elimina tutti</span>
             </button>
-            <span id="delete-all-articles-loader" class="action-loader">(eliminazione...)</span>
+            <!-- CORREZIONE: Loader nascosto di default -->
+            <span id="delete-all-articles-loader" class="action-loader" style="display: none;">(eliminazione...)</span>
         {% endif %}
     </div>
+    
     <div id="action-message"></div>
 
     <div id="articles-container">
@@ -26,40 +28,41 @@
             <thead>
                 <tr>
                     <th>Titolo</th>
-                    <th>URL Originale</th>
                     <th>Data Pubblicazione</th>
                     <th>Data Aggiunta</th>
-                    <th>Stato Indicizzazione</th>
+                    <th>Stato</th>
+                    <th>Anteprima Contenuto</th>
                     <th>Azioni</th>
                 </tr>
             </thead>
             <tbody>
                 {% for article in articles %}
                 <tr id="article-row-{{ article.article_id | escape }}">
-                    {# Titolo cliccabile che porta all'URL originale #}
-                    <td><a href="{{ article.article_url }}" target="_blank" title="{{ article.title }}">{{ article.title[:80] }}{% if article.title|length > 80 %}...{% endif %}</a></td>
-                    {# Mostra l'URL originale (troncato per brevità) #}
-                    <td><a href="{{ article.article_url }}" target="_blank" title="{{ article.article_url }}">{{ article.article_url[:50] }}{% if article.article_url|length > 50 %}...{% endif %}</a></td>
-                    {# Data pubblicazione (potrebbe mancare) #}
-                    <td>{{ (article.published_at | format_date('%d %b %Y %H:%M')) if article.published_at else 'N/D' }}</td>
-                    {# Data aggiunta al DB #}
-                    <td>{{ article.added_at | format_date('%d %b %Y %H:%M') }}</td>
-                    {# Stato indicizzazione #}
+                    <td><a href="{{ article.article_url }}" target="_blank" title="{{ article.article_url }}">{{ article.title }}</a></td>
+                    <td>{{ (article.published_at | format_date('%d %b %Y')) if article.published_at else 'N/D' }}</td>
+                    <td>{{ article.added_at | format_date('%d %b %Y') }}</td>
                     <td>
                         <span class="status-badge status-{{ article.processing_status | lower | replace('_', '-') }}">{{ article.processing_status }}</span>
                     </td>
+                    <td>
+                        {% if article.content_preview %}
+                            <p style="font-size: 0.9em; color: var(--color-text-secondary); margin: 0;">
+                                {{ article.content_preview | striptags | escape }}
+                                {% if article.content_preview|length >= 200 %}...{% endif %}
+                            </p>
+                        {% else %}
+                            <span style="color: var(--color-text-light); font-style: italic;">Nessuna</span>
+                        {% endif %}
+                    </td>
                     <td>                        
-                        {# Pulsante Elimina (Logica simile a documenti) #}
-                        {# <button class="action-btn delete-article-btn" data-article-id="{{ article.article_id }}">Elimina</button> #}
-                        {# <span class="action-loader delete-loader">(eliminazione...)</span> #}
-                        {# TODO: Implementare eliminazione articoli se necessario #}
+                        {# Placeholder per future azioni come "Elimina Singolo" #}
                     </td>
                 </tr>
                 {% else %}
                 <tr>
                     <td colspan="6" class="no-items-message">
-                        Nessun articolo trovato nel database.
-<br>Vai alla <a href="{{ url_for('data_entry') }}">data_entry</a> per processare un feed RSS.
+                        Nessun articolo trovato nel database.<br>
+                        Vai su <a href="{{ url_for('data_entry') }}">Ingresso Dati</a> per processare un feed RSS.
                     </td>
                 </tr>
                 {% endfor %}
@@ -69,83 +72,74 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        console.log("Pagina Articoli caricata.");
+document.addEventListener('DOMContentLoaded', () => {
+    const deleteAllBtn = document.getElementById('delete-all-articles-btn');
+    const deleteAllLoader = document.getElementById('delete-all-articles-loader');
+    const articlesTbody = document.querySelector('#articles-container tbody');
+
+    function showNotification(message, type = "success") {
         const messageDiv = document.getElementById('action-message');
-        const deleteAllBtn = document.getElementById('delete-all-articles-btn'); // Selettore corretto
-        const deleteAllLoader = document.getElementById('delete-all-articles-loader'); // Selettore corretto
-        const articlesTbody = document.querySelector('#articles-container tbody'); // Selettore tabella articoli
+        if (!messageDiv) return;
+        messageDiv.className = type === "success" ? "success-message" : "error-message";
+        messageDiv.textContent = message;
+        messageDiv.style.opacity = "0";
+        messageDiv.style.display = "flex";
+        setTimeout(() => { messageDiv.style.opacity = "1"; }, 10);
+        setTimeout(() => {
+            messageDiv.style.opacity = "0";
+            setTimeout(() => { messageDiv.style.display = "none"; }, 500);
+        }, 5000);
+    }
 
-         if(messageDiv) {
-             messageDiv.style.padding = '10px'; messageDiv.style.marginTop = '15px'; messageDiv.style.borderRadius = '4px'; messageDiv.style.display = 'none';
-         }
-         if (deleteAllLoader) { deleteAllLoader.style.display = 'none'; } // Nascondi loader
-
-        // --- Logica Pulsante ELIMINA TUTTI GLI ARTICOLI ---
-        if (deleteAllBtn) {
-            deleteAllBtn.addEventListener('click', async () => {
-                console.log("Pulsante 'Elimina Tutti gli Articoli' cliccato.");
-                // Conferma utente (MOLTO IMPORTANTE!)
-                if (!confirm("ATTENZIONE!\n\nSei sicuro di voler eliminare TUTTI gli articoli associati al tuo account?\nQuesta azione rimuoverà i dati da SQLite, i file .txt associati e tenterà di rimuovere la collezione da ChromaDB.\nL'AZIONE È IRREVERSIBILE.")) {
-                    console.log("Eliminazione di massa articoli annullata.");
-                    return;
-                }
-
-                // Feedback UI iniziale
-                deleteAllBtn.disabled = true; deleteAllBtn.textContent = 'Eliminazione...';
-                if (deleteAllLoader) deleteAllLoader.style.display = 'inline';
-                if (messageDiv) { messageDiv.textContent = 'Avvio eliminazione di massa articoli...'; messageDiv.className = ''; messageDiv.style.display = 'block'; }
-
-                try {
-                    // Chiamata API per eliminare tutti gli articoli
-                    const response = await fetch('/api/rss/all', { // <-- API CORRETTA
-                        method: 'DELETE', headers: { 'Accept': 'application/json' }
-                    });
-                    let data = {}; let responseOk = response.ok;
-                    try { data = await response.json(); } catch (e) { data.message = responseOk ? "Risposta server non valida." : `Errore server ${response.status}.`; data.success = false; if(responseOk) responseOk = false; }
-
-                    if (deleteAllLoader) deleteAllLoader.style.display = 'none'; // Nascondi loader
-
-                    // Gestisci risposta
-                    if (responseOk && data.success) {
-                         if (messageDiv) { messageDiv.textContent = data.message || "Eliminazione di massa articoli completata."; messageDiv.className = 'success-message'; }
-                         // Svuota la tabella nell'interfaccia
-                         if (articlesTbody) { articlesTbody.innerHTML = `<tr><td colspan="6" class="no-items-message">Eliminazione completata. Nessun articolo da mostrare.</td></tr>`; } // Aggiornato colspan
-                         deleteAllBtn.textContent = 'Eliminati'; // Cambia testo bottone
-                         // Lascia il bottone disabilitato
-                         console.log("Risposta API 'Elimina Tutto Articoli' ricevuta:", data);
-                    } else {
-                         // Errore gestito restituito dall'API (es. 500 con success:false)
-                         throw new Error(data.message || data.error || `Errore ${response.status}`);
-                    }
-                } catch (error) { // Errore fetch o errore API gestito sopra
-                    if (deleteAllLoader) deleteAllLoader.style.display = 'none';
-                    console.error('Errore durante eliminazione di massa articoli:', error);
-                     if (messageDiv) { messageDiv.textContent = `Errore durante l'eliminazione: ${error.message}`; messageDiv.className = 'error-message'; }
-                     deleteAllBtn.disabled = false; // Riabilita per riprovare
-                     deleteAllBtn.textContent = 'Elimina Tutti gli Articoli Utente';
-                }
-            }); // Fine listener
-
-            // Disabilita bottone se tabella vuota all'inizio (simile a my_videos)
-             const dataRows = articlesTbody ? articlesTbody.querySelectorAll('tr') : [];
-             const isTableEmpty = dataRows.length === 0 || (dataRows.length === 1 && dataRows[0].querySelector('.no-items-message'));
-             if (isTableEmpty) {
-                 console.log("Tabella articoli vuota al caricamento, disabilito 'Elimina Tutti'.");
-                 deleteAllBtn.disabled = true; deleteAllBtn.style.opacity = 0.6; deleteAllBtn.style.cursor = 'not-allowed';
-             } else {
-                  deleteAllBtn.disabled = false; deleteAllBtn.style.opacity = 1; deleteAllBtn.style.cursor = 'pointer';
-             }
-
-        } else {
-             // Log se il bottone non c'è (es. APP_MODE single)
-             console.log("Pulsante 'Elimina Tutti gli Articoli' non trovato (APP_MODE != 'saas'?).");
+    if (deleteAllBtn) {
+        if (deleteAllLoader) {
+            deleteAllLoader.style.display = 'none';
         }
 
-        // --- Logica per Pulsanti Azioni Singole (Elimina/Riprocessa - Se verranno aggiunti) ---
-        // ... (eventuale codice per pulsanti singoli qui) ...
+        deleteAllBtn.addEventListener('click', async () => {
+            const userConfirmed = await showConfirmModal(
+                "Conferma eliminazione",
+                "ATTENZIONE! Sei sicuro di voler eliminare TUTTI gli articoli? L'azione è irreversibile."
+            );
+            if (!userConfirmed) return;
 
-    }); // Fine DOMContentLoaded
+            const originalHTML = deleteAllBtn.innerHTML;
+            deleteAllBtn.disabled = true;
+            deleteAllBtn.textContent = 'Eliminazione...';
+            if (deleteAllLoader) deleteAllLoader.style.display = 'inline';
+
+            try {
+                const response = await fetch('/api/rss/all', {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showNotification(data.message || "Eliminazione completata.", 'success');
+                    if (articlesTbody) {
+                        articlesTbody.innerHTML = `<tr><td colspan="6" class="no-items-message">Nessun articolo da mostrare.</td></tr>`;
+                    }
+                    deleteAllBtn.textContent = 'Eliminati';
+                } else {
+                    throw new Error(data.message || 'Errore durante l\'eliminazione');
+                }
+            } catch (error) {
+                showNotification(error.message, 'error');
+                deleteAllBtn.disabled = false;
+                deleteAllBtn.innerHTML = originalHTML;
+            } finally {
+                if (deleteAllLoader) deleteAllLoader.style.display = 'none';
+            }
+        });
+
+        const isTableEmpty = !articlesTbody || !articlesTbody.querySelector('tr:not(:has(.no-items-message))');
+        if (isTableEmpty) {
+            deleteAllBtn.disabled = true;
+        }
+    }
+});
 </script>
 {% endblock %}

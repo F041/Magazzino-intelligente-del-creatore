@@ -404,6 +404,14 @@ a:hover {
     background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
 }
 
+.success-btn {
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%); /* Un bel gradiente verde */
+}
+
+.success-btn:hover {
+    background: linear-gradient(135deg, #218838 0%, #1e7e34 100%); /* Gradiente più scuro per hover */
+}
+
 /* Input e Form */
 input[type="text"],
 input[type="email"],
@@ -593,4 +601,88 @@ label {
 
 .tab-content.active {
     display: block; /* Mostra il contenuto attivo */
+}
+
+/* ==========================================================================
+   Componente: Modale di Conferma
+   ========================================================================== */
+
+.modal-overlay {
+    display: none; /* Nascosto di default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-box {
+    display: none; /* Nascosto di default */
+    position: fixed;
+    top: 40%; /* Leggermente più in alto del centro */
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    background: var(--color-background-secondary);
+    padding: var(--spacing-xxl);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--box-shadow-lg);
+    z-index: 1001;
+    width: 90%;
+    max-width: 450px;
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Stili per quando il modale è visibile */
+.modal-overlay.visible, .modal-box.visible {
+    display: block;
+    opacity: 1;
+}
+.modal-box.visible {
+    transform: translate(-50%, -50%) scale(1);
+    top: 50%;
+}
+
+.modal-box h3 {
+    font-family: var(--font-serif);
+    margin-top: 0;
+    margin-bottom: var(--spacing-md);
+    font-size: 1.4rem;
+}
+
+.modal-box p {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-xl);
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+}
+
+/* Stile per il pulsante secondario (es. Annulla) */
+.action-btn.secondary {
+    background: var(--color-text-light);
+}
+.action-btn.secondary:hover {
+    background: var(--color-text-secondary);
+}
+
+/* Stile per il pannello di azioni in cima alle tabelle */
+.action-panel {
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background-color: var(--color-background-secondary); /* Sfondo bianco pulito */
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+    flex-wrap: wrap;
+    box-shadow: var(--box-shadow-sm); /* Leggera ombra per staccarlo */
 }
