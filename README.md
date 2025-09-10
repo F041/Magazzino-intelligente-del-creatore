@@ -36,13 +36,17 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Le API critiche (es. `/api/search/`) sono protette e richiedono una chiave API valida per identificare l'utente.
 *   **Configurazione AI via UI:**
     *   Una pagina dedicata "Impostazioni" permette all'utente di **sovrascrivere le configurazioni di default** (presenti nel file `.env`) direttamente dall'interfaccia web.
-    *   È possibile cambiare dinamicamente il fornitore AI (attualmente Google Gemini), i modelli specifici per la generazione e per l'embedding, e inserire la propria API Key.
+    *   È possibile cambiare dinamicamente il fornitore AI (attualmente Google Gemini), specificare un **modello primario e uno di ripiego** per la generazione, configurare il modello di embedding, e inserire la propria API Key.
     *   Questo rende l'applicazione **agnostica rispetto al modello** e accessibile anche a utenti non tecnici, che non dovranno più modificare file di configurazione manuali.
+    *   **Automazioni Configurabili via UI:**
+    *   Una pagina "Automazioni" permette di impostare un canale YouTube o un feed RSS da monitorare periodicamente per nuovi contenuti.
+    *   L'utente può configurare la **frequenza dei controlli** (es. ogni X ore o giorni) e l'**orario di esecuzione** direttamente dall'interfaccia, senza modificare file di configurazione.
++    *   Lo scheduler è robusto ai riavvii del server, garantendo che i controlli non vengano saltati.
 *   **Recupero Contenuti YouTube:**
     *   Autenticazione OAuth 2.0 sicura per l'API YouTube (token salvato in `token.pickle`/`.json`).
     *   Recupera metadati e trascrizioni (manuali e automatiche) per i video di un canale specificato.
     *   **Elaborazione Asincrona:** L'elaborazione del canale (recupero, trascrizione, embedding) viene avviata in un thread separato per non bloccare l'interfaccia web.
-    *   **Feedback di Avanzamento:** La pagina "Ingresso Dati" mostra lo stato e l'avanzamento (con una barra di progresso e un cronometro) dell'elaborazione del canale. Al termine, fornisce un messaggio chiaro, distinguendo tra l'aggiunta di nuovi video e il caso in cui il canale sia già completamente aggiornato.
+    *   **Feedback di Avanzamento:** La pagina "Ingresso Dati" mostra lo stato e l'avanzamento in tempo reale (con una barra di progresso e un cronometro) dell'elaborazione. Al termine, un messaggio chiaro distingue tra l'aggiunta di nuovi video e il caso in cui il canale sia già aggiornato. La pagina si ricarica automaticamente per mostrare i nuovi contenuti.
 *   **Gestione Documenti:**
     *   Upload di file PDF, DOCX, TXT tramite interfaccia web (`/data-entry`).
     *   Conversione automatica in Markdown (`.md`).
@@ -55,7 +59,8 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Salvataggio contenuto in file `.txt`.
     *   Registrazione nel DB (associato all'utente in `saas`).
     *   Indicizzazione automatica all'aggiunta (chunking, embedding, salvataggio in ChromaDB).
-    *   Interfaccia web (`/my-articles`) per visualizzare gli articoli. (Eliminazione da implementare).
+    *   **Elaborazione Asincrona con Feedback:** Anche il parsing dei feed RSS viene eseguito in background, con messaggi di stato che informano l'utente sull'articolo e sulla pagina in elaborazione.
+    *   Interfaccia web (`/my-articles`) per visualizzare e scaricare il contenuto di tutti gli articoli.
 *   **Pipeline di Indicizzazione:**
     *   Genera embedding (Google Gemini `text-embedding-004`) per chunk di video, documenti e articoli.
     *   Memorizza metadati e contenuti/trascrizioni in SQLite (con `user_id` in `saas`).
@@ -63,12 +68,13 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Ottimizzato (per i video) per evitare di riprocessare contenuti già presenti nel DB *per l'utente specifico* (in `saas`).
     *   Pulsante "(Ri)Processa" sempre visibile in `/my-videos` per forzare la re-indicizzazione.
 *   **Ricerca Semantica e Generazione (RAG) Multi-Sorgente:**
-    *   API `/api/search/` protetta da API Key (in `saas`) o login session (se chiamata da UI Flask).
+    *   **Architettura a 2 Fasi (Retrieve & Re-rank):** Per massimizzare la pertinenza, la ricerca non si affida solo alla somiglianza vettoriale.
+        *   **Fase 1 (Recupero Ampio):** Utilizza ChromaDB per recuperare un set allargato di chunk (`N=50`) potenzialmente rilevanti.
+        *   **Fase 2 (Ri-classificazione Intelligente):** I chunk recuperati vengono analizzati e ri-ordinati da un modello di re-ranking avanzato (tramite API di **Cohere**), che identifica con precisione chirurgica i passaggi più pertinenti alla domanda specifica.
+    *   API `/api/search/` protetta da API Key, JWT, o sessione di login (in `saas`).
     *   Identifica l'utente dalla chiave API o dalla sessione.
     *   Genera embedding per la query utente.
-    *   Recupera chunk rilevanti dalle **collezioni ChromaDB corrette per l'utente** (video, documenti, articoli).
-    *   Ordina i risultati combinati per rilevanza.
-    *   Genera una risposta con Google Gemini basata **esclusivamente** sul contesto recuperato.
+    *   Genera una risposta con Google Gemini (usando i modelli scelti dall'utente) basata esclusivamente sui **chunk ri-classificati e più pertinenti**.
 *   **Interfacce Utente:**
     *   **Backend & Gestione (Flask):** Interfaccia web (`http://localhost:5000`) per:
         *   Registrazione/Login utente (`saas`).
@@ -83,10 +89,13 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
         *   Permette di interrogare la base di conoscenza (video, documenti, articoli indicizzati per l'utente).
         *   Visualizza risposte generate dall'LLM (Gemini) e i riferimenti utilizzati.
         *   Supporta aggiornamenti di stato intermedi tramite Server-Sent Events (SSE).
-    *   **Widget Chat Incorporabile:**
-        *   Funzionalità per incorporare la chat su siti web esterni tramite uno snippet JavaScript.
-        *   Il creator può ottenere lo snippet dalla pagina `/chat` (richiede incolla di una chiave API dedicata se in modalità `saas`).
-        *   L'autenticazione del widget avviene tramite la chiave API fornita nello snippet (modalità `saas`) o è implicita (modalità `single`). (Da rivedere)
+    *   **Widget Chat Incorporabile (Sicuro):**
+        *   Funzionalità per incorporare la chat su siti web esterni. L'autenticazione è basata su **JWT e dominio autorizzato**, eliminando la necessità di esporre API Key nel codice del sito.
+        *   L'utente configura il dominio del proprio sito (es. `www.miosito.com`) dall'interfaccia del Magazzino.
+        *   Viene generato uno snippet JavaScript che include solo un ID cliente pubblico. Lo script si occupa di ottenere un token sicuro e temporaneo per ogni sessione.
+    *   **Accesso per Terzi:**
+        *   Una pagina dedicata permette di generare **link di accesso temporanei** e sicuri alla sola interfaccia di chat.
+        *   Ideale per dare accesso a collaboratori o membri del team senza creare un account permanente per loro.
     *   **Impostazioni:** Una pagina dedicata per configurare il "cervello" dell'applicazione, come i modelli di Intelligenza Artificiale da utilizzare.
 
 ## Prerequisiti (per Self-Hosting con Docker)
@@ -99,6 +108,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Con **Credenziali OAuth 2.0** di tipo "Applicazione Web" create. Dovrai configurare gli URI di reindirizzamento autorizzati (vedi sezione Setup).
     *   Dovrai scaricare il file JSON delle credenziali (solitamente `client_secrets.json`).
 *   **API Key di Google AI (Gemini):** Una chiave API valida per utilizzare i modelli Gemini per embedding e generazione.
+*   **(Opzionale ma caldamente raccomandato) API Key di Cohere:** Per abilitare la funzionalità di **re-ranking**, che migliora drasticamente la pertinenza delle risposte. È possibile ottenere una chiave gratuita dal [sito di Cohere](https://dashboard.cohere.com/api-keys). Se non fornita, la ricerca funzionerà comunque ma con una precisione inferiore.
 *   **RAM Consigliata per il Server/Host Docker:**
     *   **Minima (a riposo):** Almeno **250-300 MB** di RAM libera per il container dell'applicazione.
     *   **Consigliata (durante elaborazione):** **500 MB - 1 GB+** per carichi di lavoro più intensi.
@@ -155,10 +165,16 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Apri il file `.env` con un editor di testo e **modifica almeno le seguenti variabili OBBLIGATORIE**:
         *   `FLASK_SECRET_KEY`: Genera una chiave segreta forte e casuale. Puoi usare il comando `python -c 'import secrets; print(secrets.token_hex(32))'` in un terminale Python e copiare l'output.
         *   `GOOGLE_API_KEY`: Inserisci la tua chiave API per Google AI (Gemini).
+        *   `COHERE_API_KEY`: (Opzionale, ma raccomandato per risposte di alta qualità) Inserisci la tua chiave API di Cohere per la funzione di re-ranking.
         *   `LLM_MODELS`: Inserisci una lista di modelli Gemini separati da virgola, senza spazi. L'applicazione proverà il primo e, in caso di errore (es. non disponibile o bloccato), passerà al successivo. L'ordine è importante. Esempio: `RAG_GENERATIVE_MODELS_FALLBACK_LIST="gemini-2.5-pro,gemini-2.0-flash"`
         *   `ALLOWED_EMAILS`: **(Opzionale, ma raccomandato per la sicurezza)** Inserisci una lista di indirizzi email separati da virgola, senza spazi. Se questa variabile è impostata, solo gli utenti con queste email potranno registrarsi. Se lasciata vuota, la registrazione è aperta a chiunque. Esempio: `ALLOWED_EMAILS=mia_email@gmail.com,collaboratore@esempio.com`
         *   `CUSTOM_REGISTRATION_DENIED_MESSAGE`: (Opzionale) Il messaggio da mostrare a un utente che tenta di registrarsi con un'email non autorizzata.
         *   `CUSTOM_CONTACT_LINK`: (Opzionale) L'URL a cui l'utente può rivolgersi per richiedere l'accesso, mostrato insieme al messaggio qui sopra.
+        *   **Variabili dello Scheduler (per il primo avvio):**
+            *   `SCHEDULER_INTERVAL_UNIT`: L'unità di tempo per il controllo automatico. Valori: `days`, `hours`, `minutes`.
+            *   `SCHEDULER_INTERVAL_VALUE`: Il numero di unità di tempo. (Es: `UNIT=days`, `VALUE=1` -> ogni giorno).
+            *   `SCHEDULER_RUN_HOUR`: L'ora del giorno (0-23) in cui eseguire il controllo (usato principalmente quando `UNIT=days`).
+            *   **Nota:** Queste variabili impostano solo la pianificazione di **default al primo avvio**. Successivamente, la frequenza dei controlli viene gestita dalla pagina "Automazioni".
     *   **Verifica e configura attentamente le altre variabili nel `.env`:**
         *   `GOOGLE_CLIENT_SECRETS_FILE` dovrebbe già essere `data/client_secrets.json`.
         *   `APP_MODE`: Imposta a `single` per un uso personale self-hosted (raccomandato), o a `saas` se intendi gestire più account all'interno della tua istanza.
@@ -330,14 +346,10 @@ Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le imm
 6.  **(Opzionale) Incorporare la Chat su un Sito Esterno:**
     *   Vai su `/chat`.
     *   Clicca sul bottone/icona "Incorpora Chat".
-    *   Nel modale, segui le istruzioni:
-        *   Vai su `/keys/manage` e genera una nuova chiave API (es. "Widget Mio Sito").
-        *   Copia la chiave API.
-        *   Incolla la chiave API nel campo del modale "Incorpora Chat".
-    *   Copia lo snippet `<script>` generato dal modale.
+    *   Nel modale, inserisci il **dominio esatto** del tuo sito web dove apparirà la chat (es. `www.ilmiosito.com`) e clicca "Salva e Genera Snippet".
+    *   Copia lo snippet `<script>` generato. Non contiene chiavi segrete, solo un ID pubblico.
     *   Incolla lo snippet nel codice HTML del tuo sito esterno.
-    *   Il widget della chat apparirà sul tuo sito e si autenticherà usando la chiave API fornita.
-    *   *(Nota: In modalità `single`, non è richiesta la chiave API nel modale).*
+    *   Il widget della chat apparirà sul tuo sito e si autenticherà in modo sicuro e automatico tramite token JWT.
 
 ## Note Importanti
 
@@ -384,9 +396,11 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 **Funzionalità Completate Recentemente:**
 *   [x] Gestione Documenti: Upload (PDF, DOCX, TXT), conversione MD, salvataggio, indicizzazione, visualizzazione, eliminazione (incluso ChromaDB).
 *   [x] Gestione Articoli RSS: Parsing feed (asincrono con feedback UI), estrazione contenuto, salvataggio file, registrazione DB, indicizzazione, eliminazione tutti articoli.
+*   [x] Feedback di Stato Asincrono per RSS: L'interfaccia ora mostra quale articolo/pagina è in elaborazione.
 *   [x] Ricerca Multi-Sorgente: L'API RAG interroga collezioni Video, Documenti e Articoli.
 *   [x] Integrazione Chat in Flask (`/chat`) con SSE per feedback stato.
-*   [x] Funzionalità Widget Chat Incorporabile (con autenticazione API Key in `saas`).
+*   [x] Widget Chat Incorporabile Sicuro: Nuovo sistema basato su JWT e domini autorizzati, senza esporre API Key.
+*   [x] Accesso per Terzi: Creazione di link di accesso temporanei e sicuri alla sola chat.
 *   [x] Refactoring Template: Utilizzo di `base.html`.
 *   [x] Aggiunta Configurazione `APP_MODE` (`single`/`saas`).
 *   [x] Adattamento DB SQLite (colonna `user_id`).
@@ -398,27 +412,20 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Elaborazione Canale YouTube Asincrona (`threading`) con feedback UI.
 *   [x] Eliminazione di Massa Video (SQLite + delete collection Chroma) (`saas`).
 *   [x] Pulsante "(Ri)Processa" sempre visibile in `/my-videos`.
-*   [x] Integrazione APScheduler per controlli periodici (config da `.env`).
+*   [x] Scheduler Robusto (APScheduler): Integrazione con trigger `cron` configurabile via UI, per resistere ai riavvii del server.
+*   [x] Pagina Impostazioni Migliorata: Aggiunto supporto per modelli AI primari e di fallback.
 *   [x] Implementare gestione stato conversazione nella chat Flask.
 *   [x] Valutare uso libreria JS (Marked.js + DOMPurify) per mostrare formattazione LLM (elenchi, grassetto).
-*   [x] Rendere più fluida l'esperienza di ottenimento e inserimento della chiave per l'embed. ATTENZIONE: problema di sicurezza
+*   [x] Risolto problema di sicurezza e UX nell'ottenimento del codice per l'embed.
 *   [X] Creare script bot separato che usi una chiave API del creator per permettere alla sua community di interrogare i suoi contenuti via Telegram.
 *   [x] Setup base Pytest e prima fixture app/client.
 *   [x] Test per autenticazione utente (registrazione, login, logout).
 *   [x] Test per API principali (es. search, gestione contenuti) con mocking.
 *   [x] Test unitari per logiche di business critiche.
+*   [x] Risolto bug di aggiornamento della sidebar dopo la prima indicizzazione dei contenuti.
+*   [x] Ottimizzato recupero con Re-ranking: implementata architettura a 2 fasi con recupero ampio da ChromaDB e ri-classificazione di precisione tramite Cohere.
 
 **Prossimi Passi Possibili:**
-
-**Completamento Funzionalità SAAS & Gestione Dati:**
-*   [ ] **Implementare Re-indicizzazione di Massa (UI):** (Priorità Media/Alta)
-    *   [ ] Creare API `POST /api/admin/reindex-all` (o simile) che avvia task background (`threading`).
-    *   [ ] Implementare la funzione background che itera su tutti i contenuti dell'utente e li re-indicizza.
-    *   [ ] Creare/Estendere endpoint `/api/.../progress` per monitoraggio task.
-    *   [ ] Aggiungere bottone e feedback nella UI Flask.
-
-**Miglioramenti RAG/Ricerca:**
-*   [ ] **Ottimizzare Recupero:** Sperimentare `n_results`, analizzare chunk, esplorare re-ranking/query expansion.
 
 **Creare intent conversazione:**
 *   [ ] **Creare nuovo intent:** Quando non ho elementi con distanza sufficiente dalla soglia, provare a dare una risposta replicando lo stile dell'autore.

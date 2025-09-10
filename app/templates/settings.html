@@ -147,43 +147,53 @@
     </nav>
 
     <!-- 3. Contenuto delle schede -->
-    <form method="POST" action="{{ url_for('settings.settings_page') }}" class="settings-form">
+    <form method="POST" action="{{ url_for('settings.settings_page') }}" class="settings-form" autocomplete="off">
         
         <!-- Contenuto della Tab "Generali" -->
         <div id="generali" class="tab-content active">
             <div class="form-section">
                 <h2>Intelligenza Artificiale</h2>
                 
-                <div class="form-group">
+                                <div class="form-group">
                     <label for="llm_provider">Fornitore modello linguistico</label>
                     <select id="llm_provider" name="llm_provider">
                         <option value="google" {% if settings.llm_provider == 'google' or not settings.llm_provider %}selected{% endif %}>Google Gemini</option>
+                        <!-- In futuro potrai aggiungere qui altri fornitori, es: -->
+                        <!-- <option value="ollama" {% if settings.llm_provider == 'ollama' %}selected{% endif %}>Ollama (Self-Hosted)</option> -->
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <div class="label-wrapper">
-                        <label for="llm_model_name">Modello IA per generazione</label>
-                        <div class="tooltip-group">
-                            <!-- Icona 'i' per informazioni generali -->
-                            <span class="info-tooltip">
-                                <span class="fa-stack">
-                                  <i class="fas fa-circle fa-stack-2x"></i>
-                                  <i class="fas fa-info fa-stack-1x fa-inverse"></i>
-                                </span>
-                                <span class="tooltip-text">Il "motore" che crea le risposte. Inserisci qui il nome del modello che vuoi usare.</span>
-                            </span>
-                            <!-- NUOVA ICONA DI AVVISO -->
+                <!-- Contenitore specifico per le impostazioni di Google Gemini -->
+                <div id="google-settings-group">
+                    <div class="form-group">
+                        <div class="label-wrapper">
+                            <label for="llm_model_name_primary">Modello IA primario (per generazione)</label>
                             <span class="info-tooltip warning-tooltip">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <span class="tooltip-text">
-                                    <strong>Modello Consigliato:</strong> Questo servizio è stato testato e ottimizzato per `gemini-2.5-pro`. L'uso di altri modelli è possibile ma potrebbe produrre risultati inaspettati.
+                                    <strong>Modello Consigliato:</strong> Testato con `gemini-2.5-pro` e `gemini-2.0-flash`. Altri potrebbero funzionare.
                                 </span>
                             </span>
                         </div>
+                        <input type="text" id="llm_model_name_primary" name="llm_model_name_primary" value="{{ settings.get('llm_model_name_primary', '') }}" placeholder="Consigliato: gemini-2.5-pro">
                     </div>
-                    <input type="text" id="llm_model_name" name="llm_model_name" value="{{ settings.get('llm_model_name', '') }}" placeholder="Consigliato: gemini-2.5-pro">
-                </div>
+
+                <!-- CAMPO FALLBACK CORRETTO E VISIBILE -->
+                    <div class="form-group">
+                         <div class="label-wrapper">
+                            <label for="llm_model_name_fallback">Modello di fallback (opzionale)</label>
+                             <div class="tooltip-group">
+                                <span class="info-tooltip">
+                                    <span class="fa-stack">
+                                      <i class="fas fa-circle fa-stack-2x"></i>
+                                      <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                                    </span>
+                                    <span class="tooltip-text">Se il modello primario fallisce, l'applicazione proverà ad usare questo.</span>
+                                </span>
+                            </div>
+                        </div>
+                        <input type="text" id="llm_model_name_fallback" name="llm_model_name_fallback" value="{{ settings.get('llm_model_name_fallback', '') }}" placeholder="Es: gemini-2.5-flash">
+                    </div>
 
                 <div class="form-group">
                      <div class="label-wrapper">
@@ -198,8 +208,7 @@
                             </span>
                         </div>
                     </div>
-                    <input type="text" id="llm_embedding_model" name="llm_embedding_model" value="{{ settings.get('llm_embedding_model', '') }}" placeholder="Default: text-embedding-004">
-                </div>
+                <input type="text" id="llm_embedding_model" name="llm_embedding_model" value="{{ settings.get('llm_embedding_model', '') }}" placeholder="Default: text-embedding-004" autocomplete="off">                  </div>
 
                 <div class="form-group">
                      <div class="label-wrapper">
@@ -217,8 +226,7 @@
                             </a>
                         </div>
                     </div>
-                    <input type="password" id="llm_api_key" name="llm_api_key" value="{{ settings.get('llm_api_key', '') }}" placeholder="Incolla la tua API Key qui">
-                </div>
+                <input type="password" id="llm_api_key" name="llm_api_key" value="{{ settings.get('llm_api_key', '') }}" placeholder="Incolla la tua API Key qui" autocomplete="new-password">                </div>
             </div>
         </div>
 
@@ -240,23 +248,35 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Logica per gestire il click sulle schede
-    const tabLinks = document.querySelectorAll('.tab-link');
-    const tabContents = document.querySelectorAll('.tab-content');
+    // Selettori per gli elementi con cui interagire
+    const providerSelect = document.getElementById('llm_provider');
+    const googleSettings = document.getElementById('google-settings-group');
+    // const ollamaSettings = document.getElementById('ollama-settings-group'); // Per il futuro
 
-    tabLinks.forEach(link => {
-        link.addEventListener('click', () => {
-            const tabId = link.dataset.tab;
+    // Funzione che mostra/nasconde i campi in base alla selezione
+    function toggleProviderSettings() {
+        const selectedProvider = providerSelect.value;
 
-            // Rimuovi 'active' da tutti i link e contenuti
-            tabLinks.forEach(l => l.classList.remove('active'));
-            tabContents.forEach(c => c.classList.remove('active'));
+        // Nascondi tutti i gruppi di impostazioni per iniziare
+        if (googleSettings) googleSettings.style.display = 'none';
+        // if (ollamaSettings) ollamaSettings.style.display = 'none'; // Per il futuro
 
-            // Aggiungi 'active' al link cliccato e al contenuto corrispondente
-            link.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
-        });
-    });
+        // Mostra solo il gruppo corretto
+        if (selectedProvider === 'google') {
+            if (googleSettings) googleSettings.style.display = 'block';
+        } 
+        /* else if (selectedProvider === 'ollama') { // Per il futuro
+            if (ollamaSettings) ollamaSettings.style.display = 'block';
+        } */
+    }
+
+    // Aggiungi un "ascoltatore" che esegue la funzione ogni volta che cambi il fornitore
+    if (providerSelect) {
+        providerSelect.addEventListener('change', toggleProviderSettings);
+    }
+
+    // Esegui la funzione una volta al caricamento della pagina per mostrare lo stato corretto
+    toggleProviderSettings();
 });
 </script>
 {% endblock %}

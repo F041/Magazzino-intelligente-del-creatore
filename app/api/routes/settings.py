@@ -14,10 +14,15 @@ def settings_page():
     db_path = current_app.config.get('DATABASE_FILE')
     
     if request.method == 'POST':
-        # Logica per salvare le impostazioni
+        primary_model = request.form.get('llm_model_name_primary', '').strip()
+        fallback_model = request.form.get('llm_model_name_fallback', '').strip()
+        
+        model_list = [model for model in [primary_model, fallback_model] if model]
+        combined_models = ",".join(model_list)
+
         settings_to_save = {
             'llm_provider': request.form.get('llm_provider'),
-            'llm_model_name': request.form.get('llm_model_name'),
+            'llm_model_name': combined_models, # Salviamo la stringa unita
             'llm_embedding_model': request.form.get('llm_embedding_model'),
             'llm_api_key': request.form.get('llm_api_key')
         }
@@ -62,6 +67,12 @@ def settings_page():
         settings_row = cursor.fetchone()
         if settings_row:
             user_settings = dict(settings_row)
+            # Separiamo la stringa dei modelli in due variabili per il template
+            combined_models = user_settings.get('llm_model_name', '')
+            models_parts = [model.strip() for model in combined_models.split(',')]
+            
+            user_settings['llm_model_name_primary'] = models_parts[0] if len(models_parts) > 0 else ''
+            user_settings['llm_model_name_fallback'] = models_parts[1] if len(models_parts) > 1 else ''
     except sqlite3.Error as e:
         logger.error(f"Errore DB caricando le impostazioni per l'utente {user_id}: {e}")
         flash('Errore nel caricamento delle impostazioni.', 'error')

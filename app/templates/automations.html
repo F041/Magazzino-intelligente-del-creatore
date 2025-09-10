@@ -36,33 +36,41 @@
     <div id="form-message" style="display: none;"></div>
 </div>
 
-<!-- NUOVA SEZIONE: Frequenza controlli -->
+<!-- NUOVA SEZIONE -->
 <div class="form-section">
-    <h2>Frequenza controlli</h2>
-    <p>Imposta quanto spesso il sistema deve controllare automaticamente le fonti attive per nuovi contenuti.</p>
+    <h2>Frequenza dei controlli automatici</h2>
+    <p>Imposta quanto spesso il sistema deve controllare le fonti attive. L'orario è basato sul fuso orario del server (Europe/Rome).</p>
     <form id="schedule-form">
-         <div class="form-group">
-            <label for="schedule_interval">Controlla ogni:</label>
-            <select id="schedule_interval" name="interval">
-                <option value="12 hours">12 Ore</option>
-                <option value="1 day" selected>Giorno</option>
-                <option value="2 days">2 Giorni</option>
-                <option value="1 week">Settimana</option>
-            </select>
+        <div style="display: flex; gap: 20px; align-items: flex-end;">
+            <div class="form-group" style="flex-grow: 1;">
+                <label for="schedule_unit">Controlla ogni:</label>
+                <select id="schedule_unit" name="unit">
+                    <option value="hours">Ora/e</option>
+                    <option value="days">Giorno/i</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex-basis: 100px;">
+                <input type="number" id="schedule_value" name="value" value="1" min="1" max="90">
+            </div>
+            <div class="form-group" id="schedule_hour_group" style="flex-basis: 150px;">
+                <label for="schedule_hour">Alle ore:</label>
+                <select id="schedule_hour" name="hour">
+                    <!-- Popolato da JS -->
+                </select>
+            </div>
         </div>
-        <button type="submit" class="action-btn">Aggiorna frequenza</button>
+        <button type="submit" id="save-schedule-btn" class="action-btn">Aggiorna Frequenza</button>
+        <span id="schedule-loader" class="action-loader" style="display: none;">(salvataggio...)</span>
     </form>
+    <div id="schedule-message" style="display: none; margin-top: 15px;"></div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
-
-<!-- 1. Dati Iniziali dal Server (per il pre-caricamento del form) -->
 <script id="initial-data-json" type="application/json">
     {{ {'initial_type': initial_type, 'initial_url': initial_url} | tojson | safe }}
 </script>
-
-<!-- 2. Script Principale della Pagina -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     // --- SELEZIONE ELEMENTI DOM ---
@@ -73,11 +81,97 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('save-source-btn');
     const saveLoader = document.getElementById('save-loader');
     const formMessageDiv = document.getElementById('form-message');
-    // Non abbiamo più un form per la frequenza, quindi questi elementi non servono più
-    // const scheduleForm = document.getElementById('schedule-form');
-    // const scheduleSelect = document.getElementById('schedule_interval');
     
-    // --- FUNZIONE PER CARICARE E VISUALIZZARE LO STATO ---
+    const scheduleForm = document.getElementById('schedule-form');
+    const scheduleUnitSelect = document.getElementById('schedule_unit');
+    const scheduleValueInput = document.getElementById('schedule_value');
+    const scheduleHourGroup = document.getElementById('schedule_hour_group');
+    const scheduleHourSelect = document.getElementById('schedule_hour');
+    const saveScheduleBtn = document.getElementById('save-schedule-btn');
+    const scheduleLoader = document.getElementById('schedule-loader');
+    const scheduleMessageDiv = document.getElementById('schedule-message');
+
+    // --- FUNZIONI HELPER UI ---
+
+    function displayMessage(message, type = 'info', target = 'form') {
+        const targetDiv = target === 'schedule' ? scheduleMessageDiv : formMessageDiv;
+        if (!targetDiv) return;
+        targetDiv.textContent = message;
+        targetDiv.className = type === 'success' ? 'success-message' : (type === 'error' ? 'error-message' : '');
+        targetDiv.style.display = message ? 'block' : 'none';
+        setTimeout(() => { if(targetDiv) targetDiv.style.display = 'none'; }, 5000);
+    }
+
+    // --- LOGICA SPECIFICA DELLO SCHEDULER ---
+
+    async function loadScheduleConfig() {
+        if (!scheduleHourSelect || !scheduleUnitSelect || !scheduleValueInput) return;
+        try {
+            const response = await fetch('/api/monitoring/schedule');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Errore server');
+            
+            const config = data.schedule;
+            scheduleUnitSelect.value = config.unit;
+            scheduleValueInput.value = config.value;
+            
+            scheduleHourSelect.innerHTML = '';
+            for (let i = 0; i < 24; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = `${String(i).padStart(2, '0')}:00`;
+                if (i === config.hour) option.selected = true;
+                scheduleHourSelect.appendChild(option);
+            }
+            toggleHourVisibility();
+        } catch (error) {
+            displayMessage(error.message, 'error', 'schedule');
+        }
+    }
+
+    function toggleHourVisibility() {
+        if (scheduleHourGroup && scheduleUnitSelect) {
+            scheduleHourGroup.style.display = scheduleUnitSelect.value === 'days' ? 'block' : 'none';
+        }
+    }
+
+    if (scheduleUnitSelect) {
+        scheduleUnitSelect.addEventListener('change', toggleHourVisibility);
+    }
+
+    if (scheduleForm) {
+        scheduleForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            saveScheduleBtn.disabled = true;
+            scheduleLoader.style.display = 'inline';
+            displayMessage('', 'info', 'schedule');
+            
+            const payload = {
+                unit: scheduleUnitSelect.value,
+                value: scheduleValueInput.value,
+                hour: scheduleHourSelect.value
+            };
+
+            try {
+                const response = await fetch('/api/monitoring/schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Errore server');
+                displayMessage(data.message, 'success', 'schedule');
+            } catch (error) {
+                displayMessage(error.message, 'error', 'schedule');
+            } finally {
+                saveScheduleBtn.disabled = false;
+                scheduleLoader.style.display = 'none';
+            }
+        });
+    }
+
+    // --- LOGICA GESTIONE SORGENTI (canale/feed) ---
+
     async function loadMonitoringStatus() {
         if (!statusDisplayDiv) return;
         statusDisplayDiv.innerHTML = '<p>Caricamento stato...</p>';
@@ -85,132 +179,82 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/monitoring/status');
             if (!response.ok) throw new Error(`Errore API ${response.status}`);
             const data = await response.json();
-
             if (data.success) {
                 let html = '<h4>Canale YouTube monitorato:</h4>';
                 if (data.youtube_channel && data.youtube_channel.is_active) {
                     const ch = data.youtube_channel;
                     const lastChecked = ch.last_checked_at ? new Date(ch.last_checked_at).toLocaleString() : 'Mai';
-                    html += `
-                        <div class="status-display">
-                            <p><strong>Nome:</strong> ${ch.channel_name || '(Non disponibile)'}</p>
-                            <p><strong>URL:</strong> ${ch.channel_url || 'N/D'}</p>
-                            <p><strong>Ultimo Controllo:</strong> ${lastChecked}</p>
-                            <p><strong>Stato:</strong> Attivo</p>
-                            <button class="action-btn delete-btn remove-source-btn" data-type="youtube">Disattiva monitoraggio YouTube</button>
-                        </div>`;
-                } else {
-                    html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun canale YouTube monitorato.</p>';
-                }
-
+                    html += `<div class="status-display"><p><strong>Nome:</strong> ${ch.channel_name || '(Non disponibile)'}</p><p><strong>URL:</strong> ${ch.channel_url || 'N/D'}</p><p><strong>Ultimo Controllo:</strong> ${lastChecked}</p><p><strong>Stato:</strong> Attivo</p><button class="action-btn delete-btn remove-source-btn" data-type="youtube">Disattiva monitoraggio YouTube</button></div>`;
+                } else { html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun canale YouTube monitorato.</p>'; }
                 html += '<hr style="margin: 20px 0;"><h4>Feed RSS monitorato:</h4>';
                 if (data.rss_feed && data.rss_feed.is_active) {
                     const fd = data.rss_feed;
                     const lastChecked = fd.last_checked_at ? new Date(fd.last_checked_at).toLocaleString() : 'Mai';
-                    html += `
-                         <div class="status-display">
-                            <p><strong>Titolo:</strong> ${fd.feed_title || '(Non disponibile)'}</p>
-                            <p><strong>URL:</strong> ${fd.feed_url || 'N/D'}</p>
-                            <p><strong>Ultimo Controllo:</strong> ${lastChecked}</p>
-                            <p><strong>Stato:</strong> Attivo</p>
-                            <button class="action-btn delete-btn remove-source-btn" data-type="rss">Disattiva monitoraggio RSS</button>
-                        </div>`;
-                } else {
-                    html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun feed RSS monitorato.</p>';
-                }
+                    html += `<div class="status-display"><p><strong>Titolo:</strong> ${fd.feed_title || '(Non disponibile)'}</p><p><strong>URL:</strong> ${fd.feed_url || 'N/D'}</p><p><strong>Ultimo Controllo:</strong> ${lastChecked}</p><p><strong>Stato:</strong> Attivo</p><button class="action-btn delete-btn remove-source-btn" data-type="rss">Disattiva monitoraggio RSS</button></div>`;
+                } else { html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun feed RSS monitorato.</p>'; }
                 statusDisplayDiv.innerHTML = html;
-                addRemoveListeners(); // Aggiungi listener ai nuovi bottoni
-            } else {
-                throw new Error(data.message || 'Errore caricamento stato');
-            }
-        } catch (error) {
-            statusDisplayDiv.innerHTML = `<p class="error-message">Errore: ${error.message}</p>`;
-        }
+                addRemoveListeners();
+            } else { throw new Error(data.message || 'Errore caricamento stato'); }
+        } catch (error) { statusDisplayDiv.innerHTML = `<p class="error-message">Errore: ${error.message}</p>`; }
     }
 
-    // --- FUNZIONE PER AGGIUNGERE LISTENER AI PULSANTI "RIMUOVI" ---
     function addRemoveListeners() {
         statusDisplayDiv.querySelectorAll('.remove-source-btn').forEach(button => {
             button.addEventListener('click', async (event) => {
                 const btn = event.target;
                 const sourceType = btn.dataset.type;
                 if (!sourceType || !confirm(`Disattivare il monitoraggio per ${sourceType}?`)) return;
-
                 btn.disabled = true;
                 btn.textContent = 'Disattivazione...';
-                displayFormMessage('');
-
+                displayMessage('');
                 try {
-                    const response = await fetch('/api/monitoring/source', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ type: sourceType })
-                    });
+                    const response = await fetch('/api/monitoring/source', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: sourceType }) });
                     const data = await response.json();
-                    if (response.ok && data.success) {
-                        displayFormMessage(data.message || 'Monitoraggio disattivato.', 'success');
+                    if (response.ok && data.success) { 
+                        displayMessage(data.message || 'Monitoraggio disattivato.', 'success'); 
                         loadMonitoringStatus();
-                    } else {
-                        throw new Error(data.message || `Errore ${response.status}`);
+                    } else { 
+                        throw new Error(data.message || `Errore ${response.status}`); 
                     }
-                } catch (error) {
-                    displayFormMessage(`Errore: ${error.message}`, 'error');
-                    btn.disabled = false;
-                    btn.textContent = `Disattiva monitoraggio ${sourceType === 'youtube' ? 'YouTube' : 'RSS'}`;
+                } catch (error) { 
+                    displayMessage(`Errore: ${error.message}`, 'error'); 
+                    btn.disabled = false; 
+                    btn.textContent = `Disattiva monitoraggio ${sourceType === 'youtube' ? 'YouTube' : 'RSS'}`; 
                 }
             });
         });
     }
 
-    // --- FUNZIONE PER VISUALIZZARE MESSAGGI DEL FORM ---
-    function displayFormMessage(message, type = 'info') {
-        if (!formMessageDiv) return;
-        formMessageDiv.textContent = message;
-        formMessageDiv.className = type === 'success' ? 'success-message' : (type === 'error' ? 'error-message' : '');
-        formMessageDiv.style.display = message ? 'block' : 'none';
-        setTimeout(() => { if(formMessageDiv) formMessageDiv.style.display = 'none'; }, 5000);
-    }
-
-    // --- GESTIONE SUBMIT FORM AGGIUNGI/MODIFICA ---
     if (addForm) {
         addForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             const sourceType = typeSelect.value;
             const sourceUrl = urlInput.value.trim();
-
-            if (!sourceType || !sourceUrl) {
-                displayFormMessage('Seleziona un tipo e inserisci un URL.', 'error');
-                return;
-            }
-
+            if (!sourceType || !sourceUrl) { displayMessage('Seleziona un tipo e inserisci un URL.', 'error'); return; }
             saveBtn.disabled = true;
             saveLoader.style.display = 'inline';
-            displayFormMessage('');
-
+            displayMessage('');
             try {
-                const response = await fetch('/api/monitoring/source', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: sourceType, url: sourceUrl })
-                });
+                const response = await fetch('/api/monitoring/source', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: sourceType, url: sourceUrl }) });
                 const data = await response.json();
-                if (response.ok && data.success) {
-                    displayFormMessage(data.message || 'Sorgente salvata!', 'success');
-                    loadMonitoringStatus();
-                    addForm.reset(); // Pulisce il form
-                } else {
-                    throw new Error(data.message || `Errore ${response.status}`);
+                if (response.ok && data.success) { 
+                    displayMessage(data.message || 'Sorgente salvata!', 'success'); 
+                    loadMonitoringStatus(); 
+                    addForm.reset(); 
+                } else { 
+                    throw new Error(data.message || `Errore ${response.status}`); 
                 }
-            } catch (error) {
-                displayFormMessage(`Errore salvataggio: ${error.message}`, 'error');
-            } finally {
-                saveBtn.disabled = false;
-                saveLoader.style.display = 'none';
+            } catch (error) { 
+                displayMessage(`Errore salvataggio: ${error.message}`, 'error');
+            } finally { 
+                saveBtn.disabled = false; 
+                saveLoader.style.display = 'none'; 
             }
         });
     }
-
+    
     // --- INIZIALIZZAZIONE PAGINA ---
+
     let initialType = null;
     let initialUrl = null;
     try {
@@ -227,11 +271,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (initialType && initialUrl) {
         if (typeSelect) typeSelect.value = initialType;
         if (urlInput) urlInput.value = initialUrl;
-        displayFormMessage(`Pronto per aggiungere/aggiornare la sorgente: ${initialUrl}`, 'info');
+        displayMessage(`Pronto per aggiungere/aggiornare la sorgente: ${initialUrl}`, 'info');
     }
-
-    // Carica lo stato iniziale
+    
+    // Carica tutti gli stati all'avvio
     loadMonitoringStatus();
+    loadScheduleConfig();
 });
 </script>
 {% endblock %}

@@ -48,7 +48,6 @@ except KeyError:
     print(f"Nomi disponibili: {list(config_by_name.keys())}")
     sys.exit(1)
 
-
 # --- Configurazione Logging (Iniziale - sarà affinata in create_app) ---
 # Impostiamo un livello base qui, verrà configurato meglio nell'app
 logging.basicConfig(level=logging.INFO)
@@ -56,7 +55,6 @@ logger = logging.getLogger(__name__)
 
 # --- Inizializzazione Estensioni ---
 db_sqlalchemy = SQLAlchemy()
-
 
 # --- Helper Functions (Modificate per usare current_app.config) ---
 
@@ -434,9 +432,13 @@ def create_app(config_object=AppConfig):
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False # Best practice
     db_sqlalchemy.init_app(app)
 
-    # Configura APScheduler
-    jobstores = {'default': SQLAlchemyJobStore(url=app.config['SQLALCHEMY_DATABASE_URI'])}
-    scheduler = BackgroundScheduler(jobstores=jobstores, app=app, timezone="Europe/Rome")
+    # Configura APScheduler e lo lega all'istanza dell'app
+    app.scheduler = BackgroundScheduler(
+        jobstores={'default': SQLAlchemyJobStore(url=app.config['SQLALCHEMY_DATABASE_URI'])},
+        app=app,
+        timezone="Europe/Rome"
+    )
+
 
     # Inizializzazione DB SQLite (incluse tabelle monitoring) e Directory Chroma
     try:
@@ -485,6 +487,69 @@ def create_app(config_object=AppConfig):
     login_manager.login_view = 'login'
     login_manager.login_message = "Per favore, effettua il login per accedere a questa pagina."
     login_manager.login_message_category = "info"
+
+    # --- INIZIO BLOCCO SCHEDULER CORRETTO E UNICO ---
+    if not app.config.get('TESTING', False):
+        logger.info("Modalità NON TESTING: Aggiunta job e avvio APScheduler...")
+        job_id = 'check_monitored_sources_job'
+        
+        with app.app_context():
+            if not app.scheduler.get_job(job_id):
+                from .scheduler_jobs import check_monitored_sources_job
+
+                # Leggiamo TUTTE le configurazioni dal file .env
+                unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
+                value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
+                hour = app.config.get('SCHEDULER_RUN_HOUR', 4)
+                
+                trigger_args = {}
+                trigger_type = 'cron'
+
+                # Costruiamo dinamicamente gli argomenti per il trigger cron
+                if unit == 'days':
+                    trigger_args = {'hour': hour, 'minute': 0, 'day': f'*/{value}'}
+                    logger.debug(f"Configurazione job: CRON ogni {value} giorno/i alle {hour}:00.")
+                elif unit == 'hours':
+                    trigger_args = {'minute': 0, 'hour': f'*/{value}'}
+                    logger.debug(f"Configurazione job: CRON ogni {value} ora/e.")
+                elif unit == 'minutes':
+                    # Utile per testare, ma meno per produzione
+                    trigger_args = {'minute': f'*/{value}'}
+                    logger.debug(f"Configurazione job: CRON ogni {value} minuto/i.")
+                
+                app.scheduler.add_job(
+                    func=check_monitored_sources_job,
+                    trigger=trigger_type,
+                    id=job_id,
+                    name='Controllo Periodico Sorgenti Monitorate',
+                    replace_existing=True,
+                    misfire_grace_time=300,
+                    **trigger_args
+                )
+                logger.info(f"Job '{job_id}' aggiunto con trigger: {trigger_type}, argomenti: {trigger_args}")
+            else:
+                logger.info(f"Job '{job_id}' già presente nello scheduler.")
+
+            if not app.scheduler.running:
+                try:
+                    app.scheduler.start()
+                    logger.info("APScheduler avviato.")
+                    atexit.register(lambda: shutdown_scheduler(app.scheduler))
+                except Exception as e_sched_start_final:
+                    logger.error(f"Impossibile avviare APScheduler: {e_sched_start_final}", exc_info=True)
+            else:
+                logger.info("APScheduler già in esecuzione.")
+    else:
+        logger.info("Modalità TESTING: APScheduler NON avviato.")
+        if hasattr(app, 'scheduler') and app.scheduler.running:
+            logger.warning("APScheduler era in esecuzione in modalità TESTING, tentativo di shutdown.")
+            try:
+                app.scheduler.shutdown(wait=False)
+                logger.info("APScheduler fermato esplicitamente per i test.")
+            except Exception as e_sched_stop_test:
+                logger.error(f"Errore fermando APScheduler in modalità test: {e_sched_stop_test}")
+    # --- FINE BLOCCO SCHEDULER ---
+
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -927,34 +992,9 @@ def create_app(config_object=AppConfig):
     if not app.config.get('TESTING', False):
         logger.info("Modalità NON TESTING: Configurazione e avvio APScheduler...")
         job_id = 'check_monitored_sources_job'
-        if not scheduler.get_job(job_id):
-            from .scheduler_jobs import check_monitored_sources_job
-            schedule_unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
-            schedule_value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
-            trigger_args = {schedule_unit: schedule_value}
-            logger.debug(f"Configurazione job scheduler: trigger ogni {schedule_value} {schedule_unit}.")
-            scheduler.add_job(
-                func=check_monitored_sources_job,
-                trigger='interval',
-                **trigger_args,
-                id=job_id,
-                name='Controllo Periodico Sorgenti Monitorate',
-                replace_existing=True,
-                misfire_grace_time=300
-            )
-            logger.info(f"Job '{job_id}' aggiunto allo scheduler con intervallo: {schedule_value} {schedule_unit}.")
-        else:
-            logger.info(f"Job '{job_id}' già presente nello scheduler.")
 
-        if not scheduler.running:
-            try:
-                scheduler.start()
-                logger.info("APScheduler avviato.")
-                atexit.register(lambda: shutdown_scheduler(scheduler))
-            except Exception as e_sched_start_final:
-                logger.error(f"Impossibile avviare APScheduler: {e_sched_start_final}", exc_info=True)
-        else:
-            logger.info("APScheduler già in esecuzione.")
+
+
     else:
         logger.info("Modalità TESTING: APScheduler NON avviato.")
         if scheduler.running: # Aggiunto controllo e shutdown se per caso fosse partito

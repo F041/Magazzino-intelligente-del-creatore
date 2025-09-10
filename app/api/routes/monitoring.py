@@ -1,19 +1,13 @@
-# FILE: app/api/routes/monitoring.py
 import logging
 import sqlite3
 from flask import Blueprint, request, jsonify, current_app 
 from flask_login import login_required, current_user
 from app.services.youtube.client import YouTubeClient
-
-# Importa funzioni YouTube/RSS se necessario per validare/recuperare nomi/ID
-# (Opzionale per ora, possiamo aggiungerlo dopo)
-# from app.services.youtube.client import YouTubeClient
-# import feedparser
+import traceback
 
 logger = logging.getLogger(__name__)
 monitoring_bp = Blueprint('monitoring', __name__)
 
-# === API PER OTTENERE LO STATO ATTUALE ===
 @monitoring_bp.route('/status', methods=['GET'])
 @login_required
 def get_monitoring_status():
@@ -29,7 +23,6 @@ def get_monitoring_status():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Cerca il canale YouTube attivo (assumiamo ce ne sia max 1 attivo per utente per ora)
         cursor.execute("""
             SELECT id, channel_id, channel_url, channel_name, last_checked_at, is_active
             FROM monitored_youtube_channels
@@ -40,7 +33,6 @@ def get_monitoring_status():
         if channel_row:
             monitored_channel = dict(channel_row)
 
-        # Cerca il feed RSS attivo
         cursor.execute("""
             SELECT id, feed_url, feed_title, last_checked_at, is_active
             FROM monitored_rss_feeds
@@ -68,7 +60,6 @@ def get_monitoring_status():
         return jsonify({'success': False, 'error_code': 'UNEXPECTED_ERROR', 'message': 'Errore server imprevisto.'}), 500
 
 
-# === API PER AGGIUNGERE/SOSTITUIRE UNA SORGENTE MONITORATA ===
 @monitoring_bp.route('/source', methods=['POST'])
 @login_required
 def add_or_replace_monitored_source():
@@ -159,7 +150,7 @@ def add_or_replace_monitored_source():
     finally:
         if conn: conn.close()
 
-# === API PER RIMUOVERE/DISATTIVARE UNA SORGENTE MONITORATA ===
+
 @monitoring_bp.route('/source', methods=['DELETE'])
 @login_required
 def remove_monitored_source():
@@ -196,7 +187,6 @@ def remove_monitored_source():
         conn.commit()
         conn.close()
         logger.info(f"User {user_id} ha disattivato sorgente {source_type}. Righe modificate: {rows_affected}")
-        # Restituisce successo anche se non c'era nulla da disattivare (rows_affected=0)
         return jsonify({'success': True, 'message': message}), 200
 
     except sqlite3.Error as e_sql:
@@ -207,3 +197,78 @@ def remove_monitored_source():
         logger.error(f"Errore generico remove_monitored_source: {e_gen}", exc_info=True)
         if conn: conn.rollback(); conn.close()
         return jsonify({'success': False, 'error_code': 'UNEXPECTED_ERROR', 'message': 'Errore server imprevisto.'}), 500
+
+
+@monitoring_bp.route('/schedule', methods=['GET', 'POST'])
+@login_required
+def manage_schedule():
+    """
+    GET: Restituisce la configurazione attuale del job (unità, valore, ora).
+    POST: Modifica la configurazione del job di monitoraggio.
+    """
+    job_id = 'check_monitored_sources_job'
+    scheduler = current_app.scheduler
+
+    if request.method == 'GET':
+        try:
+            job = scheduler.get_job(job_id)
+            if not job:
+                return jsonify({'success': False, 'error_code': 'JOB_NOT_FOUND', 'message': 'Job non trovato.'}), 404
+            
+            # Logica per interpretare i campi del trigger cron
+            trigger_fields = job.trigger.fields
+            hour_str = str(trigger_fields[5])
+            day_str = str(trigger_fields[2])
+            minute_str = str(trigger_fields[6])
+
+            schedule_config = {'unit': 'days', 'value': 1, 'hour': 4} # Default
+
+            if day_str.startswith('*/'):
+                schedule_config['unit'] = 'days'
+                schedule_config['value'] = int(day_str.split('/')[1])
+                schedule_config['hour'] = int(hour_str)
+            elif hour_str.startswith('*/'):
+                schedule_config['unit'] = 'hours'
+                schedule_config['value'] = int(hour_str.split('/')[1])
+                schedule_config['hour'] = 0 # L'ora di inizio non è rilevante in questo caso
+            elif minute_str.startswith('*/'):
+                schedule_config['unit'] = 'minutes'
+                schedule_config['value'] = int(minute_str.split('/')[1])
+                schedule_config['hour'] = 0
+
+            return jsonify({'success': True, 'schedule': schedule_config})
+
+        except Exception as e:
+            logger.error(f"Errore nel recuperare la configurazione del job '{job_id}': {e}", exc_info=True)
+            return jsonify({'success': False, 'error_code': 'INTERNAL_ERROR', 'message': 'Errore interno del server.'}), 500
+
+    if request.method == 'POST':
+        if not request.is_json:
+            return jsonify({'success': False, 'error_code': 'INVALID_PAYLOAD', 'message': 'Payload non valido.'}), 400
+        
+        data = request.get_json()
+        try:
+            unit = data.get('unit', 'days')
+            value = int(data.get('value', 1))
+            hour = int(data.get('hour', 4))
+
+            if unit not in ['days', 'hours', 'minutes'] or value < 1 or not (0 <= hour <= 23):
+                raise ValueError("Parametri non validi.")
+
+            trigger_args = {}
+            if unit == 'days':
+                trigger_args = {'trigger': 'cron', 'hour': hour, 'minute': 0, 'day': f'*/{value}'}
+            elif unit == 'hours':
+                trigger_args = {'trigger': 'cron', 'minute': 0, 'hour': f'*/{value}'}
+            elif unit == 'minutes':
+                trigger_args = {'trigger': 'cron', 'minute': f'*/{value}'}
+            
+            scheduler.reschedule_job(job_id, **trigger_args)
+            logger.info(f"Job '{job_id}' riprogrammato con: {trigger_args}")
+            return jsonify({'success': True, 'message': 'Pianificazione aggiornata con successo.'})
+
+        except (ValueError, TypeError) as e_val:
+            return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': f'Dati non validi: {e_val}'}), 400
+        except Exception as e:
+            logger.error(f"Errore nella modifica della pianificazione del job '{job_id}': {e}", exc_info=True)
+            return jsonify({'success': False, 'error_code': 'SCHEDULER_ERROR', 'message': 'Impossibile modificare il job.'}), 500

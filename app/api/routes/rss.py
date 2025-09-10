@@ -228,7 +228,13 @@ def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[
     logger.info(f"[_index_article][{article_id}] Indicizzazione terminata con stato restituito: {final_status}")
     return final_status
 
-def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_config: dict) -> bool:
+def _process_rss_feed_core(
+    initial_feed_url: str, 
+    user_id: Optional[str], 
+    core_config: dict, 
+    status_dict: Optional[dict] = None, # Nuovo!
+    status_lock: Optional[threading.Lock] = None # Nuovo!
+) -> bool:
     """
     Logica centrale per processare TUTTI gli articoli NUOVI di un feed RSS,
     gestendo la paginazione (?paged=X).
@@ -269,6 +275,12 @@ def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_c
                 url_to_fetch = base_feed_url
             else:
                 separator = '&' if '?' in base_feed_url else '?'; url_to_fetch = f"{base_feed_url}{separator}paged={page_number}"
+            #  Aggiorna lo stato prima di scaricare la pagina
+            if status_dict and status_lock:
+                with status_lock:
+                    status_dict['message'] = f"Analisi pagina #{page_number} del feed..."
+                    status_dict['current_page'] = page_number
+
             logger.info(f"[CORE RSS Process] --- Fetch Pagina #{page_number}: {url_to_fetch} ---")
 
             # === ESEGUI IL PARSING QUI ===
@@ -317,6 +329,10 @@ def _process_rss_feed_core(initial_feed_url: str, user_id: Optional[str], core_c
             logger.info(f"[CORE RSS Process] Trovati {num_entries_page} articoli pagina {page_number}.")
 
             for entry_index, entry in enumerate(parsed_feed.entries):
+                if status_dict and status_lock:
+                    with status_lock:
+                        status_dict['message'] = f"Articolo {entry_index + 1}/{num_entries_page} (Pag. {page_number}): {entry.get('title', 'Senza Titolo')[:50]}..."
+                        status_dict['total_articles_processed'] = saved_ok_count + failed_count + skipped_count
                 logger.debug(f"[CORE RSS Process] Pag.{page_number}, Art.{entry_index+1}: Processo entry...")
                 article_url = entry.get('link'); title = entry.get('title', 'Senza Titolo')
                 content_filepath = None; article_id_to_process = None; needs_processing = False
@@ -447,7 +463,13 @@ def _background_rss_processing(app_context, initial_feed_url: str, user_id: Opti
             # === FINE COSTRUZIONE core_config ===
 
             # --- Chiama la Funzione Core PASSANDO core_config_dict ---
-            job_success = _process_rss_feed_core(initial_feed_url, user_id, core_config_dict) # <--- PASSALO QUI
+            job_success = _process_rss_feed_core(
+                initial_feed_url, 
+                user_id, 
+                core_config_dict,
+                status_dict=rss_processing_status, # Aggiungiamo questo
+                status_lock=rss_status_lock        # Aggiungiamo questo
+            )
 
             if job_success:
                  thread_final_message = f"Processo feed {initial_feed_url} completato."

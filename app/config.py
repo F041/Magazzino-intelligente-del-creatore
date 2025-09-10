@@ -19,6 +19,7 @@ class BaseConfig:
     # --- Segreti e Chiavi API (letti direttamente da environ) ---
     SECRET_KEY = os.environ.get('FLASK_SECRET_KEY')
     GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
+    COHERE_API_KEY = os.environ.get('COHERE_API_KEY')
     # Leggiamo gli SCOPES e li splittiamo subito in lista
     GOOGLE_SCOPES = os.environ.get('GOOGLE_SCOPES', "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtubepartner").split()
     # Usiamo basedir calcolato sopra
@@ -51,7 +52,7 @@ class BaseConfig:
     DEFAULT_CHUNK_OVERLAP_WORDS = 50
 
     # --- Impostazioni Ricerca RAG ---
-    RAG_DEFAULT_N_RESULTS = 10 # o 15, 5 troppo poco
+    RAG_DEFAULT_N_RESULTS = 50 # o 15, 5 troppo poco
     # NUOVA LOGICA per la lista di modelli con fallback
     # Leggiamo la stringa dal .env, fornendo un default stabile se manca
     _models_str = os.environ.get('LLM_MODELS', "gemini-2.5-pro,gemini-2.0-flash")
@@ -82,6 +83,15 @@ class BaseConfig:
 
     SCHEDULER_INTERVAL_UNIT = os.environ.get('SCHEDULER_INTERVAL_UNIT', 'days').lower()
     SCHEDULER_INTERVAL_VALUE_STR = os.environ.get('SCHEDULER_INTERVAL_VALUE', '1')
+    SCHEDULER_RUN_HOUR_STR = os.environ.get('SCHEDULER_RUN_HOUR', '4') # Legge la nuova variabile
+    # Validazione per assicurarsi che sia un numero valido (0-23)
+    try:
+        SCHEDULER_RUN_HOUR = int(SCHEDULER_RUN_HOUR_STR)
+        if not 0 <= SCHEDULER_RUN_HOUR <= 23:
+            raise ValueError("L'ora deve essere tra 0 e 23.")
+    except (ValueError, TypeError):
+        print(f"ATTENZIONE: SCHEDULER_RUN_HOUR ('{SCHEDULER_RUN_HOUR_STR}') non valido. Uso '4'.")
+        SCHEDULER_RUN_HOUR = 4
     # Validazione UNIT
     _valid_units = ['days', 'hours', 'minutes']
     if SCHEDULER_INTERVAL_UNIT not in _valid_units:

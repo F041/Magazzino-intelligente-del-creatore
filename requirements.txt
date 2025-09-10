@@ -28,6 +28,9 @@ chromadb # Lascia che pip scelga la versione più recente compatibile
 # numpy (spesso dipendenza di librerie ML/dati come chromadb, pandas)
 # pandas # Lo usi direttamente nel backend? Se sì, lascialo. Altrimenti, potrebbe essere una dipendenza.
 
+# Reranking
+cohere
+
 # Trascrizioni
 youtube-transcript-api
 

@@ -482,12 +482,26 @@ Creatore{% endblock %} {% block content %}
             finalStatusClass,
             finalPerc
           );
-          enableAllForms();
+
+          // Non abilitiamo subito i form se dobbiamo ricaricare
+          // enableAllForms(); // Commentiamo o rimuoviamo questa riga
+
           if (type === "youtube")
             processBtnYoutube.textContent = "Processa Video";
           if (type === "rss") processRssBtn.textContent = "Processa Feed";
           currentPollingType = null;
+
           if (finalStatusClass === "success-message") {
+            // NUOVA LOGICA: Se è successo, attendi un istante per far leggere il messaggio
+            // e poi ricarica la pagina per aggiornare tutto, inclusa la sidebar!
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500); // 1.5 secondi di attesa
+
+            // La logica per mostrare il pulsante "Pianifica" non è più necessaria qui
+            // perché la pagina verrà ricaricata. Potremmo spostarla se serve.
+            // Per ora, ci concentriamo sul fix principale.
+            /*
             const url =
               type === "youtube"
                 ? lastProcessedYoutubeUrl
@@ -498,6 +512,10 @@ Creatore{% endblock %} {% block content %}
               btn.setAttribute("data-url", url);
               btn.style.display = "inline-flex";
             }
+            */
+          } else {
+            // Se c'è stato un errore, NON ricarichiamo e riabilitiamo i form
+            enableAllForms();
           }
         }
       } catch (error) {
