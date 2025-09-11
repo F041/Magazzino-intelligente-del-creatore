@@ -192,6 +192,50 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     ```
     Dopo aver modificato questo file, riavvia WSL eseguendo `wsl --shutdown` in PowerShell (come amministratore) e poi riaprendo la tua distribuzione WSL.
 
+## Personalizzazione (per chi fa Self-Hosting)
+
+L'applicazione include una pagina di atterraggio (`index.html`) dimostrativa, pensata per mostrare le funzionalità del progetto. Se stai installando il Magazzino del Creatore per un uso personale o aziendale, probabilmente vorrai una pagina iniziale più semplice.
+
+**Azione Consigliata:**
+
+Sostituisci il contenuto del file `app/templates/index.html` con una versione minima che punti direttamente al login. Puoi usare il codice qui sotto come base. Questo trasformerà la tua pagina iniziale in un semplice portale di accesso.
+
+```html
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accesso - Magazzino del Creatore</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: var(--color-background-main); }
+        .welcome-container { background: var(--color-background-secondary); padding: 40px; border-radius: 12px; box-shadow: var(--box-shadow-lg); width: 100%; max-width: 450px; text-align: center; border: 1px solid var(--color-border); }
+        .welcome-container h1 { font-family: var(--font-serif); margin-bottom: 12px; font-size: 2rem; }
+        .welcome-container h1:after { display: none; }
+        .welcome-container p { color: var(--color-text-secondary); margin-bottom: 24px; }
+        .auth-buttons { display: flex; flex-direction: column; gap: 12px; }
+        .auth-buttons .action-btn { width: 100%; padding: 12px; font-size: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <div style="font-size: 2.5rem; margin-bottom: 16px; color: var(--color-metal-dark);">
+            <i class="fas fa-warehouse"></i>
+        </div>
+        <h1>Magazzino del Creatore</h1>
+        <p>Accedi al tuo account o registrati per iniziare.</p>
+        
+        <div class="auth-buttons">
+            <a href="{{ url_for('login') }}" class="action-btn">Accedi</a>
+            <a href="{{ url_for('register') }}" class="action-btn secondary" style="background: #6c757d; color: white;">Registrati</a>
+        </div>
+    </div>
+</body>
+</html>
+```
+
 ## Esecuzione
 
 L'applicazione è progettata per essere eseguita con Docker, il che semplifica la gestione delle dipendenze e la configurazione.

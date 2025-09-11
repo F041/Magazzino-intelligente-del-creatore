@@ -57,8 +57,10 @@ htmlcov/
 .nox/
 .pytest_cache/ 
 
-## Data
+## Folders
 data/
+scripts/
+prompts/
 
 # Custom Scripts
 export_project.py
