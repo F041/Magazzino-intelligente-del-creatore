@@ -13,6 +13,8 @@ services:
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - magazzino_net
     
   
   telegram_bot:
@@ -25,3 +27,9 @@ services:
     depends_on:
       app:
         condition: service_started
+    networks:
+      - magazzino_net
+
+networks: 
+  magazzino_net: 
+    driver: bridge 
