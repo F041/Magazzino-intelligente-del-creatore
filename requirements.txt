@@ -30,6 +30,8 @@ chromadb # Lascia che pip scelga la versione più recente compatibile
 
 # Reranking
 cohere
+tokenizers
+
 
 # Trascrizioni
 youtube-transcript-api
