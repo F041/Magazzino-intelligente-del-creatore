@@ -343,9 +343,9 @@ def handle_search_request(*args, **kwargs):
                         logger.warning(f"Risposta LLM bloccata dal modello {model_name} per motivo: {block_reason_name}. Tento con il prossimo modello.")
                         last_error = ValueError(f"Blocked by model {model_name}")
                         continue
-                except (google_exceptions.NotFound, google_exceptions.PermissionDenied, google_exceptions.InternalServerError) as e_fallback:
+                except (google_exceptions.NotFound, google_exceptions.PermissionDenied, google_exceptions.InternalServerError, google_exceptions.ResourceExhausted) as e_fallback: # <-- MODIFICA QUI
                     last_error = e_fallback
-                    logger.warning(f"Modello '{model_name}' non trovato o non accessibile. Tento con il prossimo modello nella lista.")
+                    logger.warning(f"Modello '{model_name}' non trovato, non accessibile o rate-limited. Tento con il prossimo modello nella lista.")
                     continue
                 except Exception as e_llm_gen:
                     logger.error(f"Errore critico durante la generazione con il modello '{model_name}': {e_llm_gen}", exc_info=True)
@@ -359,7 +359,14 @@ def handle_search_request(*args, **kwargs):
                     error_code_llm = 'LLM_MODEL_NOT_AVAILABLE'
                     message_llm = 'Nessuno dei modelli configurati è risultato accessibile o disponibile.'
                 elif isinstance(last_error, google_exceptions.GoogleAPIError):
-                    error_code_llm = 'API_ERROR_GENERATION'; message_llm = f'Errore API Google LLM ({getattr(last_error, "code", "N/A")}).'
+                    # Gestiamo il caso 429 in modo specifico nel messaggio
+                    status_code = getattr(last_error, "code", 0)
+                    error_message_from_api = str(last_error)
+                    if status_code == 429 or "429" in error_message_from_api:
+                        error_code_llm = 'API_RATE_LIMIT_EXCEEDED'
+                        message_llm = 'Limite di richieste API di Google raggiunto per tutti i modelli.'
+                    else:
+                        error_code_llm = 'API_ERROR_GENERATION'; message_llm = f'Errore API Google LLM ({status_code}).'
                 logger.error(f"{error_code_llm}: {message_llm}")
                 final_payload.update({'error_code': error_code_llm, 'message': message_llm});
                 raise last_error
