@@ -67,7 +67,7 @@ async def handle_question(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     headers = {"Content-Type": "application/json", "X-API-Key": MAGAZZINO_API_KEY}
-    payload = {"query": user_message, "n_results": 10} # Aumentato n_results per avere più contesto per i riferimenti
+    payload = {"query": user_message, "n_results": 50} # Aumentato n_results per avere più contesto per i riferimenti
 
     try:
         logger.info(f"!!! DEBUG CHIAVE BOT: La chiave API che sto per inviare e': '{MAGAZZINO_API_KEY}'")
