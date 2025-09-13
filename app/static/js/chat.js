@@ -79,10 +79,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 const metadata = ref.metadata || {};
                 const distance = ref.distance !== undefined ? ` (Dist: ${ref.distance.toFixed(4)})` : '';
                 let title = 'N/D'; let link = '#'; let sourcePrefix = ''; let details = '';
-                if (metadata.source_type === 'video') { sourcePrefix = 'Video:'; title = metadata.video_title || 'N/D'; if (metadata.video_id) link = `https://www.youtube.com/watch?v=${metadata.video_id}`; details = `Canale: ${metadata.channel_id||'N/D'} | Pubbl: ${metadata.published_at?new Date(metadata.published_at).toLocaleDateString():'N/D'} | Tipo: ${metadata.caption_type||'N/D'}`; }
-                else if (metadata.source_type === 'document') { sourcePrefix = 'Doc:'; title = metadata.original_filename || 'N/D'; }
-                else if (metadata.source_type === 'article') { sourcePrefix = 'Articolo:'; title = metadata.article_title || metadata.title || 'N/D'; link = metadata.article_url || metadata.url || '#'; }
-                else { sourcePrefix = 'Fonte ??:'; title = metadata.doc_id || metadata.article_id || metadata.video_id || 'ID N/D'; }
+                if (metadata.source_type === 'video') {
+                    sourcePrefix = 'Video:';
+                    title = metadata.video_title || 'N/D';
+                    if (metadata.video_id) link = `https://www.youtube.com/watch?v=${metadata.video_id}`;
+                    details = `Canale: ${metadata.channel_id||'N/D'} | Pubbl: ${metadata.published_at?new Date(metadata.published_at).toLocaleDateString():'N/D'} | Tipo: ${metadata.caption_type||'N/D'}`;
+                }
+                else if (metadata.source_type === 'document') {
+                    sourcePrefix = 'Doc:';
+                    title = metadata.original_filename || 'N/D';
+                }
+                else if (metadata.source_type === 'article') {
+                    sourcePrefix = 'Articolo:';
+                    title = metadata.article_title || 'N/D';
+                    link = metadata.article_url || '#';
+                }
+                // --- NUOVO BLOCCO AGGIUNTO QUI ---
+                else if (metadata.source_type === 'page') {
+                    sourcePrefix = 'Pagina:';
+                    title = metadata.page_title || 'N/D';
+                    link = metadata.page_url || '#';
+                }
+                // --- FINE NUOVO BLOCCO ---
+                else {
+                    sourcePrefix = 'Fonte ??:';
+                    title = metadata.doc_id || metadata.article_id || metadata.video_id || metadata.page_id || 'ID N/D';
+                }
                 let refHTML = `<p><strong>${sourcePrefix}</strong> `;
                 if (link !== '#') refHTML += `<a href="${link}" target="_blank" rel="noopener noreferrer">${title}</a>`; else refHTML += title;
                 refHTML += `${distance}</p>`; if(details) refHTML += `<p><small>${details}</small></p>`;

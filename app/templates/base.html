@@ -138,31 +138,21 @@
       </div>
     </div>
 
+    <!-- ===== BLOCCO SCRIPT UNIFICATO E CORRETTO ===== -->
     {% block scripts %}
     <script>
       // --- FUNZIONE GLOBALE PER MODALE DI CONFERMA ---
-      // Resa disponibile a tutte le pagine che ereditano da base.html
       function showConfirmModal(title, text) {
         const confirmModal = document.getElementById("confirm-modal");
         const confirmOverlay = document.getElementById("confirm-modal-overlay");
         const confirmOkBtn = document.getElementById("confirm-modal-ok");
-        const confirmCancelBtn = document.getElementById(
-          "confirm-modal-cancel"
-        );
+        const confirmCancelBtn = document.getElementById("confirm-modal-cancel");
         const confirmTitle = document.getElementById("confirm-modal-title");
         const confirmText = document.getElementById("confirm-modal-text");
 
         return new Promise((resolve) => {
-          if (
-            !confirmModal ||
-            !confirmOverlay ||
-            !confirmOkBtn ||
-            !confirmCancelBtn
-          ) {
-            console.error(
-              "Elementi del modale di conferma non trovati nel DOM!"
-            );
-            // Fallback di sicurezza al confirm nativo del browser
+          if (!confirmModal || !confirmOverlay || !confirmOkBtn || !confirmCancelBtn) {
+            console.error("Elementi del modale di conferma non trovati!");
             resolve(window.confirm(text));
             return;
           }
@@ -171,14 +161,8 @@
           confirmModal.classList.add("visible");
           confirmOverlay.classList.add("visible");
 
-          const onOk = () => {
-            closeModal();
-            resolve(true);
-          };
-          const onCancel = () => {
-            closeModal();
-            resolve(false);
-          };
+          const onOk = () => { closeModal(); resolve(true); };
+          const onCancel = () => { closeModal(); resolve(false); };
 
           const closeModal = () => {
             confirmModal.classList.remove("visible");
@@ -199,33 +183,130 @@
         const originalFavicon = document.querySelector("link[rel='icon']").href;
         const loadingFavicon = (function () {
           const canvas = document.createElement("canvas");
-          canvas.width = 32;
-          canvas.height = 32;
+          canvas.width = 32; canvas.height = 32;
           const ctx = canvas.getContext("2d");
-          ctx.beginPath();
-          ctx.arc(16, 16, 14, 0, 2 * Math.PI, false);
-          ctx.fillStyle = "#ced4da";
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(24, 24, 6, 0, 2 * Math.PI, false);
-          ctx.fillStyle = "#4361ee";
-          ctx.fill();
-          ctx.strokeStyle = "white";
-          ctx.lineWidth = 2;
-          ctx.stroke();
+          ctx.beginPath(); ctx.arc(16, 16, 14, 0, 2 * Math.PI, false);
+          ctx.fillStyle = "#ced4da"; ctx.fill();
+          ctx.beginPath(); ctx.arc(24, 24, 6, 0, 2 * Math.PI, false);
+          ctx.fillStyle = "#4361ee"; ctx.fill();
+          ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
           return canvas.toDataURL("image/png");
         })();
         window.setAppStatus = function (status) {
           const faviconElement = document.querySelector("link[rel='icon']");
           if (!faviconElement) return;
-          if (status === "processing") {
-            faviconElement.href = loadingFavicon;
-          } else {
-            faviconElement.href = originalFavicon;
-          }
+          faviconElement.href = status === "processing" ? loadingFavicon : originalFavicon;
         };
+      })();
+
+      // --- LOGICA GLOBALE PER PROCESSI ASINCRONI (POLLING) ---
+      (function() {
+        let pollingInterval = null;
+        let timerInterval = null;
+        let secondsElapsed = 0;
+
+        function startTimer(container) {
+            stopTimer();
+            secondsElapsed = 0;
+            let timerElement = container.querySelector('.timer');
+            if (!timerElement) {
+                timerElement = document.createElement('span');
+                timerElement.className = 'timer';
+                timerElement.style.marginLeft = '15px';
+                timerElement.style.fontStyle = 'italic';
+                container.appendChild(timerElement);
+            }
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                timerElement.textContent = `(${secondsElapsed}s)`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        }
+        
+            async function checkProgress(endpoint, uiElements) {
+                try {
+                    const response = await fetch(endpoint);
+                    const data = await response.json();
+
+                    if (!data.is_processing) {
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        stopTimer(); // <-- FERMA IL CRONOMETRO QUI, ALLA FINE
+                        if (uiElements.button) {
+                           uiElements.button.disabled = false;
+                           uiElements.button.innerHTML = uiElements.buttonOriginalHTML;
+                        }
+
+                        const finalMessage = data.error || data.message || 'Operazione completata.';
+                        const finalClass = data.error ? 'error-message' : 'success-message';
+                        
+                        let progressBarHTML = '';
+                        if (!data.error) {
+                            progressBarHTML = `<div class="progress-bar-container" style="margin-top: 8px; height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden;"><div class="progress-bar" style="width: 100%; height: 100%; background: var(--gradient-primary);"></div></div>`;
+                        }
+                        
+                        uiElements.messageDiv.className = finalClass;
+                        uiElements.messageDiv.innerHTML = `<span>${finalMessage}</span>${progressBarHTML}`;
+
+                    } else {
+                        // Il processo è ancora in corso
+                        let progressPercent = 0;
+                        if (data.total_items > 0) {
+                            progressPercent = Math.round((data.processed_items / data.total_items) * 100);
+                        }
+                        uiElements.messageDiv.className = 'info-message';
+                        // Rimuoviamo la chiamata a startTimer da qui
+                        uiElements.messageDiv.innerHTML = `
+                            <span>${data.message}</span>
+                            <div class="progress-bar-container" style="margin-top: 8px; height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden;">
+                                <div class="progress-bar" style="width: ${progressPercent}%; height: 100%; background: var(--gradient-primary); transition: width 0.3s ease;"></div>
+                            </div>
+                        `;
+                        // Aggiungiamo il timer al messageDiv se non c'è già
+                        if (!uiElements.messageDiv.querySelector('.timer')) {
+                            const messageSpan = uiElements.messageDiv.querySelector('span');
+                            if (messageSpan) {
+                                let timerElement = document.createElement('span');
+                                timerElement.className = 'timer';
+                                timerElement.style.marginLeft = '15px';
+                                timerElement.style.fontStyle = 'italic';
+                                messageSpan.appendChild(timerElement);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    clearInterval(pollingInterval);
+                    stopTimer();
+                    if (uiElements.button) uiElements.button.disabled = false;
+                    uiElements.messageDiv.className = 'error-message';
+                    uiElements.messageDiv.textContent = 'Errore di connessione durante il controllo dello stato.';
+                }
+            }
+
+            // Esponiamo una funzione globale per essere chiamata dalle altre pagine
+            window.startAsyncTask = function(endpoint, uiElements) {
+                if (pollingInterval) clearInterval(pollingInterval);
+
+                uiElements.button.disabled = true;
+                if (uiElements.loader) uiElements.loader.style.display = 'inline';
+                uiElements.messageDiv.innerHTML = '';
+                uiElements.messageDiv.className = 'info-message';
+                uiElements.messageDiv.textContent = 'Avvio operazione...';
+                
+                // AVVIA IL CRONOMETRO QUI, UNA SOLA VOLTA :
+                // TODO: Non va, non lo vedo!
+                startTimer(uiElements.messageDiv);
+
+                pollingInterval = setInterval(() => checkProgress(endpoint, uiElements), 2000);
+            }
       })();
     </script>
     {% endblock %}
+  </body>
+</html>
+    
   </body>
 </html>

@@ -238,28 +238,46 @@ def handle_search_request(*args, **kwargs):
                 logger.error(f"{error_code_emb}: {message_emb}", exc_info=True)
                 final_payload.update({'error_code': error_code_emb, 'message': message_emb}); raise e_emb
 
-            video_collection, doc_collection, article_collection = None, None, None
+            video_collection, doc_collection, article_collection, page_collection = None, None, None, None
             chroma_client = current_app.config.get('CHROMA_CLIENT')
             if not chroma_client:
-                final_payload.update({'error_code': 'SERVER_CONFIG_ERROR', 'message': 'Client ChromaDB non inizializzato.'});
                 raise RuntimeError("Client ChromaDB non inizializzato")
 
+            # Nomi base delle collezioni
+            base_video = current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
+            base_doc = current_app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content')
+            base_art = current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content')
+            base_page = "page_content"
+
             if app_mode == 'single':
-                video_collection=current_app.config.get('CHROMA_VIDEO_COLLECTION')
-                doc_collection=current_app.config.get('CHROMA_DOC_COLLECTION')
-                article_collection=current_app.config.get('CHROMA_ARTICLE_COLLECTION')
+                try: video_collection = chroma_client.get_collection(name=base_video)
+                except Exception: logger.warning(f"Collezione '{base_video}' non trovata.")
+                try: doc_collection = chroma_client.get_collection(name=base_doc)
+                except Exception: logger.warning(f"Collezione '{base_doc}' non trovata.")
+                try: article_collection = chroma_client.get_collection(name=base_art)
+                except Exception: logger.warning(f"Collezione '{base_art}' non trovata.")
+                try: page_collection = chroma_client.get_collection(name=base_page)
+                except Exception: logger.warning(f"Collezione '{base_page}' non trovata.")
+            
             elif app_mode == 'saas':
-                base_video=current_app.config.get('VIDEO_COLLECTION_NAME','video_transcripts'); base_doc=current_app.config.get('DOCUMENT_COLLECTION_NAME','document_content'); base_art=current_app.config.get('ARTICLE_COLLECTION_NAME','article_content')
-                try: video_collection = chroma_client.get_collection(name=f"{base_video}_{user_id_to_use}")
-                except Exception as e_coll_vid: logger.warning(f"Collezione video SAAS '{base_video}_{user_id_to_use}' non trovata o errore: {e_coll_vid}")
-                try: doc_collection = chroma_client.get_collection(name=f"{base_doc}_{user_id_to_use}")
-                except Exception as e_coll_doc: logger.warning(f"Collezione documenti SAAS '{base_doc}_{user_id_to_use}' non trovata o errore: {e_coll_doc}")
-                try: article_collection = chroma_client.get_collection(name=f"{base_art}_{user_id_to_use}")
-                except Exception as e_coll_art: logger.warning(f"Collezione articoli SAAS '{base_art}_{user_id_to_use}' non trovata o errore: {e_coll_art}")
+                if user_id_to_use:
+                    try: video_collection = chroma_client.get_collection(name=f"{base_video}_{user_id_to_use}")
+                    except Exception: logger.warning(f"Collezione video per utente {user_id_to_use} non trovata.")
+                    try: doc_collection = chroma_client.get_collection(name=f"{base_doc}_{user_id_to_use}")
+                    except Exception: logger.warning(f"Collezione documenti per utente {user_id_to_use} non trovata.")
+                    try: article_collection = chroma_client.get_collection(name=f"{base_art}_{user_id_to_use}")
+                    except Exception: logger.warning(f"Collezione articoli per utente {user_id_to_use} non trovata.")
+                    try: page_collection = chroma_client.get_collection(name=f"{base_page}_{user_id_to_use}")
+                    except Exception: logger.warning(f"Collezione pagine per utente {user_id_to_use} non trovata.")
 
             all_results_combined = []
             query_args_chroma = { 'query_embeddings': [query_embedding], 'n_results': n_results, 'include': ['documents', 'metadatas', 'distances'] }
-            collections_to_query = { "VIDEO": video_collection, "DOCUMENT": doc_collection, "ARTICLE": article_collection }
+            collections_to_query = {
+                "VIDEO": video_collection, 
+                "DOCUMENT": doc_collection, 
+                "ARTICLE": article_collection,
+                "PAGE": page_collection 
+            }
             for coll_type, collection_instance in collections_to_query.items():
                  if collection_instance:
                      try:

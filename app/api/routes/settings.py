@@ -1,4 +1,3 @@
-# FILE: app/api/routes/settings.py
 import logging
 import sqlite3
 from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
@@ -22,29 +21,37 @@ def settings_page():
 
         settings_to_save = {
             'llm_provider': request.form.get('llm_provider'),
-            'llm_model_name': combined_models, # Salviamo la stringa unita
+            'llm_model_name': combined_models,
             'llm_embedding_model': request.form.get('llm_embedding_model'),
-            'llm_api_key': request.form.get('llm_api_key')
+            'llm_api_key': request.form.get('llm_api_key'),
+            'wordpress_url': request.form.get('wordpress_url'),
+            'wordpress_username': request.form.get('wordpress_username'), # <-- NUOVA RIGA
+            'wordpress_api_key': request.form.get('wordpress_api_key')
         }
         
         conn = None
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            # Usiamo UPSERT per inserire se non esiste, o aggiornare se esiste
             cursor.execute("""
-                INSERT INTO user_settings (user_id, llm_provider, llm_model_name, llm_embedding_model, llm_api_key)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO user_settings (user_id, llm_provider, llm_model_name, llm_embedding_model, llm_api_key, wordpress_url, wordpress_username, wordpress_api_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     llm_provider = excluded.llm_provider,
                     llm_model_name = excluded.llm_model_name,
                     llm_embedding_model = excluded.llm_embedding_model,
-                    llm_api_key = excluded.llm_api_key;
+                    llm_api_key = excluded.llm_api_key,
+                    wordpress_url = excluded.wordpress_url,
+                    wordpress_username = excluded.wordpress_username,
+                    wordpress_api_key = excluded.wordpress_api_key;
             """, (user_id, 
                   settings_to_save['llm_provider'], 
                   settings_to_save['llm_model_name'], 
                   settings_to_save['llm_embedding_model'], 
-                  settings_to_save['llm_api_key']))
+                  settings_to_save['llm_api_key'],
+                  settings_to_save['wordpress_url'],
+                  settings_to_save['wordpress_username'], # <-- NUOVA RIGA
+                  settings_to_save['wordpress_api_key']))
             conn.commit()
             flash('Impostazioni salvate con successo!', 'success')
         except sqlite3.Error as e:
@@ -56,7 +63,6 @@ def settings_page():
         
         return redirect(url_for('settings.settings_page'))
 
-    # Logica per caricare le impostazioni esistenti (metodo GET)
     user_settings = {}
     conn = None
     try:
@@ -67,7 +73,6 @@ def settings_page():
         settings_row = cursor.fetchone()
         if settings_row:
             user_settings = dict(settings_row)
-            # Separiamo la stringa dei modelli in due variabili per il template
             combined_models = user_settings.get('llm_model_name', '')
             models_parts = [model.strip() for model in combined_models.split(',')]
             

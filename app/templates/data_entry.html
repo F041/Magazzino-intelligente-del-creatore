@@ -57,6 +57,13 @@ Creatore{% endblock %} {% block content %}
       <p>
         Inserisci l'URL del feed RSS del tuo blog per indicizzare gli articoli.
       </p>
+      <p style="font-size: 1em; font-style: italic">
+        Vuoi indicizzare i contenuti di <strong>tutto</strong> il tuo sito
+        WordPress in modo automatico?
+        <a href="{{ url_for('settings.settings_page') }}#sito-web"
+          >Vai alle impostazioni del CONNETTORE DATI SITO WEB</a
+        >.
+      </p>
       <form id="rss-form">
         <label for="rss-url">URL Feed RSS:</label>
         <input
