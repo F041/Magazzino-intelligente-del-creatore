@@ -686,3 +686,117 @@ label {
     flex-wrap: wrap;
     box-shadow: var(--box-shadow-sm); /* Leggera ombra per staccarlo */
 }
+
+    .docker-tooltip i {
+        color: #0db7ed; /* Colore ufficiale di Docker */
+        font-size: 1.6em; /* Leggermente più grande per farsi notare */
+        vertical-align: middle;
+        transition: transform 0.2s ease;
+    }
+    .docker-tooltip:hover i {
+        transform: scale(1.1);
+    }
+    .docker-tooltip .tooltip-text {
+        background-color: #0db7ed;
+        color: white;
+        border: 1px solid #089fce;
+    }
+    .docker-tooltip .tooltip-text::after {
+        border-color: #0db7ed transparent transparent transparent;
+    }
+
+    /* --- STILI PER IL NUOVO MENU A TENDINA PERSONALIZZATO --- */
+    .custom-select-container {
+        position: relative;
+        width: 100%;
+    }
+    .select-selected {
+        background-color: var(--color-background-secondary);
+        border: 1px solid var(--color-border);
+        border-radius: var(--border-radius-sm);
+        padding: 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: var(--transition-base);
+    }
+    .select-selected:hover {
+        border-color: var(--color-primary);
+    }
+    .select-selected.select-arrow-active:after {
+        transform: rotate(180deg);
+    }
+    .select-selected:after {
+        content: "";
+        width: 0;
+        height: 0;
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 5px solid var(--color-text-light);
+        transition: var(--transition-base);
+    }
+    .select-items {
+        position: absolute;
+        background-color: var(--color-background-secondary);
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 99;
+        border: 1px solid var(--color-border);
+        border-top: none;
+        border-radius: 0 0 var(--border-radius-sm) var(--border-radius-sm);
+        box-shadow: var(--box-shadow-md);
+    }
+    .select-hide {
+        display: none;
+    }
+    .select-items div {
+        padding: 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    /* NUOVO: Seleziona ogni opzione e aggiunge un bordo sotto, TRANNE all'ultima */
+    .select-items > div:not(:last-child) {
+        border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .select-items div:hover {
+        background-color: var(--color-border-light);
+    }
+
+    .option-content {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+    .option-main {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 500;
+    }
+    .option-main i.fa-google { color: #4285F4; }
+    .option-main img { width: 1.2em; height: 1.2em; }
+
+    .option-badges {
+        display: flex;
+        gap: 6px;
+        margin-right: 10px; 
+    }
+    .option-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .badge-easy { background-color: #d4edda; color: #155724; }
+    .badge-cost { background-color: #d4edda; color: #155724; } 
+    .badge-privacy { background-color: #cce5ff; color: #004085; }
+    .badge-difficulty { background-color: #fff3cd; color: #856404; }

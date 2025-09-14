@@ -289,6 +289,16 @@ def init_db(config):
         logger.info("Tabella 'user_settings' verificata/creata.")
 
 
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN ollama_base_url TEXT")
+            logger.info("Colonna 'ollama_base_url' aggiunta alla tabella 'user_settings'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e).lower():
+                logger.debug("Colonna 'ollama_base_url' già presente in 'user_settings'.")
+            else:
+                raise
+
+
 
         # COLONNE PER WORDPRESS  ---
         try:

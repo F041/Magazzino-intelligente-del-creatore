@@ -13,19 +13,27 @@ def settings_page():
     db_path = current_app.config.get('DATABASE_FILE')
     
     if request.method == 'POST':
-        primary_model = request.form.get('llm_model_name_primary', '').strip()
-        fallback_model = request.form.get('llm_model_name_fallback', '').strip()
+        provider = request.form.get('llm_provider')
         
-        model_list = [model for model in [primary_model, fallback_model] if model]
-        combined_models = ",".join(model_list)
+        # Unifichiamo la logica per il nome del modello
+        combined_models = ""
+        if provider == 'google':
+            primary_model = request.form.get('llm_model_name_primary', '').strip()
+            fallback_model = request.form.get('llm_model_name_fallback', '').strip()
+            model_list = [model for model in [primary_model, fallback_model] if model]
+            combined_models = ",".join(model_list)
+        elif provider == 'ollama':
+            # Per ollama, usiamo un solo campo che viene salvato nella stessa colonna
+            combined_models = request.form.get('ollama_model_name', '').strip()
 
         settings_to_save = {
-            'llm_provider': request.form.get('llm_provider'),
+            'llm_provider': provider,
             'llm_model_name': combined_models,
             'llm_embedding_model': request.form.get('llm_embedding_model'),
             'llm_api_key': request.form.get('llm_api_key'),
+            'ollama_base_url': request.form.get('ollama_base_url'), # <-- NUOVA RIGA
             'wordpress_url': request.form.get('wordpress_url'),
-            'wordpress_username': request.form.get('wordpress_username'), # <-- NUOVA RIGA
+            'wordpress_username': request.form.get('wordpress_username'),
             'wordpress_api_key': request.form.get('wordpress_api_key')
         }
         
@@ -34,13 +42,14 @@ def settings_page():
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO user_settings (user_id, llm_provider, llm_model_name, llm_embedding_model, llm_api_key, wordpress_url, wordpress_username, wordpress_api_key)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO user_settings (user_id, llm_provider, llm_model_name, llm_embedding_model, llm_api_key, ollama_base_url, wordpress_url, wordpress_username, wordpress_api_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     llm_provider = excluded.llm_provider,
                     llm_model_name = excluded.llm_model_name,
                     llm_embedding_model = excluded.llm_embedding_model,
                     llm_api_key = excluded.llm_api_key,
+                    ollama_base_url = excluded.ollama_base_url,
                     wordpress_url = excluded.wordpress_url,
                     wordpress_username = excluded.wordpress_username,
                     wordpress_api_key = excluded.wordpress_api_key;
@@ -49,8 +58,9 @@ def settings_page():
                   settings_to_save['llm_model_name'], 
                   settings_to_save['llm_embedding_model'], 
                   settings_to_save['llm_api_key'],
+                  settings_to_save['ollama_base_url'], # <-- NUOVA RIGA
                   settings_to_save['wordpress_url'],
-                  settings_to_save['wordpress_username'], # <-- NUOVA RIGA
+                  settings_to_save['wordpress_username'],
                   settings_to_save['wordpress_api_key']))
             conn.commit()
             flash('Impostazioni salvate con successo!', 'success')
@@ -63,6 +73,7 @@ def settings_page():
         
         return redirect(url_for('settings.settings_page'))
 
+    # Il resto della funzione per il metodo GET rimane quasi uguale, ma lo semplifichiamo
     user_settings = {}
     conn = None
     try:
@@ -73,11 +84,12 @@ def settings_page():
         settings_row = cursor.fetchone()
         if settings_row:
             user_settings = dict(settings_row)
-            combined_models = user_settings.get('llm_model_name', '')
-            models_parts = [model.strip() for model in combined_models.split(',')]
-            
-            user_settings['llm_model_name_primary'] = models_parts[0] if len(models_parts) > 0 else ''
-            user_settings['llm_model_name_fallback'] = models_parts[1] if len(models_parts) > 1 else ''
+            # Logica per splittare i modelli se il provider è Google
+            if user_settings.get('llm_provider') == 'google':
+                combined_models = user_settings.get('llm_model_name', '')
+                models_parts = [model.strip() for model in combined_models.split(',')]
+                user_settings['llm_model_name_primary'] = models_parts[0] if len(models_parts) > 0 else ''
+                user_settings['llm_model_name_fallback'] = models_parts[1] if len(models_parts) > 1 else ''
     except sqlite3.Error as e:
         logger.error(f"Errore DB caricando le impostazioni per l'utente {user_id}: {e}")
         flash('Errore nel caricamento delle impostazioni.', 'error')

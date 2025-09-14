@@ -1,4 +1,4 @@
-<!-- FILE: app/templates/base.html (Versione con Layout Sidebar Robusto) -->
+<!-- FILE: app/templates/base.html (Versione con Layout Sidebar Robusto - CORRETTO) -->
 <!DOCTYPE html>
 <html lang="it">
   <head>
@@ -68,6 +68,16 @@
             ><span>I tuoi articoli</span></a
           >
         </li>
+         
+        {% if content_counts.has_pages %}
+        <li class="{{ 'active' if request.endpoint == 'my_pages' else '' }}">
+          <a href="{{ url_for('my_pages') }}"
+            ><i class="fas fa-window-maximize"></i
+            ><span>Le tue pagine</span></a
+          >
+        </li>
+        {% endif %}
+     
         {% endif %} {% if content_counts.has_videos or
         content_counts.has_documents or content_counts.has_articles %}
         <li
@@ -178,9 +188,12 @@
         });
       }
 
-      // --- FUNZIONE GLOBALE PER FAVICON DINAMICA ---
+      // --- FUNZIONE GLOBALE PER FAVICON DINAMICA (robusta, con cache-busting) ---
       (function () {
-        const originalFavicon = document.querySelector("link[rel='icon']").href;
+        const selector = "link[rel~='icon']";
+        const faviconNodes = Array.from(document.head.querySelectorAll(selector));
+        const originalHref = faviconNodes.length ? faviconNodes[0].href : null;
+
         const loadingFavicon = (function () {
           const canvas = document.createElement("canvas");
           canvas.width = 32; canvas.height = 32;
@@ -192,10 +205,41 @@
           ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
           return canvas.toDataURL("image/png");
         })();
+
+        function setHrefOnAll(href) {
+          const nodes = Array.from(document.head.querySelectorAll(selector));
+          if (nodes.length === 0) {
+            const link = document.createElement('link');
+            link.rel = 'icon';
+            link.type = 'image/x-icon';
+            link.href = href || '';
+            document.head.appendChild(link);
+            return;
+          }
+          nodes.forEach(n => {
+            try {
+              n.href = href || '';
+            } catch (e) {
+              const newLink = document.createElement('link');
+              newLink.rel = 'icon';
+              newLink.type = n.type || 'image/x-icon';
+              newLink.href = href || '';
+              n.parentNode.replaceChild(newLink, n);
+            }
+          });
+        }
+
         window.setAppStatus = function (status) {
-          const faviconElement = document.querySelector("link[rel='icon']");
-          if (!faviconElement) return;
-          faviconElement.href = status === "processing" ? loadingFavicon : originalFavicon;
+          if (status === "processing") {
+            setHrefOnAll(loadingFavicon);
+          } else {
+            if (originalHref) {
+              const base = originalHref.split('?')[0];
+              setHrefOnAll(base + '?v=' + Date.now());
+            } else {
+              setHrefOnAll('');
+            }
+          }
         };
       })();
 
@@ -208,6 +252,8 @@
         function startTimer(container) {
             stopTimer();
             secondsElapsed = 0;
+
+            // assicurati che esista un elemento .timer (viene aggiunto qui se manca)
             let timerElement = container.querySelector('.timer');
             if (!timerElement) {
                 timerElement = document.createElement('span');
@@ -216,97 +262,183 @@
                 timerElement.style.fontStyle = 'italic';
                 container.appendChild(timerElement);
             }
+
             timerInterval = setInterval(() => {
                 secondsElapsed++;
-                timerElement.textContent = `(${secondsElapsed}s)`;
+                // ogni tick cerchiamo l'elemento corrente: resiliente alle ricostruzioni DOM
+                const elem = container.querySelector('.timer');
+                if (elem) {
+                    elem.textContent = `(${secondsElapsed}s)`;
+                }
             }, 1000);
         }
 
         function stopTimer() {
             if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
         }
-        
-            async function checkProgress(endpoint, uiElements) {
-                try {
-                    const response = await fetch(endpoint);
-                    const data = await response.json();
 
-                    if (!data.is_processing) {
-                        clearInterval(pollingInterval);
-                        pollingInterval = null;
-                        stopTimer(); // <-- FERMA IL CRONOMETRO QUI, ALLA FINE
-                        if (uiElements.button) {
-                           uiElements.button.disabled = false;
-                           uiElements.button.innerHTML = uiElements.buttonOriginalHTML;
-                        }
+        // Utility per svuotare e resettare un nodo DOM in modo pulito
+        function clearElement(el) {
+            while (el.firstChild) el.removeChild(el.firstChild);
+            el.className = '';
+        }
 
-                        const finalMessage = data.error || data.message || 'Operazione completata.';
-                        const finalClass = data.error ? 'error-message' : 'success-message';
-                        
-                        let progressBarHTML = '';
-                        if (!data.error) {
-                            progressBarHTML = `<div class="progress-bar-container" style="margin-top: 8px; height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden;"><div class="progress-bar" style="width: 100%; height: 100%; background: var(--gradient-primary);"></div></div>`;
-                        }
-                        
-                        uiElements.messageDiv.className = finalClass;
-                        uiElements.messageDiv.innerHTML = `<span>${finalMessage}</span>${progressBarHTML}`;
+        async function checkProgress(endpoint, uiElements) {
+            try {
+                const response = await fetch(endpoint);
+                const data = await response.json();
 
-                    } else {
-                        // Il processo è ancora in corso
-                        let progressPercent = 0;
-                        if (data.total_items > 0) {
-                            progressPercent = Math.round((data.processed_items / data.total_items) * 100);
-                        }
-                        uiElements.messageDiv.className = 'info-message';
-                        // Rimuoviamo la chiamata a startTimer da qui
-                        uiElements.messageDiv.innerHTML = `
-                            <span>${data.message}</span>
-                            <div class="progress-bar-container" style="margin-top: 8px; height: 8px; background-color: #e9ecef; border-radius: 4px; overflow: hidden;">
-                                <div class="progress-bar" style="width: ${progressPercent}%; height: 100%; background: var(--gradient-primary); transition: width 0.3s ease;"></div>
-                            </div>
-                        `;
-                        // Aggiungiamo il timer al messageDiv se non c'è già
-                        if (!uiElements.messageDiv.querySelector('.timer')) {
-                            const messageSpan = uiElements.messageDiv.querySelector('span');
-                            if (messageSpan) {
-                                let timerElement = document.createElement('span');
-                                timerElement.className = 'timer';
-                                timerElement.style.marginLeft = '15px';
-                                timerElement.style.fontStyle = 'italic';
-                                messageSpan.appendChild(timerElement);
-                            }
-                        }
-                    }
-                } catch (error) {
-                    clearInterval(pollingInterval);
+                const msgDiv = uiElements.messageDiv;
+                if (!msgDiv) return;
+
+                if (!data.is_processing) {
+                    if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
                     stopTimer();
-                    if (uiElements.button) uiElements.button.disabled = false;
-                    uiElements.messageDiv.className = 'error-message';
-                    uiElements.messageDiv.textContent = 'Errore di connessione durante il controllo dello stato.';
+
+                    if (uiElements.button) {
+                        uiElements.button.disabled = false;
+                        uiElements.button.innerHTML = uiElements.buttonOriginalHTML || uiElements.button.innerHTML;
+                    }
+                    if (uiElements.loader) uiElements.loader.style.display = 'none';
+
+                    // costruzione del messaggio finale senza innerHTML
+                    clearElement(msgDiv);
+                    msgDiv.className = data.error ? 'error-message' : 'success-message';
+
+                    const messageSpan = document.createElement('span');
+                    messageSpan.textContent = data.error || data.message || 'Operazione completata.';
+                    msgDiv.appendChild(messageSpan);
+
+                    if (!data.error) {
+                        const container = document.createElement('div');
+                        container.className = 'progress-bar-container';
+                        container.style.marginTop = '8px';
+                        container.style.height = '8px';
+                        container.style.backgroundColor = 'var(--progress-bg, #e9ecef)';
+                        container.style.borderRadius = '4px';
+                        container.style.overflow = 'hidden';
+
+                        const bar = document.createElement('div');
+                        bar.className = 'progress-bar';
+                        bar.style.width = '100%';
+                        bar.style.height = '100%';
+                        bar.style.background = 'var(--gradient-primary)';
+                        bar.style.transition = 'width 0.3s ease';
+                        container.appendChild(bar);
+                        msgDiv.appendChild(container);
+                    }
+
+                    // RIPRISTINA FAVICON
+                    if (typeof window.setAppStatus === 'function') window.setAppStatus('ready');
+                } else {
+                    // processo in corso: aggiorniamo lo stato senza innerHTML
+                    clearElement(msgDiv);
+                    msgDiv.className = 'info-message';
+
+                    // Messaggio principale
+                    const messageSpan = document.createElement('span');
+                    messageSpan.textContent = data.message || 'Elaborazione in corso...';
+                    msgDiv.appendChild(messageSpan);
+
+                    // progress bar
+                    let progressPercent = 0;
+                    if (data.total_items > 0) {
+                        progressPercent = Math.round((data.processed_items / data.total_items) * 100);
+                    }
+
+                    const container = document.createElement('div');
+                    container.className = 'progress-bar-container';
+                    container.style.marginTop = '8px';
+                    container.style.height = '8px';
+                    container.style.backgroundColor = 'var(--progress-bg, #e9ecef)';
+                    container.style.borderRadius = '4px';
+                    container.style.overflow = 'hidden';
+
+                    const bar = document.createElement('div');
+                    bar.className = 'progress-bar';
+                    bar.style.width = `${progressPercent}%`;
+                    bar.style.height = '100%';
+                    bar.style.background = 'var(--gradient-primary)';
+                    bar.style.transition = 'width 0.3s ease';
+                    container.appendChild(bar);
+                    msgDiv.appendChild(container);
+
+                    // Aggiungiamo una linea di testo percentuale (facoltativa)
+                    const percentSpan = document.createElement('div');
+                    percentSpan.className = 'progress-text';
+                    percentSpan.style.marginTop = '6px';
+                    percentSpan.style.fontSize = '0.9em';
+                    percentSpan.style.opacity = '0.9';
+                    percentSpan.textContent = `${progressPercent}% (${data.processed_items || 0}/${data.total_items || 0})`;
+                    msgDiv.appendChild(percentSpan);
+
+                    // Aggiungiamo il timer dentro il messageSpan se non c'è
+                    if (!msgDiv.querySelector('.timer')) {
+                        let timerElement = document.createElement('span');
+                        timerElement.className = 'timer';
+                        timerElement.style.marginLeft = '15px';
+                        timerElement.style.fontStyle = 'italic';
+                        messageSpan.appendChild(timerElement);
+                    }
+
+                    // Assicuriamoci che la favicon sia in stato processing
+                    if (typeof window.setAppStatus === 'function') window.setAppStatus('processing');
                 }
+            } catch (error) {
+                if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+                stopTimer();
+                if (uiElements.button) uiElements.button.disabled = false;
+                if (uiElements.loader) uiElements.loader.style.display = 'none';
+
+                const msgDiv = uiElements.messageDiv;
+                if (msgDiv) {
+                    clearElement(msgDiv);
+                    msgDiv.className = 'error-message';
+                    const strong = document.createElement('strong');
+                    strong.textContent = 'Errore: ';
+                    msgDiv.appendChild(strong);
+                    const txt = document.createElement('span');
+                    txt.textContent = 'Errore di connessione durante il controllo dello stato.';
+                    msgDiv.appendChild(txt);
+                }
+
+                // RIPRISTINA FAVICON anche in caso di errore
+                if (typeof window.setAppStatus === 'function') window.setAppStatus('ready');
             }
+        }
 
-            // Esponiamo una funzione globale per essere chiamata dalle altre pagine
-            window.startAsyncTask = function(endpoint, uiElements) {
-                if (pollingInterval) clearInterval(pollingInterval);
+        // Esponiamo una funzione globale per essere chiamata dalle altre pagine
+        window.startAsyncTask = function(endpoint, uiElements) {
+            if (pollingInterval) clearInterval(pollingInterval);
 
+            if (uiElements.button) {
                 uiElements.button.disabled = true;
-                if (uiElements.loader) uiElements.loader.style.display = 'inline';
-                uiElements.messageDiv.innerHTML = '';
-                uiElements.messageDiv.className = 'info-message';
-                uiElements.messageDiv.textContent = 'Avvio operazione...';
-                
-                // AVVIA IL CRONOMETRO QUI, UNA SOLA VOLTA :
-                // TODO: Non va, non lo vedo!
-                startTimer(uiElements.messageDiv);
-
-                pollingInterval = setInterval(() => checkProgress(endpoint, uiElements), 2000);
+                uiElements.buttonOriginalHTML = uiElements.buttonOriginalHTML || uiElements.button.innerHTML;
             }
+            if (uiElements.loader) uiElements.loader.style.display = 'inline';
+            if (uiElements.messageDiv) {
+                // reset message area in modo sicuro
+                clearElement(uiElements.messageDiv);
+                uiElements.messageDiv.className = 'info-message';
+                const starting = document.createElement('span');
+                starting.textContent = 'Avvio operazione...';
+                uiElements.messageDiv.appendChild(starting);
+            }
+
+            // Avvia il cronometro sulla messageDiv (resiliente)
+            if (uiElements.messageDiv) startTimer(uiElements.messageDiv);
+
+            // Chiamiamo subito una volta, poi ogni 2s
+            checkProgress(endpoint, uiElements);
+            pollingInterval = setInterval(() => checkProgress(endpoint, uiElements), 2000);
+
+            // Imposta favicon in stato processing
+            if (typeof window.setAppStatus === 'function') {
+                window.setAppStatus('processing');
+            }
+        }
       })();
     </script>
     {% endblock %}
-  </body>
-</html>
-    
   </body>
 </html>

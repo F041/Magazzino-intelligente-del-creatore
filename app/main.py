@@ -674,6 +674,57 @@ def create_app(config_object=AppConfig):
 
         return render_template('my_articles.html', articles=articles_from_db, config=current_app.config)
 
+    @app.route('/my-pages')
+    @login_required
+    def my_pages():
+        app_mode = current_app.config.get('APP_MODE', 'single')
+        current_user_id = current_user.id if current_user.is_authenticated else None
+
+        if app_mode == 'saas' and not current_user_id:
+            return redirect(url_for('login'))
+
+        pages_from_db = []
+        db_path = current_app.config.get('DATABASE_FILE')
+        if not db_path:
+            logger.error("Percorso DATABASE_FILE non configurato per /my-pages.")
+        else:
+            try:
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                sql_query = 'SELECT * FROM pages'
+                params = []
+                if app_mode == 'saas':
+                    sql_query += ' WHERE user_id = ?'
+                    params.append(current_user_id)
+                sql_query += ' ORDER BY added_at DESC'
+                
+                cursor.execute(sql_query, tuple(params))
+
+                # NUOVA LOGICA: Leggiamo l'anteprima per ogni pagina
+                for row in cursor.fetchall():
+                    page_dict = dict(row) # Converti la riga in un dizionario
+                    preview_text = None
+                    content_path = page_dict.get('extracted_content_path')
+                    
+                    if content_path and os.path.exists(content_path):
+                        try:
+                            with open(content_path, 'r', encoding='utf-8') as f:
+                                # Leggiamo solo i primi 200 caratteri per l'anteprima
+                                preview_text = f.read(200) 
+                        except Exception as e:
+                            logger.warning(f"Impossibile leggere il file di anteprima {content_path}: {e}")
+                    
+                    page_dict['content_preview'] = preview_text
+                    pages_from_db.append(page_dict)
+
+                conn.close()
+            except sqlite3.Error as e:
+                logger.error(f"Errore lettura DB per /my-pages: {e}")
+
+        return render_template('my_pages.html', pages=pages_from_db, config=current_app.config)
+    
     @app.route('/api/docs')
     def api_docs():
          with app.app_context(): # Necessario per load_credentials
@@ -742,14 +793,13 @@ def create_app(config_object=AppConfig):
         Controlla il numero di contenuti completati per ogni categoria
         e rende queste informazioni disponibili a tutti i template.
         """
-        # Dizionario di partenza: tutto a zero.
         content_counts = {
             'has_videos': False,
             'has_documents': False,
-            'has_articles': False
+            'has_articles': False,
+            'has_pages': False  # NUOVA CHIAVE
         }
 
-        # Se l'utente non è loggato, non ha contenuti.
         if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
             return dict(content_counts=content_counts)
 
@@ -778,6 +828,11 @@ def create_app(config_object=AppConfig):
             cursor.execute(f"SELECT 1 FROM articles {user_filter} AND processing_status = 'completed' LIMIT 1", params)
             if cursor.fetchone():
                 content_counts['has_articles'] = True
+
+            # NUOVO CONTROLLO PER LE PAGINE
+            cursor.execute(f"SELECT 1 FROM pages {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+            if cursor.fetchone():
+                content_counts['has_pages'] = True
 
         except sqlite3.Error as e:
             logger.error(f"Errore DB in context_processor: {e}")

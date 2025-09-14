@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Le tue Pagine - Magazzino del Creatore{% endblock %}
+
+{% block content %}
+    <h1>Le tue pagine importate ({{ pages|length }})</h1>
+
+    <div class="action-panel">
+        {# NUOVO PULSANTE DOWNLOAD #}
+        <a href="{{ url_for('connectors.download_all_pages') }}" class="action-btn success-btn">
+            <i class="fas fa-download fa-fw"></i>
+            <span>Scarica contenuto pagine (.txt)</span>
+        </a>
+        <span style="font-size: 0.9em; color: var(--color-text-light);">(Solo pagine 'completed')</span>
+
+        {% if config.APP_MODE == 'saas' and pages %}
+            <button id="delete-all-pages-btn" class="action-btn delete-btn" style="margin-left: auto;">
+                <i class="fas fa-trash-alt fa-fw"></i>
+                <span>Elimina tutte</span>
+            </button>
+        {% endif %}
+    </div>
+    
+    <div id="action-message" style="display: none; margin-top: 15px;"></div>
+
+    <div id="pages-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Titolo</th>
+                    <th>Data Pubblicazione/Modifica</th>
+                    <th>Data Aggiunta</th>
+                    <th>Stato</th>
+                    <th>Anteprima Contenuto</th> {# NUOVA COLONNA #}
+                    <th>Azioni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for page in pages %}
+                <tr id="page-row-{{ page.page_id | escape }}">
+                    <td><a href="{{ page.page_url }}" target="_blank" title="{{ page.page_url }}">{{ page.title }}</a></td>
+                    <td>{{ (page.published_at | format_date('%d %b %Y')) if page.published_at else 'N/D' }}</td>
+                    <td>{{ page.added_at | format_date('%d %b %Y') }}</td>
+                    <td>
+                        <span class="status-badge status-{{ page.processing_status | lower | replace('_', '-') }}">{{ page.processing_status }}</span>
+                    </td>
+                    {# NUOVO BLOCCO PER L'ANTEPRIMA #}
+                    <td>
+                        {% if page.content_preview %}
+                            <p style="font-size: 0.9em; color: var(--color-text-secondary); margin: 0;">
+                                {{ page.content_preview | striptags | escape }}
+                                {% if page.content_preview|length >= 200 %}...{% endif %}
+                            </p>
+                        {% else %}
+                            <span style="color: var(--color-text-light); font-style: italic;">Nessuna</span>
+                        {% endif %}
+                    </td>
+                    <td>                        
+                        <button class="action-btn delete-btn delete-single-page-btn" data-page-id="{{ page.page_id | escape }}">
+                            Elimina
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    {# AGGIORNATO COLSPAN A 6 #}
+                    <td colspan="6" class="no-items-message">
+                        Nessuna pagina trovata nel database.<br>
+                        Vai su <a href="{{ url_for('settings.settings_page') }}#sito-web">Impostazioni > Dati sito web</a> per sincronizzare i contenuti.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# LO SCRIPT PER L'ELIMINAZIONE E' IDENTICO A QUELLO CHE AVEVI GIA' #}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const messageDiv = document.getElementById('action-message');
+
+    function showNotification(message, type = 'success') {
+        if (!messageDiv) return;
+        messageDiv.className = type === 'success' ? 'success-message' : 'error-message';
+        messageDiv.textContent = message;
+        messageDiv.style.display = 'block';
+        setTimeout(() => { 
+            if (messageDiv) messageDiv.style.display = 'none'; 
+        }, 5000);
+    }
+
+    const deleteAllBtn = document.getElementById('delete-all-pages-btn');
+    const pagesTbody = document.querySelector('#pages-container tbody');
+
+    if (deleteAllBtn) {
+        deleteAllBtn.addEventListener('click', async () => {
+            const userConfirmed = await showConfirmModal(
+                "Conferma eliminazione",
+                "ATTENZIONE! Sei sicuro di voler eliminare TUTTE le pagine? L'azione è irreversibile."
+            );
+            if (!userConfirmed) return;
+
+            const originalHTML = deleteAllBtn.innerHTML;
+            deleteAllBtn.disabled = true;
+            deleteAllBtn.textContent = 'Eliminazione...';
+            
+            showNotification('', 'success');
+
+            try {
+                const response = await fetch('/api/website/pages/all', {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.message || 'Errore del server');
+                
+                showNotification(data.message, 'success');
+                if (pagesTbody) {
+                    pagesTbody.innerHTML = `<tr><td colspan="6" class="no-items-message">Nessuna pagina da mostrare.</td></tr>`;
+                }
+                deleteAllBtn.style.display = 'none';
+            } catch (error) {
+                showNotification(`Errore: ${error.message}`, 'error');
+                deleteAllBtn.disabled = false;
+                deleteAllBtn.innerHTML = originalHTML;
+            }
+        });
+    }
+
+    document.querySelectorAll('.delete-single-page-btn').forEach(button => {
+        button.addEventListener('click', async (event) => {
+            const btn = event.currentTarget;
+            const pageId = btn.dataset.pageId;
+            const pageRow = document.getElementById(`page-row-${pageId}`);
+
+            const userConfirmed = await showConfirmModal("Conferma eliminazione", `Sei sicuro di voler eliminare questa pagina?`);
+            if (!userConfirmed) return;
+
+            btn.disabled = true;
+            btn.textContent = '...';
+
+            try {
+                const response = await fetch(`/api/website/pages/${pageId}`, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Errore del server');
+
+                showNotification(data.message, 'success');
+                if (pageRow) {
+                    pageRow.remove();
+                }
+
+            } catch (error) {
+                showNotification(`Errore: ${error.message}`, 'error');
+            } finally {
+                if (pageRow) {
+                    btn.disabled = false;
+                    btn.textContent = 'Elimina';
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

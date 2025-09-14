@@ -43,7 +43,7 @@ requests
 APScheduler
 Flask-SQLAlchemy # Per APScheduler job store
 sqlalchemy # Dipendenza di Flask-SQLAlchemy
-
+markdownify # per HTML pagine 
 
 # Feed RSS
 feedparser
