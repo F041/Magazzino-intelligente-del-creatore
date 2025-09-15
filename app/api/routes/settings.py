@@ -1,7 +1,8 @@
 import logging
 import sqlite3
-from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app
+from flask import Blueprint, render_template, request, flash, redirect, url_for, current_app, jsonify
 from flask_login import login_required, current_user
+import requests
 
 logger = logging.getLogger(__name__)
 settings_bp = Blueprint('settings', __name__)
@@ -84,12 +85,25 @@ def settings_page():
         settings_row = cursor.fetchone()
         if settings_row:
             user_settings = dict(settings_row)
+            # Garantiamo il valore di default per il provider se in DB è NULL/None
+            user_settings['llm_provider'] = user_settings.get('llm_provider') or 'google'
             # Logica per splittare i modelli se il provider è Google
             if user_settings.get('llm_provider') == 'google':
-                combined_models = user_settings.get('llm_model_name', '')
-                models_parts = [model.strip() for model in combined_models.split(',')]
+                combined_models = user_settings.get('llm_model_name', '') or ''
+                models_parts = [model.strip() for model in combined_models.split(',') if model.strip()]
                 user_settings['llm_model_name_primary'] = models_parts[0] if len(models_parts) > 0 else ''
                 user_settings['llm_model_name_fallback'] = models_parts[1] if len(models_parts) > 1 else ''
+        else:
+            # Nessuna riga per l'utente: garantiamo valori di default espliciti
+            user_settings = {
+                'llm_provider': 'google',
+                'llm_model_name_primary': '',
+                'llm_model_name_fallback': '',
+                'llm_embedding_model': '',
+                'llm_api_key': '',
+                'ollama_base_url': 'http://localhost:11434',
+                'llm_model_name': ''
+            }
     except sqlite3.Error as e:
         logger.error(f"Errore DB caricando le impostazioni per l'utente {user_id}: {e}")
         flash('Errore nel caricamento delle impostazioni.', 'error')
@@ -98,3 +112,90 @@ def settings_page():
             conn.close()
             
     return render_template('settings.html', settings=user_settings)
+
+@settings_bp.route('/api/settings/test_ollama', methods=['POST'])
+@login_required
+def test_ollama_connection():
+    """
+    Testa la connessione a un server Ollama.
+    """
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Richiesta non valida.'}), 400
+
+    data = request.get_json()
+    base_url = data.get('ollama_url')
+    model_name = data.get('model_name')
+
+    if not base_url or not model_name:
+        return jsonify({'success': False, 'message': 'URL e nome del modello sono richiesti.'}), 400
+
+    api_url = base_url.rstrip('/') + "/api/generate"
+    payload = {
+        "model": model_name,
+        "prompt": "Rispondi solo con la parola 'test'",
+        "stream": False
+    }
+
+    logger.info(f"Test connessione Ollama: URL={api_url}, Modello={model_name}")
+
+    try:
+        # Usiamo un timeout breve per il test di connessione
+        response = requests.post(api_url, json=payload, timeout=20)
+        
+        # Controlla se Ollama ha risposto con un errore specifico (es. modello non trovato)
+        if response.status_code == 404:
+            raise requests.exceptions.RequestException(f"Modello '{model_name}' non trovato sul server Ollama. Hai eseguito 'ollama pull {model_name}'?")
+
+        response.raise_for_status() # Controlla altri errori HTTP (es. 500)
+        
+        return jsonify({'success': True, 'message': f"Connessione con il modello '{model_name}' riuscita!"})
+
+    except requests.exceptions.Timeout:
+        logger.warning(f"Timeout durante il test di connessione a Ollama: {base_url}")
+        return jsonify({'success': False, 'message': f"Timeout: impossibile raggiungere Ollama a '{base_url}'. Controlla l'indirizzo e che non ci sia un firewall."}), 408
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Errore di connessione durante il test di Ollama: {e}")
+        return jsonify({'success': False, 'message': f"Errore di connessione: {e}"}), 500
+    except Exception as e:
+        logger.error(f"Errore generico test Ollama: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f"Errore imprevisto: {e}"}), 500
+    
+@settings_bp.route('/api/settings/reset_ai', methods=['POST'])
+@login_required
+def reset_ai_settings():
+    """
+    Ripristina le impostazioni AI di un utente ai valori predefiniti
+    eliminando le sue configurazioni personalizzate dal database.
+    """
+    user_id = current_user.id
+    db_path = current_app.config.get('DATABASE_FILE')
+    logger.info(f"Richiesta di ripristino impostazioni AI per l'utente: {user_id}")
+    
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        # Per ripristinare, basta cancellare le colonne specifiche. 
+        # Un approccio ancora più semplice è cancellare l'intera riga, 
+        # ma questo cancellerebbe anche le impostazioni di WordPress.
+        # Aggiorniamo solo i campi AI a NULL.
+        cursor.execute("""
+            UPDATE user_settings
+            SET llm_provider = 'google',
+                llm_model_name = NULL,
+                llm_embedding_model = NULL,
+                llm_api_key = NULL,
+                ollama_base_url = NULL
+            WHERE user_id = ?
+        """, (user_id,))
+
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': 'Impostazioni AI ripristinate ai valori predefiniti.'})
+
+    except sqlite3.Error as e:
+        if conn: conn.rollback()
+        logger.error(f"Errore DB durante il ripristino delle impostazioni per l'utente {user_id}: {e}")
+        return jsonify({'success': False, 'message': 'Errore del database durante il ripristino.'}), 500
+    finally:
+        if conn: conn.close()

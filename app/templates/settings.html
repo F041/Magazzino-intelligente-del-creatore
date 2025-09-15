@@ -1,547 +1,950 @@
-{% extends "base.html" %}
-
-{% block title %}Impostazioni - Magazzino del Creatore{% endblock %}
-
-{% block head_styles %}
+{% extends "base.html" %} {% block title %}Impostazioni - Magazzino del
+Creatore{% endblock %} {% block head_styles %}
 <style>
-    .settings-form {
-        max-width: 800px;
-    }
-    .form-section {
-        background: var(--color-background-secondary);
-        padding: var(--spacing-xl);
-        border: 1px solid var(--color-border);
-        border-radius: var(--border-radius-md);
-        margin-bottom: var(--spacing-xxl);
-        box-shadow: var(--box-shadow-md);
-    }
-    .form-section h2 {
-        font-size: 1.5rem;
-        margin-top: 0;
-        margin-bottom: var(--spacing-lg);
-        padding-bottom: var(--spacing-md);
-        border-bottom: 1px solid var(--color-border-light);
-    }
-    .form-group {
-        margin-bottom: var(--spacing-lg);
-    }
-    .label-wrapper {
-        display: flex;
-        align-items: center;
-        margin-bottom: var(--spacing-xs);
-    }
-    .label-wrapper .tooltip-group {
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-        margin-left: var(--spacing-sm);
-    }
-    .info-tooltip, .help-video-link {
-        display: inline-block;
-        position: relative;
-        cursor: help;
-    }
-    .info-tooltip .fa-stack {
-        font-size: 0.8em;
-        vertical-align: middle;
-    }
-    .info-tooltip .fa-stack .fa-circle {
-        color: var(--color-text-light);
-    }
-    .info-tooltip .fa-stack .fa-info {
-        color: white;
-    }
-    .help-video-link i {
-        color: var(--color-primary);
-        font-size: 1.2em;
-        vertical-align: middle;
-        transition: transform 0.2s ease;
-    }
-    .help-video-link:hover i {
-        transform: scale(1.2);
-    }
-    .info-tooltip .tooltip-text {
-        visibility: hidden;
-        width: 300px;
-        background-color: var(--color-metal-dark);
-        color: #fff;
-        text-align: center;
-        border-radius: var(--border-radius-sm);
-        padding: var(--spacing-md);
-        position: absolute;
-        z-index: 1;
-        bottom: 150%;
-        left: 50%;
-        margin-left: -150px;
-        opacity: 0;
-        transition: opacity 0.3s;
-        font-family: var(--font-sans);
-        font-size: 0.9rem;
-        font-weight: 400;
-        line-height: 1.5;
-    }
-    .info-tooltip .tooltip-text::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: var(--color-metal-dark) transparent transparent transparent;
-    }
-    .info-tooltip:hover .tooltip-text {
-        visibility: visible;
-        opacity: 1;
-    }
-    .warning-tooltip i {
-        color: var(--color-warning);
-        font-size: 1.6em;
-        vertical-align: middle;
-    }
-    .warning-tooltip .tooltip-text {
-        background-color: var(--color-warning);
-        color: var(--color-text-main);
-        border: 1px solid #e6a23c;
-    }
-    .warning-tooltip .tooltip-text::after {
-        border-color: var(--color-warning) transparent transparent transparent;
-    }
+  .settings-form {
+    max-width: 800px;
+  }
+  .form-section {
+    background: var(--color-background-secondary);
+    padding: var(--spacing-xl);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    margin-bottom: var(--spacing-xxl);
+    box-shadow: var(--box-shadow-md);
+  }
+  .form-section h2 {
+    font-size: 1.5rem;
+    margin-top: 0;
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--color-border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .form-group {
+    margin-bottom: var(--spacing-lg);
+  }
+  .label-wrapper {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+  }
+  .label-wrapper .tooltip-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-left: var(--spacing-sm);
+  }
+  .info-tooltip,
+  .help-video-link {
+    display: inline-block;
+    position: relative;
+    cursor: help;
+  }
+  .info-tooltip .fa-stack {
+    font-size: 0.8em;
+    vertical-align: middle;
+  }
+  .info-tooltip .fa-stack .fa-circle {
+    color: var(--color-text-light);
+  }
+  .info-tooltip .fa-stack .fa-info {
+    color: white;
+  }
+  .help-video-link i {
+    color: var(--color-primary);
+    font-size: 1.6em;
+    vertical-align: middle;
+    transition: transform 0.2s ease;
+  }
+  .help-video-link:hover i {
+    transform: scale(1.2);
+  }
+  .info-tooltip .tooltip-text {
+    visibility: hidden;
+    width: 300px;
+    background-color: var(--color-metal-dark);
+    color: #fff;
+    text-align: center;
+    border-radius: var(--border-radius-sm);
+    padding: var(--spacing-md);
+    position: absolute;
+    z-index: 1;
+    bottom: 150%;
+    left: 50%;
+    margin-left: -150px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-weight: 400;
+    line-height: 1.5;
+  }
+  .info-tooltip .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--color-metal-dark) transparent transparent transparent;
+  }
+  .info-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+  }
+  .warning-tooltip i {
+    color: var(--color-warning);
+    font-size: 1.6em;
+    vertical-align: middle;
+  }
+  .warning-tooltip .tooltip-text {
+    background-color: var(--color-warning);
+    color: var(--color-text-main);
+    border: 1px solid #e6a23c;
+  }
+  .warning-tooltip .tooltip-text::after {
+    border-color: var(--color-warning) transparent transparent transparent;
+  }
 
-    /* piccolo spinner inline per il pulsante di sincronizzazione */
-    .inline-spinner { display: inline-block; margin-left: 10px; }
+  /* Stile per il contenitore dei pulsanti in fondo al form */
+  .form-actions {
+    display: flex;
+    justify-content: flex-end; /* Allinea a destra */
+    align-items: center;
+    gap: 10px; /* Spazio tra i pulsanti */
+    margin-top: 30px;
+    border-top: 1px solid var(--color-border-light);
+    padding-top: 20px;
+  }
+
+  .network-tooltip i {
+    color: var(--color-secondary); /* Un viola che si distingue */
+    font-size: 1.2em; /* Leggermente più piccolo dell'icona Docker */
+    vertical-align: middle;
+    transition: transform 0.2s ease;
+  }
+  .network-tooltip:hover i {
+    transform: scale(1.1);
+  }
+
+  /* piccolo spinner inline per il pulsante di sincronizzazione */
+  .inline-spinner {
+    display: inline-block;
+    margin-left: 10px;
+  }
+
+  /* classi per mostrare/nascondere i pannelli (usate al posto di inline-style con Jinja) */
+  .hidden {
+    display: none !important;
+  }
+  .visible {
+    display: block !important;
+  }
 </style>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <h1>Impostazioni</h1>
-<p>Configura il comportamento del tuo Magazzino. Le impostazioni qui sovrascrivono i valori prestabiliti.</p>
+<p>
+  Configura il comportamento del tuo Magazzino. Le impostazioni qui
+  sovrascrivono i valori prestabiliti.
+</p>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    {% for category, message in messages %}
-      <div class="{{ 'success-message' if category == 'success' else 'error-message' }}">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
+{% with messages = get_flashed_messages(with_categories=true) %} {% if messages
+%} {% for category, message in messages %}
+<div
+  class="{{ 'success-message' if category == 'success' else 'error-message' }}"
+>
+  {{ message }}
+</div>
+{% endfor %} {% endif %} {% endwith %}
 
 <div class="tabs-container">
-    <nav class="tabs-navigation">
-        <div class="tab-link" data-tab="generali">
-            <i class="fas fa-sliders-h"></i>
-            <span>Generali</span>
-        </div>
-        <div class="tab-link" data-tab="sito-web">
-            <i class="fas fa-globe-europe"></i>
-            <span>Dati sito web</span>
-        </div>
-    </nav>
+  <nav class="tabs-navigation">
+    <div class="tab-link" data-tab="generali">
+      <i class="fas fa-sliders-h"></i>
+      <span>Generali</span>
+    </div>
+    <div class="tab-link" data-tab="sito-web">
+      <i class="fas fa-globe-europe"></i>
+      <span>Dati sito web</span>
+    </div>
+  </nav>
 
-    <form method="POST" action="{{ url_for('settings.settings_page') }}" class="settings-form" autocomplete="off">
-        
-        <div id="generali" class="tab-content">
-            <div class="form-section">
-                <h2>Intelligenza artificiale</h2>
-    
-                <div class="form-group">
-                    <label>Fornitore modello linguistico</label>
-                    <div class="custom-select-container">
-                        {# Questo input nascosto conterrà il valore reale ('google' o 'ollama') per il form #}
-                        <input type="hidden" id="llm_provider" name="llm_provider" value="{{ settings.get('llm_provider', 'google') }}">
-                        
-                        {# Questo è l'elemento visibile che mostra la selezione corrente #}
-                        <div class="select-selected">
-                            {% if settings.llm_provider == 'ollama' %}
-                                {# HTML per quando Ollama è selezionato #}
-                                <div class="option-content">
-                                    <div class="option-main">
-                                        <img src="https://ollama.com/public/ollama.png" alt="Ollama logo">
-                                        <span>Ollama (Locale)</span>
-                                    </div>
-                                    <div class="option-badges">
-                                        <span class="option-badge badge-cost">-Costi</span>
-                                        <span class="option-badge badge-privacy">+Riservatezza</span>
-                                        <span class="option-badge badge-difficulty">Moderato</span>
-                                    </div>
-                                </div>
-                            {% else %}
-                                {# HTML per quando Google è selezionato (default) #}
-                                <div class="option-content">
-                                    <div class="option-main">
-                                        <i class="fab fa-google"></i>
-                                        <span>Google Gemini</span>
-                                    </div>
-                                    <div class="option-badges">
-                                        <span class="option-badge badge-easy">Facile</span>
-                                    </div>
-                                </div>
-                            {% endif %}
-                        </div>
+  <form
+    method="POST"
+    action="{{ url_for('settings.settings_page') }}"
+    class="settings-form"
+    autocomplete="off"
+  >
+    <div id="generali" class="tab-content">
+      <div class="form-section">
+        <h2><span>Intelligenza artificiale</span></h2>
+        <div class="form-group">
+          <label>Fornitore modello linguistico</label>
+          <div class="custom-select-container">
+            {# Questo input nascosto conterrà il valore reale ('google' o
+            'ollama') per il form #}
+            <input
+              type="hidden"
+              id="llm_provider"
+              name="llm_provider"
+              value="{{ settings.get('llm_provider') or 'google' }}"
+            />
 
-                        {# Questa è la lista delle opzioni, nascosta di default #}
-                        <div class="select-items select-hide">
-                            <div data-value="google">
-                                <div class="option-content">
-                                    <div class="option-main">
-                                        <i class="fab fa-google"></i>
-                                        <span>Google Gemini</span>
-                                    </div>
-                                    <div class="option-badges">
-                                        <span class="option-badge badge-easy">Facile</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div data-value="ollama">
-                                <div class="option-content">
-                                    <div class="option-main">
-                                        <img src="https://ollama.com/public/ollama.png" alt="Ollama logo">
-                                        <span>Ollama (Locale)</span>
-                                    </div>
-                                    <div class="option-badges">
-                                        <span class="option-badge badge-cost">-Costi</span>
-                                        <span class="option-badge badge-privacy">+Riservatezza</span>
-                                        <span class="option-badge badge-difficulty">Moderato</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            {# Questo è l'elemento visibile che mostra la selezione corrente #}
+            <div class="select-selected">
+              {% if settings.get('llm_provider') == 'ollama' %} {# HTML per
+              quando Ollama è selezionato #}
+              <div class="option-content">
+                <div class="option-main">
+                  <img
+                    src="https://ollama.com/public/ollama.png"
+                    alt="Ollama logo"
+                  />
+                  <span>Ollama (Locale)</span>
                 </div>
-
-  
-
-                {# --- BLOCCO IMPOSTAZIONI GOOGLE --- #}
-                <div id="google-settings-group">
-                    <div class="form-group">
-                        <div class="label-wrapper">
-                            <label for="llm_model_name_primary">Modello IA primario (per generazione)</label>
-                            <span class="info-tooltip warning-tooltip">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <span class="tooltip-text"><strong>Modello consigliato:</strong> testato con `gemini-2.5-pro` e `gemini-2.0-flash`. Altri potrebbero funzionare.</span>
-                            </span>
-                        </div>
-                        <input type="text" id="llm_model_name_primary" name="llm_model_name_primary" value="{{ settings.get('llm_model_name_primary', '') }}" placeholder="Consigliato: gemini-2.5-pro">
-                    </div>
-
-                    <div class="form-group">
-                         <div class="label-wrapper">
-                            <label for="llm_model_name_fallback">Modello di ripiego (opzionale)</label>
-                             <div class="tooltip-group">
-                                <span class="info-tooltip">
-                                    <span class="fa-stack"><i class="fas fa-circle fa-stack-2x"></i><i class="fas fa-info fa-stack-1x fa-inverse"></i></span>
-                                    <span class="tooltip-text">Se il modello primario fallisce, l'applicazione proverà ad usare questo.</span>
-                                </span>
-                            </div>
-                        </div>
-                        <input type="text" id="llm_model_name_fallback" name="llm_model_name_fallback" value="{{ settings.get('llm_model_name_fallback', '') }}" placeholder="Es: gemini-2.0-flash">
-                    </div>
-
-                    <div class="form-group">
-                         <div class="label-wrapper">
-                        <label for="llm_embedding_model">Modello per trasformare il testo in linguaggio macchina</label>
-                             <div class="tooltip-group">
-                                <span class="info-tooltip">
-                                    <span class="fa-stack"><i class="fas fa-circle fa-stack-2x"></i><i class="fas fa-info fa-stack-1x fa-inverse"></i></span>
-                                    <span class="tooltip-text">Il "traduttore" che trasforma il testo in numeri per la ricerca. Per Gemini, `models/text-embedding-004` è una scelta stabile.</span>
-                                </span>
-                            </div>
-                        </div>
-                        <input type="text" id="llm_embedding_model" name="llm_embedding_model" value="{{ settings.get('llm_embedding_model', '') }}" placeholder="Default: models/text-embedding-004" autocomplete="off">
-                    </div>
-
-                    <div class="form-group">
-                         <div class="label-wrapper">
-                            <label for="llm_api_key">Chiave per servizio modello linguistico</label>
-                            <div class="tooltip-group">
-                            <span class="info-tooltip">
-                                <span class="fa-stack">
-                                  <i class="fas fa-circle fa-stack-2x"></i>
-                                  <i class="fas fa-info fa-stack-1x fa-inverse"></i>
-                                </span>
-                                <span class="tooltip-text">La tua "password" per usare il servizio di Intelligenza Artificiale scelto. Viene salvata in modo sicuro. Se lasci vuoto, verrà usata quella di default del sistema.</span>
-                            </span>
-                            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="help-video-link" title="Guarda come trovare la tua API Key">
-                                <i class="fab fa-youtube"></i>
-                            </a>
-                                                 </div>
-                    </div>
-                        <input type="password" id="llm_api_key" name="llm_api_key" value="{{ settings.get('llm_api_key', '') }}" placeholder="Incolla la tua API Key qui" autocomplete="new-password">
-                    </div>
+                <div class="option-badges">
+                  <span class="option-badge badge-cost">-Costi</span>
+                  <span class="option-badge badge-privacy">+Riservatezza</span>
+                  <span class="option-badge badge-difficulty">Difficile</span>
                 </div>
-
-                {# --- BLOCCO IMPOSTAZIONI OLLAMA (CON TOOLTIP DOCKER) --- #}
-                <div id="ollama-settings-group" style="display: none;">
-                     <div class="form-group">
-                        <div class="label-wrapper">
-                            <label for="ollama_base_url">Indirizzo Server Ollama</label>
-                            <div class="tooltip-group">
-                                <span class="info-tooltip docker-tooltip">
-                                    <i class="fab fa-docker"></i>
-                                    <span class="tooltip-text">
-                                        <strong>Nota per utenti Docker:</strong> Se Ollama è installato sulla tua macchina (host) e non dentro Docker, usa 
-                                        <code>http://host.docker.internal:11434</code>.
-                                    </span>
-                                </span>
-                            </div>
-                        </div>
-                        <input type="url" id="ollama_base_url" name="ollama_base_url" value="{{ settings.get('ollama_base_url') or 'http://localhost:11434' }}" placeholder="Es: http://localhost:11434">
-                    </div>
-                    <div class="form-group">
-                        <label for="ollama_model_name">Nome Modello Ollama (per generazione)</label>
-                        <input type="text" id="ollama_model_name" name="ollama_model_name" value="{{ settings.get('llm_model_name', '') }}" placeholder="Es: llama3, mistral, gemma">
-                        <small>Il nome esatto del modello che hai scaricato con `ollama pull`.</small>
-                    </div>
+              </div>
+              {% else %} {# HTML per quando Google è selezionato (default) #}
+              <div class="option-content">
+                <div class="option-main">
+                  <i class="fab fa-google"></i>
+                  <span>Google Gemini</span>
                 </div>
+                <div class="option-badges">
+                  <span class="option-badge badge-easy">Facile</span>
+                </div>
+              </div>
+              {% endif %}
             </div>
-        </div>
 
-        
-        <div id="sito-web" class="tab-content">
-            <div class="form-section">
-                <h2>Connettore dati per WordPress</h2>
-                <p>Inserisci qui le informazioni del tuo sito WordPress per permettere al Magazzino di indicizzare automaticamente tutti i tuoi articoli e pagine.</p>
-                <div class="form-group">
-                    <div class="label-wrapper">
-                        <label for="wordpress_url">URL del sito wordPress</label>
-                        <span class="info-tooltip">
-                            <span class="fa-stack"><i class="fas fa-circle fa-stack-2x"></i><i class="fas fa-info fa-stack-1x fa-inverse"></i></span>
-                            <span class="tooltip-text">Inserisci l'indirizzo completo della home page. Esempio: https://www.ilmiosito.com</span>
-                        </span>
-                    </div>
-                    <input type="url" id="wordpress_url" name="wordpress_url" value="{{ settings.get('wordpress_url', '') }}" placeholder="https://www.esempio.com">
+            {# Questa è la lista delle opzioni, nascosta di default #}
+            <div class="select-items select-hide">
+              <div data-value="google">
+                <div class="option-content">
+                  <div class="option-main">
+                    <i class="fab fa-google"></i>
+                    <span>Google Gemini</span>
+                  </div>
+                  <div class="option-badges">
+                    <span class="option-badge badge-easy">Facile</span>
+                  </div>
                 </div>
-
-                <div class="form-group">
-                    <div class="label-wrapper">
-                        <label for="wordpress_username">Nome utente WordPress</label>
-                        <span class="info-tooltip">
-                            <span class="fa-stack"><i class="fas fa-circle fa-stack-2x"></i><i class="fas fa-info fa-stack-1x fa-inverse"></i></span>
-                            <span class="tooltip-text">Inserisci il nome utente esatto dell'amministratore a cui hai associato la password applicazione.</span>
-                        </span>
-                    </div>
-                    <input type="text" id="wordpress_username" name="wordpress_username" value="{{ settings.get('wordpress_username') or '' }}" placeholder="Es: admin MA SPERO CHE HAI UN USERNAME più SICURO di così, tipo tuo nome e cognome">
+              </div>
+              <div data-value="ollama">
+                <div class="option-content">
+                  <div class="option-main">
+                    <img
+                      src="https://ollama.com/public/ollama.png"
+                      alt="Ollama logo"
+                    />
+                    <span>Ollama (Locale)</span>
+                  </div>
+                  <div class="option-badges">
+                    <span class="option-badge badge-cost">-Costi</span>
+                    <span class="option-badge badge-privacy"
+                      >+Riservatezza</span
+                    >
+                    <span class="option-badge badge-difficulty">Difficile</span>
+                  </div>
                 </div>
-
-                <div class="form-group">
-                    <div class="label-wrapper">
-                        <label for="wordpress_api_key">Password applicazione WordPress</label>
-                         <div class="tooltip-group">
-                            <span class="info-tooltip">
-                                <span class="fa-stack"><i class="fas fa-circle fa-stack-2x"></i><i class="fas fa-info fa-stack-1x fa-inverse"></i></span>
-                                <span class="tooltip-text">Genera una "Password delle applicazioni" dalla bacheca di WordPress (Utenti > Profilo > scrolla in basso).</span>
-                            </span>
-                            <a href="https://wordpress.com/support/security/two-step-authentication/application-specific-passwords/" target="_blank" class="help-video-link" title="Guida ufficiale"><i class="fab fa-wordpress"></i></a>
-                        </div>
-                    </div>
-                    <input type="password" id="wordpress_api_key" name="wordpress_api_key" value="{{ settings.get('wordpress_api_key', '') }}" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" autocomplete="new-password">
-                </div>
-
-                <div style="margin-top: 20px; border-top: 1px solid var(--color-border-light); padding-top: 20px;">
-                    <button type="button" id="sync-wordpress-btn" class="action-btn success-btn">
-                        <i class="fas fa-sync-alt fa-fw"></i>
-                        <span>Recupera TUTTI i contenuti</span>
-                    </button>
-                    <!-- loader inline aggiunto -->
-                    <span id="sync-loader" class="inline-spinner" style="display:none;" aria-hidden="true"><i class="fas fa-spinner fa-spin"></i></span>
-                </div>
-                <div id="sync-message" style="margin-top: 15px;"></div>
-
+              </div>
             </div>
+          </div>
         </div>
-        
-        <button type="submit" class="action-btn">Salva impostazioni</button>
-    </form>
+
+        {# --- BLOCCO IMPOSTAZIONI GOOGLE --- #}
+        <div
+          id="google-settings-group"
+          class="{% if settings.get('llm_provider') != 'ollama' %}visible{% else %}hidden{% endif %}"
+        >
+          <div class="form-group">
+            <div class="label-wrapper">
+              <label for="llm_model_name_primary"
+                >Modello IA primario (per generazione)</label
+              >
+              <span class="info-tooltip warning-tooltip">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span class="tooltip-text"
+                  ><strong>Modello consigliato:</strong> testato con
+                  <code>gemini-2.5-pro</code> e <code>gemini-2.0-flash</code>.
+                  Altri potrebbero funzionare.</span
+                >
+              </span>
+            </div>
+            <input
+              type="text"
+              id="llm_model_name_primary"
+              name="llm_model_name_primary"
+              value="{{ settings.get('llm_model_name_primary', '') }}"
+              placeholder="Consigliato: gemini-2.5-pro"
+            />
+          </div>
+
+          <div class="form-group">
+            <div class="label-wrapper">
+              <label for="llm_model_name_fallback"
+                >Modello di ripiego (opzionale)</label
+              >
+              <div class="tooltip-group">
+                <span class="info-tooltip">
+                  <span class="fa-stack"
+                    ><i class="fas fa-circle fa-stack-2x"></i
+                    ><i class="fas fa-info fa-stack-1x fa-inverse"></i
+                  ></span>
+                  <span class="tooltip-text"
+                    >Se il modello primario fallisce, l'applicazione proverà ad
+                    usare questo.</span
+                  >
+                </span>
+              </div>
+            </div>
+            <input
+              type="text"
+              id="llm_model_name_fallback"
+              name="llm_model_name_fallback"
+              value="{{ settings.get('llm_model_name_fallback', '') }}"
+              placeholder="Es: gemini-2.0-flash"
+            />
+          </div>
+
+          <div class="form-group">
+            <div class="label-wrapper">
+              <label for="llm_embedding_model"
+                >Modello per trasformare il testo in linguaggio macchina</label
+              >
+              <div class="tooltip-group">
+                <span class="info-tooltip">
+                  <span class="fa-stack"
+                    ><i class="fas fa-circle fa-stack-2x"></i
+                    ><i class="fas fa-info fa-stack-1x fa-inverse"></i
+                  ></span>
+                  <span class="tooltip-text"
+                    >Il "traduttore" che trasforma il testo in numeri per la
+                    ricerca. Per Gemini,
+                    <code>models/text-embedding-004</code> è una scelta
+                    stabile.</span
+                  >
+                </span>
+              </div>
+            </div>
+            <input
+              type="text"
+              id="llm_embedding_model"
+              name="llm_embedding_model"
+              value="{{ settings.get('llm_embedding_model') or '' }}"
+              placeholder="Default: models/text-embedding-004"
+              autocomplete="off"
+            />
+          </div>
+
+          <div class="form-group">
+            <div class="label-wrapper">
+              <label for="llm_api_key"
+                >Chiave per servizio modello linguistico</label
+              >
+              <div class="tooltip-group">
+                <span class="info-tooltip">
+                  <span class="fa-stack">
+                    <i class="fas fa-circle fa-stack-2x"></i>
+                    <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                  </span>
+                  <span class="tooltip-text"
+                    >La tua "password" per usare il servizio di Intelligenza
+                    Artificiale scelto. Viene salvata in modo sicuro. Se lasci
+                    vuoto, verrà usata quella di default del sistema.</span
+                  >
+                </span>
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  class="help-video-link"
+                  title="Guarda come trovare la tua API Key"
+                >
+                  <i class="fab fa-youtube"></i>
+                </a>
+              </div>
+            </div>
+<input type="password" id="llm_api_key" name="llm_api_key" value="{{ settings.get('llm_api_key') or '' }}" placeholder="Incolla la tua API Key qui" autocomplete="new-password" readonly>
+          </div>
+        </div>
+
+        {# --- BLOCCO IMPOSTAZIONI OLLAMA (CON TOOLTIP AGGIUNTIVI) --- #}
+        <div
+          id="ollama-settings-group"
+          class="{% if settings.get('llm_provider') == 'ollama' %}visible{% else %}hidden{% endif %}"
+        >
+          <div class="form-group">
+            <div class="label-wrapper">
+              <label for="ollama_base_url">Indirizzo server Ollama</label>
+              <div class="tooltip-group">
+                <span class="info-tooltip docker-tooltip">
+                  <i class="fab fa-docker"></i>
+                  <span class="tooltip-text">
+                    <strong>Nota per utenti Docker:</strong> Se Ollama è
+                    installato sulla tua macchina (host) e non dentro Docker,
+                    usa <code>http://host.docker.internal:11434</code>.
+                  </span>
+                </span>
+                {# NUOVO TOOLTIP PER VPN/RETE LOCALE #}
+                <span class="info-tooltip network-tooltip">
+                  <i class="fas fa-network-wired"></i>
+                  <span class="tooltip-text">
+                    <strong>Nota per VPN/Rete Locale:</strong> Se Ollama si
+                    trova su un'altra macchina nella tua stessa rete, dovrai
+                    usare l'indirizzo IP di quella macchina. Esempio:
+                    <code>http://192.168.1.50:11434</code>.
+                  </span>
+                </span>
+              </div>
+            </div>
+            <input
+              type="url"
+              id="ollama_base_url"
+              name="ollama_base_url"
+              value="{{ settings.get('ollama_base_url') or 'http://localhost:11434' }}"
+              placeholder="Es: http://localhost:11434"
+            />
+          </div>
+          <div class="form-group">
+            <div class="label-wrapper">
+              <label for="ollama_model_name"
+                >Nome modello Ollama (per generazione)</label
+              >
+              <div class="tooltip-group">
+              <span class="info-tooltip warning-tooltip">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span class="tooltip-text"
+                    >I modelli più piccoli potrebbero avere difficoltà a seguire
+                    le istruzioni. Per risultati affidabili, si consiglia di
+                    partire da modelli con ALMENO 1.7 miliardi di parametri (es.
+                    <code>qwen3:1.7b</code>) o superiori (es.
+                    <code>qwen3:8b</code>).</span
+                  >
+                </span>
+
+                <a
+                  href="https://ollama.com/library"
+                  target="_blank"
+                  class="help-video-link"
+                  title="Sfoglia la libreria di modelli Ollama"
+                  rel="noopener noreferrer"
+                >
+                  <i class="fas fa-book-open"></i>
+                </a>
+              </div>
+            </div>
+
+            <input
+              type="text"
+              id="ollama_model_name"
+              name="ollama_model_name"
+              value="{{ settings.get('llm_model_name') or '' }}"
+              placeholder="Es: gemma3:8b, qwen3:1.7b"
+            />
+            <small
+              >Il nome esatto del modello che hai scaricato con
+              <code>ollama pull</code>. Su Windows, puoi vedere i modelli che
+              hai scaricato tramite Powershell digitando
+              <code>ollama ps</code>.</small
+            >
+          </div>
+
+          <div style="margin-top: 15px">
+            <button
+              type="button"
+              id="test-ollama-btn"
+              class="action-btn"
+              style="background: var(--color-text-light)"
+            >
+              Testa connessione
+            </button>
+            <div id="ollama-test-result" style="margin-top: 10px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sito-web" class="tab-content">
+      <div class="form-section">
+        <h2>Connettore dati per WordPress</h2>
+        <p>
+          Inserisci qui le informazioni del tuo sito WordPress per permettere al
+          Magazzino di indicizzare automaticamente tutti i tuoi articoli e
+          pagine.
+        </p>
+        <div class="form-group">
+          <div class="label-wrapper">
+            <label for="wordpress_url">URL del sito wordPress</label>
+            <span class="info-tooltip">
+              <span class="fa-stack"
+                ><i class="fas fa-circle fa-stack-2x"></i
+                ><i class="fas fa-info fa-stack-1x fa-inverse"></i
+              ></span>
+              <span class="tooltip-text"
+                >Inserisci l'indirizzo completo della home page. Esempio:
+                https://www.ilmiosito.com</span
+              >
+            </span>
+          </div>
+          <input
+            type="url"
+            id="wordpress_url"
+            name="wordpress_url"
+            value="{{ settings.get('wordpress_url', '') }}"
+            placeholder="https://www.esempio.com"
+          />
+        </div>
+
+        <div class="form-group">
+          <div class="label-wrapper">
+            <label for="wordpress_username">Nome utente WordPress</label>
+            <span class="info-tooltip">
+              <span class="fa-stack"
+                ><i class="fas fa-circle fa-stack-2x"></i
+                ><i class="fas fa-info fa-stack-1x fa-inverse"></i
+              ></span>
+              <span class="tooltip-text"
+                >Inserisci il nome utente esatto dell'amministratore a cui hai
+                associato la password applicazione.</span
+              >
+            </span>
+          </div>
+          <input
+            type="text"
+            id="wordpress_username"
+            name="wordpress_username"
+            value="{{ settings.get('wordpress_username') or '' }}"
+            placeholder="Es: admin"
+          />
+        </div>
+
+        <div class="form-group">
+          <div class="label-wrapper">
+            <label for="wordpress_api_key"
+              >Password applicazione WordPress</label
+            >
+            <div class="tooltip-group">
+              <span class="info-tooltip">
+                <span class="fa-stack"
+                  ><i class="fas fa-circle fa-stack-2x"></i
+                  ><i class="fas fa-info fa-stack-1x fa-inverse"></i
+                ></span>
+                <span class="tooltip-text"
+                  >Genera una "Password delle applicazioni" dalla bacheca di
+                  WordPress (Utenti > Profilo > scrolla in basso).</span
+                >
+              </span>
+              <a
+                href="https://wordpress.com/support/security/two-step-authentication/application-specific-passwords/"
+                target="_blank"
+                class="help-video-link"
+                title="Guida ufficiale"
+                ><i class="fab fa-wordpress"></i
+              ></a>
+            </div>
+          </div>
+          <input
+            type="password"
+            id="wordpress_api_key"
+            name="wordpress_api_key"
+            value="{{ settings.get('wordpress_api_key', '') }}"
+            placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+            autocomplete="new-password"
+          />
+        </div>
+
+        <div
+          style="
+            margin-top: 20px;
+            border-top: 1px solid var(--color-border-light);
+            padding-top: 20px;
+          "
+        >
+          <button
+            type="button"
+            id="sync-wordpress-btn"
+            class="action-btn success-btn"
+          >
+            <i class="fas fa-sync-alt fa-fw"></i>
+            <span>Recupera TUTTI i contenuti</span>
+          </button>
+          <!-- loader inline aggiunto -->
+          <span
+            id="sync-loader"
+            class="inline-spinner"
+            style="display: none"
+            aria-hidden="true"
+            ><i class="fas fa-spinner fa-spin"></i
+          ></span>
+        </div>
+        <div id="sync-message" style="margin-top: 15px"></div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button
+        type="button"
+        id="reset-ai-settings-btn"
+        class="action-btn secondary"
+        style="display: none"
+      >
+        <i class="fas fa-undo"></i> Ripristina predefinite
+      </button>
+      <button type="submit" class="action-btn">Salva impostazioni</button>
+    </div>
+  </form>
 </div>
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
+{% endblock %} {% block scripts %} {{ super() }}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener("DOMContentLoaded", function () {
     // --- GESTIONE TAB ---
-    const tabLinks = document.querySelectorAll('.tab-link');
-    const tabContents = document.querySelectorAll('.tab-content');
+    const tabLinks = document.querySelectorAll(".tab-link");
+    const tabContents = document.querySelectorAll(".tab-content");
 
     function activateTab(tabId) {
-        tabLinks.forEach(link => {
-            link.classList.toggle('active', link.dataset.tab === tabId);
-        });
-        tabContents.forEach(content => {
-            content.classList.toggle('active', content.id === tabId);
-        });
-        localStorage.setItem('activeSettingsTab', tabId);
+      tabLinks.forEach((link) => {
+        link.classList.toggle("active", link.dataset.tab === tabId);
+      });
+      tabContents.forEach((content) => {
+        content.classList.toggle("active", content.id === tabId);
+      });
+      localStorage.setItem("activeSettingsTab", tabId);
     }
 
-    tabLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const tabId = link.dataset.tab;
-            activateTab(tabId);
-        });
+    tabLinks.forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const tabId = link.dataset.tab;
+        activateTab(tabId);
+      });
     });
 
     const urlHash = window.location.hash.substring(1);
-    const savedTab = localStorage.getItem('activeSettingsTab');
-    let initialTabId = 'generali';
+    const savedTab = localStorage.getItem("activeSettingsTab");
+    let initialTabId = "generali";
 
     if (urlHash && document.getElementById(urlHash)) {
-        initialTabId = urlHash;
+      initialTabId = urlHash;
     } else if (savedTab && document.getElementById(savedTab)) {
-        initialTabId = savedTab;
+      initialTabId = savedTab;
     }
-    
-    document.querySelectorAll('.tab-link.active').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tab-content.active').forEach(el => el.classList.remove('active'));
+
+    document
+      .querySelectorAll(".tab-link.active")
+      .forEach((el) => el.classList.remove("active"));
+    document
+      .querySelectorAll(".tab-content.active")
+      .forEach((el) => el.classList.remove("active"));
     activateTab(initialTabId);
 
-    // --- LOGICA PER IL NUOVO MENU A TENDINA E PER MOSTRARE/NASCONDERE IMPOSTAZIONI ---
-    const customSelectContainer = document.querySelector('.custom-select-container');
-    const selectedDisplay = customSelectContainer.querySelector('.select-selected');
-    const optionsList = customSelectContainer.querySelector('.select-items');
-    const options = optionsList.querySelectorAll('div[data-value]');
-    const hiddenInput = document.getElementById('llm_provider');
+    // --- LOGICA MENU A TENDINA E VISIBILITA' PANNELLI ---
+    const customSelectContainer = document.querySelector(
+      ".custom-select-container"
+    );
+    const selectedDisplay =
+      customSelectContainer.querySelector(".select-selected");
+    const optionsList = customSelectContainer.querySelector(".select-items");
+    const options = optionsList.querySelectorAll("div[data-value]");
+    const hiddenInput = document.getElementById("llm_provider");
+    const googleSettings = document.getElementById("google-settings-group");
+    const ollamaSettings = document.getElementById("ollama-settings-group");
+    const resetBtn = document.getElementById("reset-ai-settings-btn");
 
-    const googleSettings = document.getElementById('google-settings-group');
-    const ollamaSettings = document.getElementById('ollama-settings-group');
-
-    // Funzione che mostra/nasconde i pannelli giusti
-    function toggleProviderSettings() {
-        const selectedProvider = hiddenInput.value;
-        googleSettings.style.display = (selectedProvider === 'google') ? 'block' : 'none';
-        ollamaSettings.style.display = (selectedProvider === 'ollama') ? 'block' : 'none';
+    // Funzione per decidere se mostrare il pulsante Ripristina
+    function toggleResetButtonVisibility() {
+      const selectedProvider = hiddenInput.value;
+      // Mostra il pulsante solo se il provider selezionato NON è 'google'
+      if (selectedProvider !== "google") {
+        resetBtn.style.display = "inline-flex";
+      } else {
+        resetBtn.style.display = "none";
+      }
     }
 
-    // Apre/chiude la lista delle opzioni
-    selectedDisplay.addEventListener('click', function(e) {
-        e.stopPropagation();
-        optionsList.classList.toggle('select-hide');
-        this.classList.toggle('select-arrow-active');
+    // Funzione per mostrare/nascondere i pannelli delle impostazioni
+    function toggleProviderSettings() {
+      const selectedProvider = hiddenInput.value;
+      if (googleSettings)
+        googleSettings.classList.toggle(
+          "visible",
+          selectedProvider === "google"
+        );
+      if (googleSettings)
+        googleSettings.classList.toggle(
+          "hidden",
+          selectedProvider !== "google"
+        );
+      if (ollamaSettings)
+        ollamaSettings.classList.toggle(
+          "visible",
+          selectedProvider === "ollama"
+        );
+      if (ollamaSettings)
+        ollamaSettings.classList.toggle(
+          "hidden",
+          selectedProvider !== "ollama"
+        );
+      toggleResetButtonVisibility(); // Aggiorna la visibilità del pulsante ogni volta
+    }
+
+    selectedDisplay.addEventListener("click", function (e) {
+      e.stopPropagation();
+      optionsList.classList.toggle("select-hide");
+      this.classList.toggle("select-arrow-active");
     });
 
-    // Gestisce il click su una delle opzioni
-    options.forEach(option => {
-        option.addEventListener('click', function() {
-            // Aggiorna l'HTML del display
-            selectedDisplay.innerHTML = this.innerHTML;
-            
-            // Aggiorna il valore dell'input nascosto che verrà inviato
-            hiddenInput.value = this.getAttribute('data-value');
-            
-            // Chiude la lista
-            optionsList.classList.add('select-hide');
-            selectedDisplay.classList.remove('select-arrow-active');
-            
-            // Esegui la funzione per mostrare/nascondere le impostazioni!
-            toggleProviderSettings();
-        });
+    options.forEach((option) => {
+      option.addEventListener("click", function () {
+        selectedDisplay.innerHTML = this.innerHTML;
+        hiddenInput.value = this.getAttribute("data-value");
+        optionsList.classList.add("select-hide");
+        selectedDisplay.classList.remove("select-arrow-active");
+        toggleProviderSettings(); // Esegui la logica di visibilità
+      });
     });
 
-    // Chiude il menu se si clicca fuori
-    document.addEventListener('click', function() {
-        optionsList.classList.add('select-hide');
-        selectedDisplay.classList.remove('select-arrow-active');
+    document.addEventListener("click", function () {
+      optionsList.classList.add("select-hide");
+      selectedDisplay.classList.remove("select-arrow-active");
     });
 
-    // Esegui subito all'inizio per impostare lo stato corretto al caricamento della pagina
+    // Esegui al caricamento per impostare lo stato iniziale corretto
     toggleProviderSettings();
 
-
-    // --- LOGICA DI SINCRONIZZAZIONE WORDPRESS (MODIFICATA) ---
-    const syncBtn = document.getElementById('sync-wordpress-btn');
-    const syncMessageDiv = document.getElementById('sync-message');
+    // --- LOGICA DI SINCRONIZZAZIONE WORDPRESS ---
+    const syncBtn = document.getElementById("sync-wordpress-btn");
+    const syncMessageDiv = document.getElementById("sync-message");
     let pollingInterval = null;
 
     if (syncBtn) {
-        const syncBtnOriginalHTML = syncBtn.innerHTML;
-
-        // Funzione per controllare lo stato del processo
-        async function checkWpProgress() {
-            try {
-                const response = await fetch('/api/website/wordpress/progress');
-                const data = await response.json();
-
-                if (!data.is_processing) {
-                    // Processo terminato
-                    clearInterval(pollingInterval);
-                    pollingInterval = null;
-
-                    syncMessageDiv.className = data.error ? 'error-message' : 'success-message';
-                    syncMessageDiv.textContent = data.error || data.message || 'Operazione completata.';
-                    
-                    if (typeof window.setAppStatus === 'function') {
-                        window.setAppStatus('ready'); // Ripristina favicon
-                    }
-
-                    if (!data.error) {
-                        // SUCCESSO! Aspetta 1,5 secondi e ricarica la pagina.
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1500); // 2 secondi per leggere il messaggio
-                    } else {
-                        // Se c'è un errore, riabilita solo il pulsante.
-                        syncBtn.disabled = false;
-                        syncBtn.innerHTML = syncBtnOriginalHTML;
-                    }
-
-                } else {
-                    // Processo ancora in corso
-                    syncMessageDiv.className = 'info-message';
-                    syncMessageDiv.textContent = `${data.message} (${data.processed_items}/${data.total_items})`;
-                }
-
-            } catch (error) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-                syncMessageDiv.className = 'error-message';
-                syncMessageDiv.textContent = 'Errore di connessione durante il controllo dello stato.';
-                syncBtn.disabled = false;
-                syncBtn.innerHTML = syncBtnOriginalHTML;
-                 if (typeof window.setAppStatus === 'function') {
-                    window.setAppStatus('ready');
-                }
+      const syncBtnOriginalHTML = syncBtn.innerHTML;
+      async function checkWpProgress() {
+        try {
+          const response = await fetch("/api/website/wordpress/progress");
+          const data = await response.json();
+          if (!data.is_processing) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+            syncMessageDiv.className = data.error
+              ? "error-message"
+              : "success-message";
+            syncMessageDiv.textContent =
+              data.error || data.message || "Operazione completata.";
+            if (typeof window.setAppStatus === "function") {
+              window.setAppStatus("ready");
             }
+            if (!data.error) {
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+            } else {
+              syncBtn.disabled = false;
+              syncBtn.innerHTML = syncBtnOriginalHTML;
+            }
+          } else {
+            syncMessageDiv.className = "info-message";
+            syncMessageDiv.textContent = `${data.message} (${data.processed_items}/${data.total_items})`;
+          }
+        } catch (error) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+          syncMessageDiv.className = "error-message";
+          syncMessageDiv.textContent =
+            "Errore di connessione durante il controllo dello stato.";
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = syncBtnOriginalHTML;
+          if (typeof window.setAppStatus === "function") {
+            window.setAppStatus("ready");
+          }
         }
+      }
+      syncBtn.addEventListener("click", async () => {
+        const userConfirmed = await showConfirmModal(
+          "Conferma sincronizzazione",
+          "Assicurati di aver salvato le impostazioni... Vuoi avviare la sincronizzazione?"
+        );
+        if (!userConfirmed) return;
+        syncBtn.disabled = true;
+        syncBtn.innerHTML =
+          '<i class="fas fa-spinner fa-spin"></i> <span>Sincronizzazione...</span>';
+        syncMessageDiv.className = "info-message";
+        syncMessageDiv.textContent = "Avvio operazione...";
+        syncMessageDiv.style.display = "block";
+        if (typeof window.setAppStatus === "function") {
+          window.setAppStatus("processing");
+        }
+        try {
+          const response = await fetch("/api/website/wordpress/sync", {
+            method: "POST",
+          });
+          const data = await response.json();
+          if (!response.ok)
+            throw new Error(data.message || "Errore del server");
+          if (pollingInterval) clearInterval(pollingInterval);
+          pollingInterval = setInterval(checkWpProgress, 1500);
+        } catch (error) {
+          syncMessageDiv.className = "error-message";
+          syncMessageDiv.textContent = `Errore: ${error.message}`;
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = syncBtnOriginalHTML;
+          if (typeof window.setAppStatus === "function") {
+            window.setAppStatus("ready");
+          }
+        }
+      });
+    }
 
-        syncBtn.addEventListener('click', async () => {
-            const userConfirmed = await showConfirmModal(
-                "Conferma Sincronizzazione",
-                "Assicurati di aver salvato le impostazioni con il pulsante in fondo alla pagina prima di procedere. Vuoi avviare la sincronizzazione dei contenuti?"
-            );
-            
-            if (!userConfirmed) {
-                return;
-            }
+    // --- LOGICA PER IL TEST DI CONNESSIONE OLLAMA ---
+    const testOllamaBtn = document.getElementById("test-ollama-btn");
+    const ollamaUrlInput = document.getElementById("ollama_base_url");
+    const ollamaModelInput = document.getElementById("ollama_model_name");
+    const ollamaResultDiv = document.getElementById("ollama-test-result");
+    let ollamaConnectionVerified = false;
 
-            syncBtn.disabled = true;
-            syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Sincronizzazione...</span>';
-            syncMessageDiv.className = 'info-message';
-            syncMessageDiv.textContent = 'Avvio operazione...';
-            syncMessageDiv.style.display = 'block';
+    function updateTestButtonState() {
+      if (ollamaConnectionVerified) {
+        testOllamaBtn.style.background = "var(--color-success)";
+        testOllamaBtn.innerHTML =
+          '<i class="fas fa-check"></i> <span>Connesso</span>';
+        testOllamaBtn.disabled = true;
+      } else {
+        testOllamaBtn.style.background = "var(--color-text-light)";
+        testOllamaBtn.innerHTML = "Testa connessione";
+        testOllamaBtn.disabled = false;
+      }
+    }
 
-            if (typeof window.setAppStatus === 'function') {
-                window.setAppStatus('processing'); // Imposta favicon animata
-            }
+    function resetConnectionStatus() {
+      if (ollamaConnectionVerified) {
+        ollamaConnectionVerified = false;
+        updateTestButtonState();
+        ollamaResultDiv.style.display = "none";
+      }
+    }
+    if (ollamaUrlInput)
+      ollamaUrlInput.addEventListener("input", resetConnectionStatus);
+    if (ollamaModelInput)
+      ollamaModelInput.addEventListener("input", resetConnectionStatus);
 
-            try {
-                const response = await fetch('/api/website/wordpress/sync', { method: 'POST' });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Errore del server');
-                
-                // Se la chiamata va a buon fine (202), avviamo il polling
-                if (pollingInterval) clearInterval(pollingInterval);
-                pollingInterval = setInterval(checkWpProgress, 1500); // Controlla ogni 1,5 secondi
+    if (testOllamaBtn) {
+      testOllamaBtn.addEventListener("click", async () => {
+        const url = ollamaUrlInput.value.trim();
+        const model = ollamaModelInput.value.trim();
+        if (!url || !model) {
+          alert(
+            "Per favore, inserisci sia l-URL del server che il nome del modello prima di testare."
+          );
+          return;
+        }
+        testOllamaBtn.disabled = true;
+        testOllamaBtn.innerHTML =
+          '<i class="fas fa-spinner fa-spin"></i> <span>Test in corso...</span>';
+        ollamaResultDiv.style.display = "none";
+        try {
+          const response = await fetch("/api/settings/test_ollama", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ollama_url: url, model_name: model }),
+          });
+          const data = await response.json();
+          ollamaResultDiv.textContent = data.message;
+          if (data.success) {
+            ollamaResultDiv.className = "success-message";
+            ollamaConnectionVerified = true;
+          } else {
+            ollamaResultDiv.className = "error-message";
+            ollamaConnectionVerified = false;
+          }
+          ollamaResultDiv.style.display = "block";
+        } catch (error) {
+          ollamaResultDiv.textContent =
+            "Errore di rete imprevisto durante il test.";
+          ollamaResultDiv.className = "error-message";
+          ollamaConnectionVerified = false;
+        } finally {
+          updateTestButtonState();
+        }
+      });
+    }
 
-            } catch (error) {
-                syncMessageDiv.className = 'error-message';
-                syncMessageDiv.textContent = `Errore: ${error.message}`;
-                syncBtn.disabled = false;
-                syncBtn.innerHTML = syncBtnOriginalHTML;
-                if (typeof window.setAppStatus === 'function') {
-                    window.setAppStatus('ready');
-                }
+    // --- LOGICA PER IL PULSANTE DI RIPRISTINO IMPOSTAZIONI AI ---
+    if (resetBtn) {
+      resetBtn.addEventListener("click", async () => {
+        const userConfirmed = await showConfirmModal(
+          "Conferma Ripristino",
+          "Sei sicuro di voler ripristinare le impostazioni AI ai valori predefiniti? Le personalizzazioni correnti verranno perse."
+        );
+        if (!userConfirmed) return;
+
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        try {
+          const response = await fetch("/api/settings/reset_ai", {
+            method: "POST",
+          });
+          const data = await response.json();
+          if (!response.ok)
+            throw new Error(data.message || "Errore del server");
+
+          // Usa una notifica non bloccante per il successo
+          showNotification(
+            "Impostazioni ripristinate con successo! La pagina verrà ricaricata.",
+            "success"
+          );
+
+          // Ricarica la pagina dopo un breve ritardo per mostrare la notifica
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } catch (error) {
+          showNotification(
+            `Errore durante il ripristino: ${error.message}`,
+            "error"
+          );
+          resetBtn.disabled = false;
+          resetBtn.innerHTML =
+            '<i class="fas fa-undo"></i> Ripristina predefinite';
+        }
+      });
+    }
+
+    // Funzione helper per le notifiche (se non è già in base.html)
+    function showNotification(message, type = "success") {
+      const container =
+        document.querySelector(".tabs-container") || document.body;
+      let messageDiv = document.getElementById("dynamic-notification");
+      if (!messageDiv) {
+        messageDiv = document.createElement("div");
+        messageDiv.id = "dynamic-notification";
+        container.prepend(messageDiv);
+      }
+      messageDiv.className =
+        type === "success" ? "success-message" : "error-message";
+      messageDiv.textContent = message;
+      messageDiv.style.marginBottom = "15px";
+    }
+  });
+      // --- WORKAROUND PER AUTOCOMPLETE AGGRESSIVO SUL CAMPO API KEY ---
+    const apiKeyInput = document.getElementById('llm_api_key');
+    if (apiKeyInput) {
+        apiKeyInput.addEventListener('focus', function() {
+            this.removeAttribute('readonly');
+        });
+        
+        // Opzionale: se l'utente esce dal campo senza scrivere nulla, lo rimettiamo in sola lettura.
+        apiKeyInput.addEventListener('blur', function() {
+            if (this.value === '') {
+                this.setAttribute('readonly', true);
             }
         });
     }
-});
 </script>
 {% endblock %}

@@ -424,15 +424,13 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   **Errore Recupero Trascrizioni YouTube: `403 Forbidden` quando si usa l'API Ufficiale**
     *   Dopo aver implementato l'uso dell'API ufficiale di YouTube per superare i blocchi IP, potrebbe ancora verificarsi un errore `403 Forbidden` durante il download delle tracce dei sottotitoli.
     *   **Causa:** Questo problema è quasi sempre legato ai **Canali YouTube gestiti come "Account Brand"**. Le API di Google, anche con i permessi corretti (`youtubepartner`), a volte hanno difficoltà a gestire le autorizzazioni delegate per questo tipo di account, bloccando l'accesso programmatico al download dei file delle didascalie.
-    *   **Verifica:** Per verificare se il tuo canale è un Account Brand, vai su Impostazioni -> Autorizzazioni  da [https://studio.youtube.com/](Youtube Studio). Se **non** vedi nomi e ruoli, il tuo è un Account Brand.
+    *   **Verifica:** Per verificare se il tuo canale è un Account Brand, vai su Impostazioni -> Autorizzazioni  da [Youtube Studio](https://studio.youtube.com). Se **non** vedi nomi e ruoli, il tuo è un Account Brand.
     *   **Soluzione:** Al momento non esiste una soluzione diretta a livello di codice. Il problema è una limitazione nota delle policy delle API di YouTube. Le uniche opzioni sono indagare a fondo le impostazioni dell'Account Brand.
 
 *   **Flusso OAuth Google (Autenticazione API YouTube):**
     *   Assicurati che la variabile d'ambiente `OAUTHLIB_INSECURE_TRANSPORT` sia impostata a `0` nel tuo file `.env` se stai usando HTTPS (es. con Cloudflare Tunnel).
     *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
     *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
-
-*   **Mancanza barra attività in bacgkround in ingresso_dati nonostante logica presente**
 
 
 ## TODO e Prossimi Passi
@@ -468,6 +466,7 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Test unitari per logiche di business critiche.
 *   [x] Risolto bug di aggiornamento della sidebar dopo la prima indicizzazione dei contenuti.
 *   [x] Ottimizzato recupero con Re-ranking: implementata architettura a 2 fasi con recupero ampio da ChromaDB e ri-classificazione di precisione tramite Cohere.
+*   [x] Permette di collegarsi ad Ollama come fornitore LLM.
 
 **Prossimi Passi Possibili:**
 
@@ -475,10 +474,14 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [ ] **Creare nuovo intent:** Quando non ho elementi con distanza sufficiente dalla soglia, provare a dare una risposta replicando lo stile dell'autore.
         - questo potrebbe andare in conflitto con il fallback del prompt del RAG
 
+
 **Stabilità e Qualità:**
 *   [ ] **Gestione Errori API:** Standardizzare formati JSON risposte errore.
 *   [ ] **Gestione Errori Indicizzazione:** Migliorare diagnostica/gestione errori estrazione testo e embedding.
 *   [ ] **Sviluppare Suite di Test:** (Iniziato)
+*   [ ] **Valutare nuovo modello di embedding:** usare https://huggingface.co/spaces/mteb/leaderboard per capire se conviene usare [embeddinggemma-300m](https://ai.google.dev/gemma/docs/embeddinggemma/model_card) tramite Ollama. Questo richiederebbe anche il campo modello embedding sulla scheda fornitore Ollama
+*   [ ] **Valutare agentic chuking:** al momento spezzo i contenuti in maniera brusca, facendo perdere contesto in fase di recupero. 
+*   [ ] **Bottone ripristina:** far sparire il bottone Ripristina in settings se Ollama non ha il campo modello compilato
 
 
 **Nuove Sorgenti Dati/Funzionalità:**
@@ -495,8 +498,11 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] **CI/CD:** Impostare pipeline.
 *   [ ] **Valutare DB Esterno:** Considerare PostgreSQL/Supabase per deployment `saas` su larga scala (o per istanze self-hosted che richiedono maggiore robustezza/concorrenza, specialmente se si separa lo scheduler).
 
-**Ollama:**
-[ ] **Permette di collegarsi ad Ollama come fornitore LLM**.
+**Nuova modalità conversaione:**
+*   [ ] **Nuove idee:** creare nuova icona nel box input chat, con lampadina, per considentire all'IA di suggerire nuove idee di contenuti.
+
+
+
 
 **Funzionalità Rimosse/Archiviate:**
 *   ~~Interfaccia Chat Streamlit~~ (Integrata in Flask)

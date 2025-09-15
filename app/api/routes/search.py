@@ -114,44 +114,64 @@ def _get_ollama_completion(prompt: str, base_url: str, model_name: str) -> str:
         raise
 
 def build_prompt(query: str, context_chunks: List[Dict], history: Optional[List[Dict]] = None) -> str:
+    # Questa funzione ora delega la costruzione a funzioni più specifiche
+    # In futuro, potremmo passare il nome del provider per scegliere il prompt giusto
+    
+    # Per ora, manteniamo la logica esistente che funziona bene con i modelli potenti
+    # e che useremo come default per Google Gemini.
     context_text = "\n---\n".join([chunk.get('text', '') for chunk in context_chunks])
     history_str = ""
     if history:
-        logger.info(f"build_prompt: Ricevuta cronologia con {len(history)} messaggi.")
         for msg in history:
             role = "Utente" if msg.get("role") == "user" else "Assistente"
             history_str += f"{role}: {msg.get('content', '')}\n"
-    else:
-        logger.info("build_prompt: Nessuna cronologia ricevuta.")
+    
     if not context_chunks:
-        prompt = f"""Sei l'assistente AI del "Magazzino del creatore".
-La conversazione precedente (se presente):
+        # Il prompt di fallback rimane uguale, è universale
+        return f"""Sei l'assistente AI del "Magazzino del creatore". La conversazione precedente (se presente):
 {history_str or "Nessuna."}
-Rispondi brevemente alla seguente domanda basandoti sulle tue conoscenze generali e sulla conversazione precedente, ma specifica che non hai trovato contesto specifico nei documenti analizzati per QUESTA domanda.
-Domanda Attuale: {query}
-Risposta (senza contesto specifico per questa domanda):"""
-        logger.warning("Nessun chunk di contesto recuperato per la query. Uso prompt generico con eventuale cronologia.")
-        return prompt
-    prompt = f"""Sei l'assistente AI del progetto "Magazzino del creatore".
-Il tuo compito è rispondere alla "Domanda dell'utente attuale" nella lingua in cui la chiede.
-Per formulare la tua risposta, considera attentamente:
-1.  La "Cronologia Conversazione Precedente" per capire il contesto e a cosa si riferiscono pronomi o domande vaghe.
-2.  Il "Contesto fornito dai documenti" recuperato specificamente per la domanda attuale.
-**Istruzioni Fondamentali:**
--   La tua risposta deve essere basata **primariamente** sulle informazioni trovate nel "Contesto fornito dai documenti".
--   **NON aggiungere informazioni esterne o tue conoscenze generali.**
--   Se, dopo aver considerato sia la cronologia sia il contesto, non trovi una risposta diretta, rispondi ESATTAMENTE con: "Le informazioni disponibili non contengono una risposta diretta a questa specifica domanda."
+Rispondi brevemente alla seguente domanda, ma specifica che non hai trovato contesto specifico.
+Domanda: {query}
+Risposta:"""
 
-**Cronologia Conversazione Precedente:**
+    # Questo è il prompt DETTAGLIATO che funziona bene con Gemini Pro e Llama3
+    # Potremmo voler creare un file separato per i prompt in futuro
+    detailed_prompt = f"""Sei l'assistente AI del progetto "Magazzino del creatore". Rispondi basandoti ESCLUSIVAMENTE sulle informazioni fornite.
+**Istruzioni Fondamentali:**
+- La tua risposta deve basarsi **primariamente** sul "Contesto fornito".
+- Usa la "Cronologia" per interpretare la "Domanda".
+- **NON aggiungere informazioni esterne.**
+- Se non trovi una risposta, rispondi ESATTAMENTE con: "Le informazioni disponibili non contengono una risposta diretta a questa specifica domanda."
+
+**Cronologia:**
 {history_str or "Nessuna."}
 ---
-**Contesto fornito dai documenti (per la domanda attuale):**
+**Contesto fornito:**
 ---
-{context_text or "Nessun contesto specifico recuperato."}
+{context_text}
 ---
-**Domanda dell'utente attuale:** {query}
-**Risposta:**"""
-    return prompt
+**Domanda:** {query}
+**Risposta Finale:**"""
+    
+    # NUOVO: Questo è il prompt SEMPLIFICATO per i modelli più piccoli come Qwen2
+    # È più diretto e include l'istruzione di non mostrare il ragionamento.
+    simple_prompt_for_small_models = f"""Basandoti sul Contesto fornito, rispondi alla Domanda dell'utente.
+Non mostrare il tuo ragionamento. Fornisci solo la risposta finale.
+
+---
+Contesto:
+{context_text}
+---
+Domanda: {query}
+---
+Risposta Finale:"""
+
+    # Per ora, per testare, potresti decidere quale prompt usare. 
+    # Visto che stai usando Ollama, ti consiglio di commentare il "detailed_prompt"
+    # e usare il "simple_prompt_for_small_models" per vedere la differenza.
+    
+    # return detailed_prompt
+    return simple_prompt_for_small_models
 
 @search_bp.route('/', methods=['POST'])
 @require_api_key
