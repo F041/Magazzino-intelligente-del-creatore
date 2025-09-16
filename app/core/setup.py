@@ -329,6 +329,30 @@ def init_db(config):
             else:
                 raise  
         
+        # Questo blocco sarebbe servito per Wordpress Oauth, che avrebbe peggiorato UX
+        # try:
+        #     cursor.execute("ALTER TABLE user_settings ADD COLUMN wordpress_access_token TEXT")
+        #     logger.info("Colonna 'wordpress_access_token' aggiunta a 'user_settings'.")
+        # except sqlite3.OperationalError:
+        #     logger.debug("Colonna 'wordpress_access_token' già presente in 'user_settings'.")
+        
+        # try:
+        #     cursor.execute("ALTER TABLE user_settings ADD COLUMN wordpress_refresh_token TEXT")
+        #     logger.info("Colonna 'wordpress_refresh_token' aggiunta a 'user_settings'.")
+        # except sqlite3.OperationalError:
+        #     logger.debug("Colonna 'wordpress_refresh_token' già presente in 'user_settings'.")
+            
+        # try:
+        #     cursor.execute("ALTER TABLE user_settings ADD COLUMN wordpress_token_expires_at INTEGER")
+        #     logger.info("Colonna 'wordpress_token_expires_at' aggiunta a 'user_settings'.")
+        # except sqlite3.OperationalError:
+        #     logger.debug("Colonna 'wordpress_token_expires_at' già presente in 'user_settings'.")
+            
+        # try:
+        #     cursor.execute("ALTER TABLE user_settings ADD COLUMN wordpress_blog_id TEXT")
+        #     logger.info("Colonna 'wordpress_blog_id' aggiunta a 'user_settings'.")
+        # except sqlite3.OperationalError:
+        #     logger.debug("Colonna 'wordpress_blog_id' già presente in 'user_settings'.")
         
         conn.commit()
 

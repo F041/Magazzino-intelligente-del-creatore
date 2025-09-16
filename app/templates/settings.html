@@ -156,7 +156,8 @@ Creatore{% endblock %} {% block head_styles %}
 <div
   class="{{ 'success-message' if category == 'success' else 'error-message' }}"
 >
-  {{ message }}
+  <i class="fas {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}" style="margin-right: 10px;"></i>
+  <span>{{ message }}</span>
 </div>
 {% endfor %} {% endif %} {% endwith %}
 
@@ -748,10 +749,11 @@ Creatore{% endblock %} {% block head_styles %}
               syncBtn.disabled = false;
               syncBtn.innerHTML = syncBtnOriginalHTML;
             }
-          } else {
-            syncMessageDiv.className = "info-message";
-            syncMessageDiv.textContent = `${data.message} (${data.processed_items}/${data.total_items})`;
-          }
+            } else {
+                    // Processo ancora in corso
+                    syncMessageDiv.className = 'info-message';
+                    syncMessageDiv.textContent = data.message; 
+                }
         } catch (error) {
           clearInterval(pollingInterval);
           pollingInterval = null;

@@ -240,24 +240,46 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict):
                 content_hash = str(hash(content_text))
 
                 if item_type == 'post':
-                    cursor.execute("SELECT article_id, content_hash FROM articles WHERE article_url = ? AND user_id = ?", (item_url, user_id))
-                    existing = cursor.fetchone()
-                    if existing:
-                        if existing[1] != content_hash:
-                            item_id = existing[0]
-                            content_path = os.path.join(articles_folder, f"{item_id}.txt")
-                            with open(content_path, 'w', encoding='utf-8') as f: f.write(content_text)
-                            cursor.execute("UPDATE articles SET content_hash = ?, processing_status = 'pending' WHERE article_id = ?", (content_hash, item_id))
-                            _index_article(item_id, conn, user_id)
-                            updated_articles += 1
+                    # Determina l'ID univoco e la data di pubblicazione
+                    published_date = item_data.get('modified_gmt', '') + 'Z'
+                    guid = item_data.get('guid', {}).get('rendered', item_url)
+
+                    # Determina l'ID dell'articolo e il percorso del file.
+                    # Prima controlliamo se esiste già per riutilizzare l'ID e il percorso.
+                    cursor.execute("SELECT article_id, extracted_content_path FROM articles WHERE article_url = ? AND user_id = ?", (item_url, user_id))
+                    existing_article = cursor.fetchone()
+                    
+                    if existing_article:
+                        article_id = existing_article[0]
+                        content_path = existing_article[1]
                     else:
-                        item_id = str(uuid.uuid4())
-                        content_path = os.path.join(articles_folder, f"{item_id}.txt")
-                        with open(content_path, 'w', encoding='utf-8') as f: f.write(content_text)
-                        published_date = item_data.get('modified_gmt', '') + 'Z'
-                        cursor.execute("INSERT INTO articles (article_id, article_url, title, published_at, extracted_content_path, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
-                                       (item_id, item_url, title_text, published_date, content_path, content_hash, user_id))
-                        _index_article(item_id, conn, user_id)
+                        article_id = str(uuid.uuid4())
+                        content_path = os.path.join(articles_folder, f"{article_id}.txt")
+
+                    # Scrivi (o sovrascrivi) il contenuto del file
+                    with open(content_path, 'w', encoding='utf-8') as f:
+                        f.write(content_text)
+
+                    # Esegui un'unica operazione SQL robusta:
+                    # Inserisce una nuova riga. Se l'URL esiste già (conflitto),
+                    # aggiorna la riga esistente solo se il contenuto è cambiato.
+                    cursor.execute("""
+                        INSERT INTO articles (article_id, article_url, title, guid, published_at, extracted_content_path, content_hash, user_id, processing_status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                        ON CONFLICT(article_url) DO UPDATE SET
+                            title = excluded.title,
+                            published_at = excluded.published_at,
+                            extracted_content_path = excluded.extracted_content_path,
+                            content_hash = excluded.content_hash,
+                            processing_status = 'pending'
+                        WHERE content_hash IS NOT excluded.content_hash;
+                    """, (article_id, item_url, title_text, guid, published_date, content_path, content_hash, user_id))
+
+                    # Se la query ha modificato qualcosa (INSERT o UPDATE), ri-indicizziamo.
+                    if cursor.rowcount > 0:
+                        _index_article(article_id, conn, user_id)
+                        # Semplifichiamo il conteggio: ogni articolo processato viene contato.
+                        # Potremmo distinguere tra 'nuovo' e 'aggiornato' in futuro se necessario.
                         new_articles += 1
                 
                 elif item_type == 'page':

@@ -77,12 +77,13 @@ Creatore{% endblock %} {% block head_styles %}
 get_flashed_messages(with_categories=true) %} {% if messages %}
 <ul class="flash-messages" style="padding: 0; list-style: none">
   {% for category, message in messages %}
-  <li
+    <li
     class="{{ 'success-message' if category == 'success' else 'error-message' }}"
-    style="margin-bottom: 10px"
-  >
-    {{ message }}
-  </li>
+    style="margin-bottom: 10px; display: flex; align-items: center;"
+    >
+    <i class="fas {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}" style="margin-right: 10px;"></i>
+    <span>{{ message }}</span>
+    </li>
   {% endfor %}
 </ul>
 {% endif %} {% endwith %}

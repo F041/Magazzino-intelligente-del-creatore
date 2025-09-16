@@ -65,9 +65,10 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
-              <div class="{{ 'success-message' if category in ['success', 'info'] else 'error-message' }}">
-                  {{ message | safe }}
-              </div>
+                <div class="{{ 'success-message' if category in ['success', 'info'] else 'error-message' }}">
+                    <i class="fas {{ 'fa-check-circle' if category in ['success', 'info'] else 'fa-exclamation-triangle' }}" style="margin-right: 10px;"></i>
+                    <span>{{ message | safe }}</span>
+                </div>
             {% endfor %}
           {% endif %}
         {% endwith %}

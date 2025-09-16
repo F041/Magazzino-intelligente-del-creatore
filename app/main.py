@@ -36,6 +36,7 @@ load_dotenv() # Carica .env prima di importare config
 try:
     # Importa le configurazioni da config.py (nella root del progetto)
     from .config import config_by_name, BaseConfig
+    from .api.routes.wordpress_oauth import wordpress_oauth_bp, init_oauth
     config_name = os.getenv('FLASK_ENV', 'default')
     AppConfig = config_by_name.get(config_name, config_by_name['default'])
     print(f"Trovata configurazione per l'ambiente: {config_name}")
@@ -211,12 +212,14 @@ def create_app(config_object=AppConfig):
         app.config['CHROMA_VIDEO_COLLECTION'] = None
         app.config['CHROMA_DOC_COLLECTION'] = None
         app.config['CHROMA_ARTICLE_COLLECTION'] = None
-            # Inizializza Flask-Login
+    # Inizializza Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'login'
     login_manager.login_message = "Per favore, effettua il login per accedere a questa pagina."
     login_manager.login_message_category = "info"
+    init_oauth(app)
+    logger.info("Servizio OAuth per WordPress inizializzato.")
 
     # --- INIZIO BLOCCO SCHEDULER CORRETTO E UNICO ---
     if not app.config.get('TESTING', False):
@@ -310,6 +313,7 @@ def create_app(config_object=AppConfig):
 
     # Registra Blueprints (Usa import relativi corretti)
     try:
+        app.register_blueprint(wordpress_oauth_bp)
         from .api.routes.videos import videos_bp
         app.register_blueprint(videos_bp, url_prefix='/api/videos')
         from .api.routes.search import search_bp
@@ -328,6 +332,7 @@ def create_app(config_object=AppConfig):
         logger.info("Blueprint Monitoring registrato con prefisso /api/monitoring.")
         from .api.routes.settings import settings_bp
         app.register_blueprint(settings_bp) # Nessun prefisso, la rotta è /settings
+        #from .api.routes.wordpress_oauth import wordpress_oauth_bp, init_oauth
         logger.info("Blueprint Settings registrato.")
     except ImportError as e:
          logger.critical(f"Errore importazione/registrazione blueprint: {e}", exc_info=True)

@@ -20,6 +20,8 @@ class BaseConfig:
     SECRET_KEY = os.environ.get('FLASK_SECRET_KEY')
     GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
     COHERE_API_KEY = os.environ.get('COHERE_API_KEY')
+    WORDPRESS_CLIENT_ID = os.environ.get('WORDPRESS_CLIENT_ID')
+    WORDPRESS_CLIENT_SECRET = os.environ.get('WORDPRESS_CLIENT_SECRET')
     # Leggiamo gli SCOPES e li splittiamo subito in lista
     GOOGLE_SCOPES = os.environ.get('GOOGLE_SCOPES', "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtubepartner").split()
     # Usiamo basedir calcolato sopra
@@ -79,7 +81,7 @@ class BaseConfig:
         #HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
     }
-    RAG_REFERENCE_DISTANCE_THRESHOLD = 0.8
+    #RAG_REFERENCE_DISTANCE_THRESHOLD = 0.8 reperto da pre reranking
 
     SCHEDULER_INTERVAL_UNIT = os.environ.get('SCHEDULER_INTERVAL_UNIT', 'days').lower()
     SCHEDULER_INTERVAL_VALUE_STR = os.environ.get('SCHEDULER_INTERVAL_VALUE', '1')

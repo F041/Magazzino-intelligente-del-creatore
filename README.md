@@ -1,8 +1,15 @@
+<div align="center">
+
+[![Stato dei Test](https://github.com/F041/magazzino-creatore/actions/workflows/tests.yml/badge.svg)](https://github.com/F041/magazzino-creatore/actions/workflows/tests.yml)
+[![Stato della Build Docker](https://github.com/F041/magazzino-creatore/actions/workflows/ci-pipeline.yml/badge.svg)](https://github.com/F041/magazzino-creatore/actions/workflows/ci-pipeline.yml)
+
+</div>
+
 ![Main application page](screenshots/main.png)
 
 # Magazzino del Creatore
 
-Un'applicazione per creare una base di conoscenza interrogabile a partire dai contenuti di un creator (video YouTube, documenti, articoli RSS), utilizzando Flask per il backend, ChromaDB come database vettoriale e Google Gemini per embedding e generazione di risposte (architettura RAG).
+Un'applicazione per creare una base di conoscenza interrogabile a partire dai contenuti di un creator (video YouTube, documenti, articoli RSS), utilizzando Flask per il backend, ChromaDB come database vettoriale e un LLM a scelta (Google Gemini o un modello locale tramite Ollama) per la generazione di risposte (architettura RAG).
 
 **Modalità Operative (`APP_MODE`)**
 
@@ -38,10 +45,11 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Una pagina dedicata "Impostazioni" permette all'utente di **sovrascrivere le configurazioni di default** (presenti nel file `.env`) direttamente dall'interfaccia web.
     *   È possibile cambiare dinamicamente il fornitore AI (attualmente Google Gemini), specificare un **modello primario e uno di ripiego** per la generazione, configurare il modello di embedding, e inserire la propria API Key.
     *   Questo rende l'applicazione **agnostica rispetto al modello** e accessibile anche a utenti non tecnici, che non dovranno più modificare file di configurazione manuali.
+    *   È possibile scegliere tra diversi fornitori di modelli AI, inclusi Google Gemini e provider locali come Ollama.
     *   **Automazioni Configurabili via UI:**
     *   Una pagina "Automazioni" permette di impostare un canale YouTube o un feed RSS da monitorare periodicamente per nuovi contenuti.
     *   L'utente può configurare la **frequenza dei controlli** (es. ogni X ore o giorni) e l'**orario di esecuzione** direttamente dall'interfaccia, senza modificare file di configurazione.
-+    *   Lo scheduler è robusto ai riavvii del server, garantendo che i controlli non vengano saltati.
+    *   Lo scheduler è robusto ai riavvii del server, garantendo che i controlli non vengano saltati.
 *   **Recupero Contenuti YouTube:**
     *   Autenticazione OAuth 2.0 sicura per l'API YouTube (token salvato in `token.pickle`/`.json`).
     *   Recupera metadati e trascrizioni (manuali e automatiche) per i video di un canale specificato.
@@ -61,6 +69,12 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Indicizzazione automatica all'aggiunta (chunking, embedding, salvataggio in ChromaDB).
     *   **Elaborazione Asincrona con Feedback:** Anche il parsing dei feed RSS viene eseguito in background, con messaggi di stato che informano l'utente sull'articolo e sulla pagina in elaborazione.
     *   Interfaccia web (`/my-articles`) per visualizzare e scaricare il contenuto di tutti gli articoli.
+*   **Connettore Dati per WordPress:**
+    *   Sincronizzazione completa di **tutti gli articoli e le pagine** da un sito WordPress self-hosted con un solo click.
+    *   L'autenticazione avviene tramite **Password Applicazione**, un metodo sicuro che non richiede di esporre la password principale dell'utente.
+    *   **Sincronizzazione Intelligente:** Il sistema confronta i contenuti e aggiunge solo gli articoli nuovi e aggiorna quelli modificati, ignorando quelli già presenti e invariati.
+    *   **Pulizia Automatica:** Se un articolo o una pagina vengono cancellati dal sito WordPress, verranno rimossi anche dal Magazzino alla successiva sincronizzazione.
+    *   **Processo in Background con Feedback:** L'intera sincronizzazione viene eseguita in un thread separato, con un messaggio di stato nell'interfaccia che mostra l'avanzamento in tempo reale.
 *   **Pipeline di Indicizzazione:**
     *   Genera embedding (Google Gemini `text-embedding-004`) per chunk di video, documenti e articoli.
     *   Memorizza metadati e contenuti/trascrizioni in SQLite (con `user_id` in `saas`).
@@ -466,6 +480,7 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Test unitari per logiche di business critiche.
 *   [x] Risolto bug di aggiornamento della sidebar dopo la prima indicizzazione dei contenuti.
 *   [x] Ottimizzato recupero con Re-ranking: implementata architettura a 2 fasi con recupero ampio da ChromaDB e ri-classificazione di precisione tramite Cohere.
+*   [x] Mettere modello fallback in UI impostazioni.
 *   [x] Permette di collegarsi ad Ollama come fornitore LLM.
 
 **Prossimi Passi Possibili:**
@@ -485,12 +500,11 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 
 
 **Nuove Sorgenti Dati/Funzionalità:**
-*   [ ] **Podcast:** Implementare gestione feed/audio/trascrizione.
+*   [ ] **Podcast:** Implementare gestione feed/audio/trascrizione. Difficoltà: scaricare file audio, usare LLM per trascrizione, quando caricare il podcast tramite RSS Youtube fa risparmiare lavoro.
 
 
 **UI/UX:**
 *   [ ] **Feedback Processi Background:** Migliorare ulteriormente il feedback per operazioni lunghe (re-indicizzazione).
-    [ ] **Mettere modello fallback in UI impostazioni:** al momento consente di scegliere solo un modello.
 
 
 **DevOps e Deployment:**
@@ -500,8 +514,6 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 
 **Nuova modalità conversaione:**
 *   [ ] **Nuove idee:** creare nuova icona nel box input chat, con lampadina, per considentire all'IA di suggerire nuove idee di contenuti.
-
-
 
 
 **Funzionalità Rimosse/Archiviate:**

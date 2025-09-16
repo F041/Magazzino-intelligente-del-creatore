@@ -113,65 +113,72 @@ def _get_ollama_completion(prompt: str, base_url: str, model_name: str) -> str:
         logger.error(f"Errore imprevisto durante la comunicazione con Ollama: {e}", exc_info=True)
         raise
 
-def build_prompt(query: str, context_chunks: List[Dict], history: Optional[List[Dict]] = None) -> str:
-    # Questa funzione ora delega la costruzione a funzioni più specifiche
-    # In futuro, potremmo passare il nome del provider per scegliere il prompt giusto
-    
-    # Per ora, manteniamo la logica esistente che funziona bene con i modelli potenti
-    # e che useremo come default per Google Gemini.
-    context_text = "\n---\n".join([chunk.get('text', '') for chunk in context_chunks])
+def build_prompt(query: str, context_chunks: List[Dict], history: Optional[List[Dict]] = None, llm_provider: str = 'google') -> str:
+    """
+    Costruisce il prompt per l'LLM, scegliendo il template più adatto
+    in base al provider (Google Gemini o Ollama).
+    """
     history_str = ""
     if history:
         for msg in history:
             role = "Utente" if msg.get("role") == "user" else "Assistente"
             history_str += f"{role}: {msg.get('content', '')}\n"
-    
+
+    # --- 1. Prompt di Fallback (se non troviamo nessun contesto) ---
+    # Questo è universale e va bene per entrambi i provider.
     if not context_chunks:
-        # Il prompt di fallback rimane uguale, è universale
-        return f"""Sei l'assistente AI del "Magazzino del creatore". La conversazione precedente (se presente):
-{history_str or "Nessuna."}
-Rispondi brevemente alla seguente domanda, ma specifica che non hai trovato contesto specifico.
-Domanda: {query}
-Risposta:"""
-
-    # Questo è il prompt DETTAGLIATO che funziona bene con Gemini Pro e Llama3
-    # Potremmo voler creare un file separato per i prompt in futuro
-    detailed_prompt = f"""Sei l'assistente AI del progetto "Magazzino del creatore". Rispondi basandoti ESCLUSIVAMENTE sulle informazioni fornite.
-**Istruzioni Fondamentali:**
-- La tua risposta deve basarsi **primariamente** sul "Contesto fornito".
-- Usa la "Cronologia" per interpretare la "Domanda".
-- **NON aggiungere informazioni esterne.**
-- Se non trovi una risposta, rispondi ESATTAMENTE con: "Le informazioni disponibili non contengono una risposta diretta a questa specifica domanda."
-
-**Cronologia:**
+        logger.warning("Nessun chunk di contesto recuperato. Uso prompt di fallback.")
+        return f"""Sei l'assistente AI del "Magazzino del creatore".
+Cronologia Conversazione:
 {history_str or "Nessuna."}
 ---
-**Contesto fornito:**
+Domanda: {query}
+---
+Rispondi alla domanda, ma specifica che non hai trovato informazioni pertinenti nei documenti per questa specifica richiesta."""
+
+    context_text = "\n---\n".join([chunk.get('text', '') for chunk in context_chunks])
+
+    # --- 2. Template dei Prompt Specifici per Provider ---
+
+    # Prompt per Google Gemini: dettagliato e robusto, con le "clausole di salvataggio".
+    google_gemini_prompt = f"""Sei un assistente AI per il progetto "Magazzino del creatore".
+Il tuo compito è rispondere alla "Domanda dell'utente attuale" nella lingua in cui la chiede.
+Per formulare la tua risposta, considera attentamente:
+1.  La "Cronologia Conversazione Precedente" per capire il contesto e a cosa si riferiscono pronomi o domande vaghe.
+2.  Il "Contesto fornito dai documenti" recuperato specificamente per la domanda attuale.
+**Istruzioni Fondamentali:**
+-   La tua risposta deve essere basata **primariamente** sulle informazioni trovate nel "Contesto fornito dai documenti".
+-   **NON aggiungere informazioni esterne o tue conoscenze generali.**
+-   Se, dopo aver considerato sia la cronologia sia il contesto, non trovi una risposta diretta, rispondi ESATTAMENTE con: "Le informazioni disponibili non contengono una risposta diretta a questa specifica domanda."
+
+**Cronologia Conversazione:**
+{history_str or "Nessuna."}
+---
+**Contesto fornito dai documenti:**
 ---
 {context_text}
 ---
 **Domanda:** {query}
 **Risposta Finale:**"""
-    
-    # NUOVO: Questo è il prompt SEMPLIFICATO per i modelli più piccoli come Qwen2
-    # È più diretto e include l'istruzione di non mostrare il ragionamento.
-    simple_prompt_for_small_models = f"""Basandoti sul Contesto fornito, rispondi alla Domanda dell'utente.
-Non mostrare il tuo ragionamento. Fornisci solo la risposta finale.
 
----
+    # Prompt per Ollama: più diretto ma con le stesse "clausole di salvataggio" per renderlo affidabile.
+    ollama_simple_prompt = f"""Sei un assistente che risponde basandosi solo sul contesto fornito.
+NON usare conoscenze esterne. Se la risposta non è nel contesto, rispondi esattamente: "Le informazioni disponibili non contengono una risposta diretta a questa specifica domanda."
+
 Contesto:
 {context_text}
 ---
 Domanda: {query}
 ---
-Risposta Finale:"""
+Risposta:"""
 
-    # Per ora, per testare, potresti decidere quale prompt usare. 
-    # Visto che stai usando Ollama, ti consiglio di commentare il "detailed_prompt"
-    # e usare il "simple_prompt_for_small_models" per vedere la differenza.
-    
-    # return detailed_prompt
-    return simple_prompt_for_small_models
+    # --- 3. Logica di Selezione ---
+    if llm_provider == 'ollama':
+        logger.info("Costruzione prompt per provider OLLAMA.")
+        return ollama_simple_prompt
+    else:
+        logger.info("Costruzione prompt per provider default.")
+        return google_gemini_prompt
 
 @search_bp.route('/', methods=['POST'])
 @require_api_key
@@ -259,13 +266,22 @@ def handle_search_request(*args, **kwargs):
                 "ARTICLE": current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content'),
                 "PAGE": "page_content"
             }
+
+            logger.info(f"DEBUG VALORE n_results: Il valore usato per la query a ChromaDB e': {n_results}")
+
             all_results_combined = []
             for coll_type, base_name in base_names.items():
                 coll_name = f"{base_name}_{user_id_to_use}" if app_mode == 'saas' and user_id_to_use else base_name
                 try:
                     collection_instance = chroma_client.get_collection(name=coll_name)
-                    logger.info(f"Querying {coll_type} collection ('{coll_name}')")
-                    results = collection_instance.query(query_embeddings=[query_embedding], n_results=n_results, include=['documents', 'metadatas', 'distances'])
+                    logger.info(f"Querying {coll_type} collection ('{coll_name}') con n_results={n_results}") # Aggiungiamo un log per chiarezza                    
+                    
+                    results = collection_instance.query(
+                        query_embeddings=[query_embedding], 
+                        n_results=n_results, # Assicuriamoci che questo parametro sia sempre qui!
+                        include=['documents', 'metadatas', 'distances']
+                    )
+                    
                     docs, metas, dists = results.get('documents',[[]])[0], results.get('metadatas',[[]])[0], results.get('distances',[[]])[0]
                     for doc_text, meta, dist in zip(docs, metas, dists):
                         meta.setdefault('source_type', coll_type.lower())
@@ -303,7 +319,7 @@ def handle_search_request(*args, **kwargs):
             else:
                 logger.warning("Nessun risultato trovato da ChromaDB.")
 
-            prompt = build_prompt(query_text_internal, chunks_for_prompt, history=history_from_request)
+            prompt = build_prompt(query_text_internal, chunks_for_prompt, history=history_from_request, llm_provider=llm_provider)
             
             llm_answer = None
             llm_success = False
