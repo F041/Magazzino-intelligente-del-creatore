@@ -9,6 +9,7 @@ itsdangerous>=2.0.0 # Idem
 click>=8.0.0      # Idem
 PyJWT==2.8.0
 Authlib
+textstat
 
 # Google APIs & Auth
 google-api-python-client # Per YouTube Data API

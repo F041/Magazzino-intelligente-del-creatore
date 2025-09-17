@@ -20,14 +20,67 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_HISTORY_MESSAGES_TO_SEND = 6;
     const MAX_LOCAL_HISTORY_ITEMS = 50;
 
-    const chatWindow = document.getElementById('chat-window');
+    const chatWindow = document.getElementById('messages-list'); 
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
 
-    if (!chatWindow || !userInput || !sendButton) {
-        console.error("Errore critico: Elementi base della chat (finestra, input, bottone) non trovati nel DOM!");
-        return;
-    }
+    // --- NUOVO ELEMENTO SELEZIONATO ---
+const promptStartersContainer = document.getElementById('prompt-starters');
+
+if (!chatWindow || !userInput || !sendButton) {
+    console.error("Elementi base della chat non trovati!");
+    return;
+}
+
+function setupPromptStarters() {
+    if (!promptStartersContainer) return;
+
+    promptStartersContainer.querySelectorAll('.prompt-starter-btn').forEach((button, index) => {
+        button.addEventListener('click', () => {
+            const promptText = button.textContent.trim();
+            console.log("[prompt-starter] click. index:", index, "promptText:", JSON.stringify(promptText));
+
+            // Popola l'input e scatena l'evento input (per autosize ecc.)
+            userInput.value = promptText;
+            userInput.dispatchEvent(new Event('input', { bubbles: true }));
+            userInput.focus();
+
+            // Espone la funzione globalmente per debug (opzionale)
+            if (typeof handleSendMessage === 'function') {
+                window.handleSendMessage = handleSendMessage;
+            }
+
+            // --- INVIO AUTOMATICO PER TUTTI I BOTTONI ---
+            // Aspetta un micro-task così il browser elabora l'evento input
+            Promise.resolve().then(() => {
+                // Assicuriamoci che la UI sia abilitata prima di simulare il click
+                enableUI(true);
+
+                // Se il bottone non è disabilitato, simuliamo il click utente
+                if (!sendButton.disabled) {
+                    
+                    sendButton.click();
+
+                    // Fallback se per qualche motivo il click non ha attivato l'invio
+                    setTimeout(() => {
+                        if (typeof handleSendMessage === 'function' && !sendButton.disabled) {
+                            console.log("[prompt-starter] fallback: chiamo handleSendMessage() per index", index);
+                            handleSendMessage();
+                        }
+                    }, 50);
+                } else {
+                    // Se è ancora disabilitato (edge case), chiamiamo direttamente la funzione
+                    console.log("[prompt-starter] sendButton è disabilitato, chiamo handleSendMessage() direttamente per index", index);
+                    if (typeof handleSendMessage === 'function') handleSendMessage();
+                }
+            });
+        });
+    });
+}
+
+
+
+
 
     function manageChatHistory(newEntry) {
         chatHistory.push(newEntry);
@@ -141,6 +194,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleSendMessage() {
         const query = userInput.value.trim();
         if (!query || sendButton.disabled) return;
+
+        if (promptStartersContainer) {
+        promptStartersContainer.style.display = 'none';
+        }
 
         addMessage(query, 'user');
         userInput.value = '';
@@ -290,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorMessage = "Il server ha impiegato troppo tempo a rispondere. Potrebbe essere sovraccarico. Riprova la tua domanda.";
             }
             addMessage(errorMessage, 'bot', null, true);
-            enableAllForms(true);
+            enableUI(true);
         }
     }
 
@@ -306,9 +363,8 @@ document.addEventListener('DOMContentLoaded', () => {
             handleSendMessage();
         }
     });
-
     
 
     userInput.focus();
-    console.log("Chat JS inizializzato e pronto.");
+    setupPromptStarters();   
 });

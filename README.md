@@ -1,7 +1,7 @@
 <div align="center">
 
-[![Stato dei Test](https://github.com/F041/magazzino-creatore/actions/workflows/tests.yml/badge.svg)](https://github.com/F041/magazzino-creatore/actions/workflows/tests.yml)
-[![Stato della Build Docker](https://github.com/F041/magazzino-creatore/actions/workflows/ci-pipeline.yml/badge.svg)](https://github.com/F041/magazzino-creatore/actions/workflows/ci-pipeline.yml)
+[![Stato dei Test](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/tests.yml/badge.svg)](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/tests.yml)
+[![Stato della Build Docker](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/ci-pipeline.yml/badge.svg)](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/ci-pipeline.yml)
 
 </div>
 

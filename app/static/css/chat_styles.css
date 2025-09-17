@@ -74,7 +74,54 @@
 .reference-item a:hover { text-decoration: underline; }
 
 
+.chat-window {
+    /* Diciamo alla finestra grigia di essere un contenitore flessibile... */
+    display: flex;
+    flex-direction: column;
+    /* ...e di lasciare che i figli gestiscano lo scroll. */
+    overflow: hidden; 
+}
+
+/* NUOVO: Creiamo un contenitore interno per i soli messaggi */
+#messages-list {
+    flex-grow: 1; /* Questo elemento si prenderà tutto lo spazio */
+    overflow-y: auto; /* E solo questo elemento avrà la barra di scorrimento */
+    padding: 20px; /* Manteniamo il padding per i messaggi */
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.prompt-starters-container {
+    margin-bottom: -20px;
+    padding: 10px 15px 15px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    flex-shrink: 0; /* Impedisce che si rimpicciolisca */
+}
+
+.prompt-starter-btn {
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.85em;
+    color: #343a40;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.prompt-starter-btn:hover {
+    background-color: #f8f9fa;
+    border-color: #ced4da;
+    transform: translateY(-1px);
+}
+
+
 .input-area {
+    /* L'input area torna ad essere semplice, senza flex-direction a colonna */
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
@@ -84,6 +131,7 @@
     flex-shrink: 0;
     gap: 10px;
 }
+
 
 .input-area textarea {
     padding: 12px 16px;

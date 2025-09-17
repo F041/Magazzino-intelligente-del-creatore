@@ -206,21 +206,35 @@ def handle_search_request(*args, **kwargs):
                  final_payload.update({'error_code': 'VALIDATION_ERROR', 'message': "Testo della domanda mancante o non valido."})
                  raise ValueError("Query mancante o non valida")
 
-            # 1. Recupera il valore di default dalla configurazione.
-            default_n_results = current_app.config.get('RAG_DEFAULT_N_RESULTS', 50)
+            # --- LOGICA DI DEBUG DETTAGLIATA PER n_results ---
+            # 1. Valore di default dalla configurazione dell'app
+            default_from_config = current_app.config.get('RAG_DEFAULT_N_RESULTS', 50)
+            logger.info(f"DEBUG N_RESULTS (Passo 1): Valore di default letto da app.config: {default_from_config}")
+
+            # 2. Leggiamo il valore dalla richiesta JSON in arrivo
+            n_results_from_request = data.get('n_results')
+            logger.info(f"DEBUG N_RESULTS (Passo 2): Valore 'n_results' letto dalla richiesta JSON: {n_results_from_request} (Tipo: {type(n_results_from_request)})")
+
+            # Inizializziamo n_results con il default della configurazione
+            n_results = default_from_config
             
-            # 2. Prova a leggere 'n_results' dalla richiesta JSON. Se non c'è, usa il default.
-            n_results_str = data.get('n_results', default_n_results)
+            # 3. Decisione finale
+            if n_results_from_request is not None:
+                try:
+                    valore_richiesto = int(n_results_from_request)
+                    logger.info(f"DEBUG N_RESULTS (Passo 3a): Valore richiesto convertito in intero: {valore_richiesto}")
+                    if 0 < valore_richiesto <= 50:
+                        n_results = valore_richiesto
+                        logger.info(f"DEBUG N_RESULTS (Passo 3b): Valore richiesto e' valido. n_results ORA E': {n_results}")
+                    else:
+                        logger.warning(f"DEBUG N_RESULTS (Passo 3b): Valore richiesto ({valore_richiesto}) e' FUORI RANGE. Mantenuto il default: {n_results}")
+                except (ValueError, TypeError):
+                    logger.warning(f"DEBUG N_RESULTS (Passo 3a): Impossibile convertire '{n_results_from_request}' in intero. Mantenuto il default: {n_results}")
+            else:
+                logger.info("DEBUG N_RESULTS (Passo 3): Nessun 'n_results' nella richiesta. Mantenuto il default.")
             
-            # 3. Converti in numero e assicurati che sia valido.
-            try:
-                n_results = int(n_results_str)
-                # Se il numero è fuori dal range (es. 0 o 1000), forzalo al valore di default.
-                if not (0 < n_results <= 50):
-                    n_results = default_n_results
-            except (ValueError, TypeError):
-                # Se la conversione fallisce, usa il default.
-                n_results = default_n_results
+            logger.info(f"====> VALORE FINALE DI n_results PRIMA DELLA QUERY: {n_results} <====")
+            # --- FINE LOGICA DI DEBUG ---
 
             if not get_gemini_embeddings:
                  final_payload.update({'error_code': 'SERVER_CONFIG_ERROR', 'message': 'Servizio Embedding non disponibile.'})

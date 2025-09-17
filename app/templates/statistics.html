@@ -1,0 +1,211 @@
+<!-- FILE: app/templates/statistics.html (CORRETTO E SENZA ERRORI LINTER) -->
+
+{% extends "base.html" %}
+
+{% block title %}STATistiche - Magazzino del Creatore{% endblock %}
+
+{% block head_styles %}
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: var(--spacing-xl);
+        margin-top: var(--spacing-xl);
+    }
+    .stat-card {
+        background-color: var(--color-background-secondary);
+        border: 1px solid var(--color-border);
+        border-radius: var(--border-radius-md);
+        padding: var(--spacing-xl);
+        box-shadow: var(--box-shadow-sm);
+        display: flex;
+        flex-direction: column;
+    }
+    .stat-card h3 {
+        font-family: var(--font-sans);
+        font-size: 1.2rem;
+        margin-top: 0;
+        margin-bottom: var(--spacing-lg);
+        color: var(--color-text-secondary);
+        border-bottom: 1px solid var(--color-border-light);
+        padding-bottom: var(--spacing-md);
+    }
+    .metrics-container {
+        display: flex;
+        justify-content: space-around;
+        text-align: center;
+        margin-bottom: var(--spacing-xl);
+    }
+    .metric-item .value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--color-primary);
+    }
+    .metric-item .label {
+        font-size: 0.9rem;
+        color: var(--color-text-light);
+    }
+    .chart-container {
+        flex-grow: 1; /* Assicura che il grafico occupi lo spazio rimanente */
+        min-height: 250px; /* Altezza minima per il grafico */
+    }
+    .no-data-message {
+        color: var(--color-text-light);
+        font-style: italic;
+        text-align: center;
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <h1>Le tue STATistiche</h1>
+    <p>Analisi quantitative dei tuoi contenuti per aiutarti a capire meglio il tuo magazzino. I calcoli si basano solo sui contenuti che sono stati processati con successo.</p>
+
+    <!-- **MODIFICA 1:** Aggiungiamo un contenitore nascosto per i nostri dati -->
+    <div id="stats-data-container" data-stats="{{ stats_data | tojson | safe }}" style="display: none;"></div>
+
+
+    {% if stats_data.error %}
+        <div class="error-message">{{ stats_data.error }}</div>
+    {% else %}
+    <div class="stats-grid">
+        
+        {# --- Scheda per i VIDEO --- #}
+        <div class="stat-card">
+            <h3><i class="fas fa-video fa-fw"></i> Video ({{ stats_data.videos.count }})</h3>
+            {% if stats_data.videos.count > 0 %}
+                <div class="metrics-container">
+                    <div class="metric-item">
+                        <div class="value">{{ stats_data.videos.avg_word_count }}</div>
+                        <div class="label">Parole Medie</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="value">{{ stats_data.videos.avg_gunning_fog }}</div>
+                        <div class="label">Indice Leggibilità</div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="video-chart"></canvas>
+                </div>
+            {% else %}
+                <p class="no-data-message">Nessun video trovato o processato.</p>
+            {% endif %}
+        </div>
+
+        {# --- Scheda per i DOCUMENTI --- #}
+        <div class="stat-card">
+            <h3><i class="fas fa-file-alt fa-fw"></i> Documenti ({{ stats_data.documents.count }})</h3>
+            {% if stats_data.documents.count > 0 %}
+                <div class="metrics-container">
+                    <div class="metric-item">
+                        <div class="value">{{ stats_data.documents.avg_word_count }}</div>
+                        <div class="label">Parole Medie</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="value">{{ stats_data.documents.avg_gunning_fog }}</div>
+                        <div class="label">Indice Leggibilità</div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="document-chart"></canvas>
+                </div>
+            {% else %}
+                <p class="no-data-message">Nessun documento trovato o processato.</p>
+            {% endif %}
+        </div>
+
+        {# --- Scheda per gli ARTICOLI --- #}
+        <div class="stat-card">
+            <h3><i class="fas fa-newspaper fa-fw"></i> Articoli ({{ stats_data.articles.count }})</h3>
+            {% if stats_data.articles.count > 0 %}
+                <div class="metrics-container">
+                    <div class="metric-item">
+                        <div class="value">{{ stats_data.articles.avg_word_count }}</div>
+                        <div class="label">Parole Medie</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="value">{{ stats_data.articles.avg_gunning_fog }}</div>
+                        <div class="label">Indice Leggibilità</div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="article-chart"></canvas>
+                </div>
+            {% else %}
+                <p class="no-data-message">Nessun articolo trovato o processato.</p>
+            {% endif %}
+        </div>
+
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <!-- Includiamo la libreria Chart.js e il plugin per i box plot -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-box-and-violin-plot@4.0.0/build/Chart.BoxPlot.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // **MODIFICA 2:** Leggiamo i dati dall'attributo data-* e li convertiamo da stringa JSON a oggetto JavaScript
+            const dataContainer = document.getElementById('stats-data-container');
+            const statsData = JSON.parse(dataContainer.dataset.stats || '{}');
+
+            // La funzione per creare i grafici rimane identica a prima
+            function createBoxPlot(canvasId, label, data) {
+                const ctx = document.getElementById(canvasId);
+                if (!ctx || !data || data.length === 0) {
+                    console.log(`Canvas o dati non trovati per ${canvasId}`);
+                    return;
+                }
+                
+                new Chart(ctx, {
+                    type: 'boxplot',
+                    data: {
+                        labels: [label],
+                        datasets: [{
+                            label: 'Distribuzione Lunghezza (parole)',
+                            data: [data], 
+                            backgroundColor: 'rgba(67, 97, 238, 0.2)',
+                            borderColor: 'rgba(67, 97, 238, 1)',
+                            borderWidth: 1.5,
+                            padding: 10,
+                            itemRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Numero di Parole'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // L'inizializzazione dei grafici rimane identica
+            if (statsData.videos && statsData.videos.count > 0) {
+                createBoxPlot('video-chart', 'Video', statsData.videos.word_count_distribution);
+            }
+            if (statsData.documents && statsData.documents.count > 0) {
+                createBoxPlot('document-chart', 'Documenti', statsData.documents.word_count_distribution);
+            }
+            if (statsData.articles && statsData.articles.count > 0) {
+                createBoxPlot('article-chart', 'Articoli', statsData.articles.word_count_distribution);
+            }
+        });
+    </script>
+{% endblock %}

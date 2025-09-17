@@ -328,6 +328,9 @@ def create_app(config_object=AppConfig):
         app.register_blueprint(settings_bp) # Nessun prefisso, la rotta è /settings
         #from .api.routes.wordpress_oauth import wordpress_oauth_bp, init_oauth
         logger.info("Blueprint Settings registrato.")
+        from .api.routes.statistics import stats_bp
+        app.register_blueprint(stats_bp)
+        logger.info("Blueprint Statistics registrato.")
     except ImportError as e:
          logger.critical(f"Errore importazione/registrazione blueprint: {e}", exc_info=True)
          sys.exit(1)
@@ -785,67 +788,199 @@ def create_app(config_object=AppConfig):
         come parametro URL per l'autenticazione via JavaScript.
         """
         return render_template('widget_standalone.html')
-
-    @app.context_processor
-    def inject_user_content_status():
+    
+    @app.route('/personalization', methods=['GET', 'POST'])
+    @login_required
+    def personalization_page():
         """
-        Controlla il numero di contenuti completati per ogni categoria
-        e rende queste informazioni disponibili a tutti i template.
+        Gestisce la visualizzazione (GET) e il salvataggio (POST) 
+        delle impostazioni di personalizzazione.
         """
-        content_counts = {
-            'has_videos': False,
-            'has_documents': False,
-            'has_articles': False,
-            'has_pages': False  # NUOVA CHIAVE
-        }
-
-        if not hasattr(current_user, 'is_authenticated') or not current_user.is_authenticated:
-            return dict(content_counts=content_counts)
-
-        app_mode = current_app.config.get('APP_MODE', 'single')
+        user_id = current_user.id
         db_path = current_app.config.get('DATABASE_FILE')
         conn = None
-        
+
+        if request.method == 'POST':
+            try:
+                # Recupera i dati dal form
+                settings_to_save = {
+                    'brand_color': request.form.get('brand_color'),
+                    'brand_logo_url': request.form.get('brand_logo_url'),
+                    'welcome_message': request.form.get('welcome_message'),
+                    'prompt_starter_1': request.form.get('prompt_starter_1'),
+                    'prompt_starter_2': request.form.get('prompt_starter_2'),
+                    'prompt_starter_3': request.form.get('prompt_starter_3'),
+                    'brand_font': request.form.get('brand_font')
+                }
+                
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+
+                # Usa INSERT OR IGNORE per assicurarsi che esista una riga per l'utente,
+                # senza sovrascrivere dati esistenti se la riga c'è già.
+                cursor.execute("INSERT OR IGNORE INTO user_settings (user_id) VALUES (?)", (user_id,))
+
+                # Esegui l'UPDATE per salvare le nuove impostazioni
+                cursor.execute("""
+                    UPDATE user_settings SET
+                        brand_color = ?,
+                        brand_logo_url = ?,
+                        welcome_message = ?,
+                        prompt_starter_1 = ?,
+                        prompt_starter_2 = ?,
+                        prompt_starter_3 = ?,
+                        brand_font = ?
+                    WHERE user_id = ?
+                """, (
+                    settings_to_save['brand_color'],
+                    settings_to_save['brand_logo_url'],
+                    settings_to_save['welcome_message'],
+                    settings_to_save['prompt_starter_1'],
+                    settings_to_save['prompt_starter_2'],
+                    settings_to_save['prompt_starter_3'],
+                    settings_to_save['brand_font'],
+                    user_id
+                ))
+                
+                conn.commit()
+                flash('Impostazioni di personalizzazione salvate con successo!', 'success')
+                logger.info(f"Impostazioni di personalizzazione salvate per l'utente {user_id}.")
+
+            except sqlite3.Error as e:
+                if conn: conn.rollback()
+                flash('Errore durante il salvataggio delle impostazioni nel database.', 'error')
+                logger.error(f"Errore DB salvando personalizzazione per utente {user_id}: {e}")
+            finally:
+                if conn: conn.close()
+
+            return redirect(url_for('personalization_page'))
+
+        # Logica per il metodo GET (mostrare la pagina con i dati salvati)
+        user_settings = {}
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM user_settings WHERE user_id = ?", (user_id,))
+            settings_row = cursor.fetchone()
+            if settings_row:
+                user_settings = dict(settings_row)
+        except sqlite3.Error as e:
+            logger.error(f"Errore DB caricando personalizzazione per utente {user_id}: {e}")
+        finally:
+            if conn: conn.close()
+            
+        return render_template('personalization.html', settings=user_settings)
+    
+    @app.route('/personalization/reset')
+    @login_required
+    def reset_personalization():
+        """Resetta le impostazioni di personalizzazione dell'utente a NULL."""
+        user_id = current_user.id
+        db_path = current_app.config.get('DATABASE_FILE')
+        conn = None
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-
-            params = (current_user.id,) if app_mode == 'saas' else ()
-            user_filter = " WHERE user_id = ?" if app_mode == 'saas' else ""
-
-            # Controlla i video
-            cursor.execute(f"SELECT 1 FROM videos {user_filter} AND processing_status = 'completed' LIMIT 1", params)
-            if cursor.fetchone():
-                content_counts['has_videos'] = True
-
-            # Controlla i documenti
-            cursor.execute(f"SELECT 1 FROM documents {user_filter} AND processing_status = 'completed' LIMIT 1", params)
-            if cursor.fetchone():
-                content_counts['has_documents'] = True
-            
-            # Controlla gli articoli
-            cursor.execute(f"SELECT 1 FROM articles {user_filter} AND processing_status = 'completed' LIMIT 1", params)
-            if cursor.fetchone():
-                content_counts['has_articles'] = True
-
-            # NUOVO CONTROLLO PER LE PAGINE
-            cursor.execute(f"SELECT 1 FROM pages {user_filter} AND processing_status = 'completed' LIMIT 1", params)
-            if cursor.fetchone():
-                content_counts['has_pages'] = True
-
+            cursor.execute("""
+                UPDATE user_settings SET
+                    brand_color = NULL,
+                    brand_logo_url = NULL,
+                    welcome_message = NULL,
+                    prompt_starter_1 = NULL,
+                    prompt_starter_2 = NULL,
+                    prompt_starter_3 = NULL
+                WHERE user_id = ?
+            """, (user_id,))
+            conn.commit()
+            flash('Le impostazioni di personalizzazione sono state ripristinate.', 'success')
+            logger.info(f"Impostazioni di personalizzazione ripristinate per l'utente {user_id}.")
         except sqlite3.Error as e:
-            logger.error(f"Errore DB in context_processor: {e}")
+            if conn: conn.rollback()
+            flash('Errore durante il ripristino delle impostazioni.', 'error')
+            logger.error(f"Errore DB durante il ripristino della personalizzazione per {user_id}: {e}")
         finally:
-            if conn:
-                conn.close()
+            if conn: conn.close()
         
-        return dict(content_counts=content_counts)
+        return redirect(url_for('personalization_page'))
 
+    @app.context_processor
+    def inject_global_data():
+        """
+        Rende disponibili dati globali a tutti i template:
+        - Lo stato dei contenuti dell'utente (content_counts).
+        - Le impostazioni di personalizzazione dell'utente (personalization_settings).
+        """
+        # Importiamo current_user QUI DENTRO per essere sicuri che sia disponibile.
+        from flask_login import current_user
 
+        # Inizializza i valori di default che verranno usati se l'utente non è loggato
+        # o se non ha impostazioni personalizzate.
+        content_counts = {'has_videos': False, 'has_documents': False, 'has_articles': False, 'has_pages': False}
+        personalization_settings = {
+            'brand_color': '#007bff', # Colore di default
+            'brand_logo_url': None,
+            'welcome_message': "<p>Ciao! Sono l'assistente del Magazzino del Creatore.</p><p>Fai una domanda sui contenuti che hai indicizzato (video, documenti, articoli).</p>",
+            'prompt_starters': [],
+            'brand_font': 'Segoe UI, sans-serif' 
+        }
+
+        # Controlliamo in modo sicuro se l'utente è autenticato.
+        # Questo è il modo più robusto per farlo in un context_processor.
+        if current_user and hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+            db_path = current_app.config.get('DATABASE_FILE')
+            conn = None
+            try:
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+
+                user_filter = " WHERE user_id = ?"
+                params = (current_user.id,)
+
+                # --- Logica per content_counts (invariata) ---
+                cursor.execute(f"SELECT 1 FROM videos {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+                if cursor.fetchone(): content_counts['has_videos'] = True
+                cursor.execute(f"SELECT 1 FROM documents {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+                if cursor.fetchone(): content_counts['has_documents'] = True
+                cursor.execute(f"SELECT 1 FROM articles {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+                if cursor.fetchone(): content_counts['has_articles'] = True
+                cursor.execute(f"SELECT 1 FROM pages {user_filter} AND processing_status = 'completed' LIMIT 1", params)
+                if cursor.fetchone(): content_counts['has_pages'] = True
+
+                # --- Logica per caricare le impostazioni di personalizzazione ---
+                cursor.execute("SELECT * FROM user_settings WHERE user_id = ?", (current_user.id,))
+                settings_row = cursor.fetchone()
+                if settings_row:
+                    # Sovrascrivi i default solo se i valori nel DB non sono vuoti
+                    if settings_row['brand_color']: 
+                        personalization_settings['brand_color'] = settings_row['brand_color']
+                    if settings_row['brand_logo_url']: 
+                        personalization_settings['brand_logo_url'] = settings_row['brand_logo_url']
+                    if settings_row['welcome_message']: 
+                        personalization_settings['welcome_message'] = settings_row['welcome_message']
+                    if settings_row['brand_font']: 
+                        personalization_settings['brand_font'] = settings_row['brand_font']
+                    
+                    starters = [
+                        settings_row['prompt_starter_1'],
+                        settings_row['prompt_starter_2'],
+                        settings_row['prompt_starter_3']
+                    ]
+                    # Filtra via i valori None o stringhe vuote
+                    personalization_settings['prompt_starters'] = [s for s in starters if s]
+
+            except sqlite3.Error as e:
+                logger.error(f"Errore DB in context_processor: {e}")
+            finally:
+                if conn: conn.close()
+        
+        # Rendi entrambe le variabili disponibili in tutti i template
+        return dict(
+            content_counts=content_counts,
+            personalization_settings=personalization_settings
+        )
     return app
-
-
-
 
 
 # --- Blocco Esecuzione Principale (__main__) ---

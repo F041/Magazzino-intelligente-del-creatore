@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Personalizzazione - Magazzino del Creatore{% endblock %}
+
+{% block head_styles %}
+    <style>
+        .flash-message-container { margin-bottom: 20px; }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>Personalizzazione</h1>
+    <p>Rendi il Magazzino veramente tuo. Da qui puoi modificare l'aspetto della chat e altre impostazioni per allinearle alla tua attività.</p>
+
+    <div class="flash-message-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="{{ 'success-message' if category == 'success' else 'error-message' }}">
+                        <i class="fas {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-triangle' }}" style="margin-right: 10px;"></i>
+                        <span>{{ message }}</span>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <form id="personalization-form" method="POST" action="{{ url_for('personalization_page') }}" class="settings-form" style="margin-top: 30px;">
+        
+        <div class="form-section">
+            <h2><i class="fas fa-palette" style="margin-right: 10px; color: var(--color-text-secondary);"></i> Branding e aspetto</h2>
+            <div class="form-group">
+                <label for="brand-color">Colore Principale</label>
+                <input type="color" id="brand-color" name="brand_color" value="{{ settings.get('brand_color') or '#007bff' }}">
+                <small style="color: var(--color-text-light);">Scegli il colore principale per la chat e l'interfaccia.</small>
+            </div>
+            <div class="form-group">
+                <label for="brand-logo">Logo (URL)</label>
+                <input type="url" id="brand-logo" name="brand_logo_url" placeholder="https://www.esempio.com/logo.png" value="{{ settings.get('brand_logo_url') or '' }}">
+                <small style="color: var(--color-text-light);">Opzionale: inserisci l'URL di un logo da mostrare nella sidebar.</small>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+            <label for="brand-font">Font Principale</label>
+            <select id="brand-font" name="brand_font">
+                <option value="Segoe UI, sans-serif" {% if settings.get('brand_font') == 'Segoe UI, sans-serif' %}selected{% endif %}>Moderno (Segoe UI)</option>
+                <option value="Roboto, sans-serif" {% if settings.get('brand_font') == 'Roboto, sans-serif' %}selected{% endif %}>Pulito (Roboto)</option>
+                <option value="Lato, sans-serif" {% if settings.get('brand_font') == 'Lato, sans-serif' %}selected{% endif %}>Amichevole (Lato)</option>
+                <option value="Merriweather, serif" {% if settings.get('brand_font') == 'Merriweather, serif' %}selected{% endif %}>Elegante (Merriweather)</option>
+                <option value="Lora, serif" {% if settings.get('brand_font') == 'Lora, serif' %}selected{% endif %}>Classico (Lora)</option>
+                <option value="Courier New, monospace" {% if settings.get('brand_font') == 'Courier New, monospace' %}selected{% endif %}>Tech (Courier)</option>
+            </select>
+            <small style="color: var(--color-text-light);">Scegli lo stile di testo per l'applicazione.</small>
+        </div>
+
+        <div class="form-section">
+            <h2><i class="fas fa-hand-sparkles" style="margin-right: 10px; color: var(--color-text-secondary);"></i> Messaggio di benvenuto</h2>
+            <div class="form-group">
+                <label for="welcome-message">Testo del primo messaggio del bot</label>
+                <textarea id="welcome-message" name="welcome_message" rows="3" placeholder="Ciao! Sono l'assistente di [Il Tuo Nome]...">{{ settings.get('welcome_message') or '' }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2><i class="fas fa-question-circle" style="margin-right: 10px; color: var(--color-text-secondary);"></i> Domande suggerite (Prompt Starters)</h2>
+            <p style="font-size: 0.9em; color: var(--color-text-light); margin-top: -10px; margin-bottom: 20px;">
+                Offri agli utenti alcuni spunti per iniziare la conversazione. Lascia vuoto per non mostrarli.
+            </p>
+            <div class="form-group">
+                <label for="starter-1">Suggerimento 1</label>
+                <input type="text" id="starter-1" name="prompt_starter_1" placeholder="Es: Riassumimi il tuo ultimo video" value="{{ settings.get('prompt_starter_1') or '' }}">
+            </div>
+            <div class="form-group">
+                <label for="starter-2">Suggerimento 2</label>
+                <input type="text" id="starter-2" name="prompt_starter_2" placeholder="Es: Quali strumenti consigli per...?" value="{{ settings.get('prompt_starter_2') or '' }}">
+            </div>
+            <div class="form-group">
+                <label for="starter-3">Suggerimento 3</label>
+                <input type="text" id="starter-3" name="prompt_starter_3" placeholder="Es: Parlami di [argomento chiave]" value="{{ settings.get('prompt_starter_3') or '' }}">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="button" id="reset-personalization-btn" class="action-btn secondary">
+                <i class="fas fa-undo"></i> Ripristina
+            </button>
+            <button type="submit" class="action-btn">Salva personalizzazioni</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+    // Script per il pulsante Ripristina
+    document.addEventListener('DOMContentLoaded', () => {
+        const resetBtn = document.getElementById('reset-personalization-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', async () => {
+                const confirmed = await showConfirmModal(
+                    'Conferma Ripristino',
+                    'Sei sicuro di voler cancellare tutte le personalizzazioni e tornare ai valori predefiniti?'
+                );
+                if (confirmed) {
+                    window.location.href = "{{ url_for('reset_personalization') }}";
+                }
+            });
+        }
+    });
+    </script>
+{% endblock %}

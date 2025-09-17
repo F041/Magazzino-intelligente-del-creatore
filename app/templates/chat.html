@@ -4,12 +4,16 @@
 
 {% block head_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_styles.css') }}">
+
+<style>
+
+</style>
 {% endblock %}
 
 {% block content %}
 
 <button id="open-embed-modal-button" title="Ottieni codice per incorporare la chat">
-    Incorpora Chat
+    Incorpora chat
 </button>
 
 <div class="chat-container">
@@ -19,32 +23,39 @@
     </div>
 
     <div class="chat-window" id="chat-window">
-        <div class="message bot-message">
-            <p>Ciao! Sono l'assistente del Magazzino del Creatore.</p>
-            <p>Fai una domanda sui contenuti che hai indicizzato (video, documenti, articoli).</p>
+        
+        {# --- NUOVO CONTENITORE PER I MESSAGGI --- #}
+        <div id="messages-list">
+            <div class="message bot-message">
+                <p>{{ personalization_settings.welcome_message | safe }}</p>
+            </div>
+            {# I messaggi dinamici verranno aggiunti QUI dentro dal JS #}
         </div>
+        {# --- FINE NUOVO CONTENITORE --- #}
+        
+        {% if personalization_settings.prompt_starters %}
+        <div class="prompt-starters-container" id="prompt-starters">
+            {% for starter in personalization_settings.prompt_starters %}
+                <button class="prompt-starter-btn">{{ starter }}</button>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 
-<div class="input-area">
-<!--     <button id="chat-mode-toggle" class="chat-mode-btn" title="Clicca per cambiare modalità (Domanda / Conversazione)">
-        <span class="mode-icon">❓</span>
-        <span class="mode-text">Chiedi</span>
-    </button> --> 
-<!-- non ha senso, va gestito da intent --> 
-    <textarea id="user-input" placeholder="Chiedi qualcosa..." rows="1"></textarea>
-    <button id="send-button" class="send-btn">Invia</button>
-
-</div>
+    <div class="input-area">
+        <textarea id="user-input" placeholder="Chiedi qualcosa..." rows="1"></textarea>
+        <button id="send-button" class="send-btn">Invia</button>
+    </div>
 
 </div>
 
 <div id="modal-overlay"></div>
 <div id="embed-code-modal">
-    <h3>Incorpora la Chat sul tuo Sito</h3>
+    <h3>Incorpora la chat sul tuo sito</h3>
     <p>Per garantire la sicurezza, la chat funzionerà solo sul dominio che specifichi qui. Assicurati di inserire il dominio corretto del tuo sito (es. `www.ilmiosito.com`).</p>
     
     <div class="form-group" style="text-align: left;">
-        <label for="widget-domain" style="font-weight: bold; margin-bottom: 5px;">Dominio Autorizzato:</label>
+        <label for="widget-domain" style="font-weight: bold; margin-bottom: 5px;">Dominio autorizzato:</label>
         <input type="text" id="widget-domain" placeholder="www.esempio.com" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
         <small style="color: #6c757d;">Puoi cambiarlo in seguito tornando qui.</small>
     </div>
@@ -64,17 +75,13 @@
 {% endblock %}
 
 {% block scripts %}
-{# Script per Marked.js e DOMPurify (DA AGGIUNGERE SE NON PRESENTI) #}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
 
-{# Il tuo script chat.js (DEVE essere dopo le librerie) #}
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 
-{# Script JS modale (assicurati sia presente e corretto) #}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Seleziona gli elementi del nuovo modale
     const openModalButton = document.getElementById('open-embed-modal-button');
     const embedModal = document.getElementById('embed-code-modal');
     const modalOverlay = document.getElementById('modal-overlay');
@@ -86,27 +93,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const copySnippetBtn = document.getElementById('copy-embed-code');
 
     async function showModal() {
-        // Resetta lo stato del modale
         snippetArea.style.display = 'none';
         copySnippetBtn.style.display = 'none';
         saveDomainBtn.style.display = 'inline-block';
-        domainInput.value = 'Caricamento...'; // Feedback visivo
+        domainInput.value = 'Caricamento...';
         
         embedModal.style.display = 'block';
         modalOverlay.style.display = 'block';
 
-        // NUOVA LOGICA: Chiedi al server il dominio salvato
         try {
-            const response = await fetch('/keys/api/widget-settings'); // Metodo GET di default
+            const response = await fetch('/keys/api/widget-settings');
             const result = await response.json();
             if (response.ok && result.success) {
-                domainInput.value = result.domain || ''; // Inserisci il dominio nel campo
+                domainInput.value = result.domain || '';
             } else {
                 throw new Error(result.message || 'Errore sconosciuto');
             }
         } catch (error) {
             console.error('Errore nel recuperare il dominio:', error);
-            domainInput.value = ''; // Pulisci il campo in caso di errore
+            domainInput.value = '';
             alert('Impossibile recuperare il dominio salvato.');
         }
     }
@@ -140,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!response.ok) throw new Error(result.message || 'Errore dal server.');
 
-            // Se il salvataggio va a buon fine, genera e mostra lo snippet
             const embedJsUrl = '{{ url_for("serve_embed_js", _external=True) | safe }}';
             const customerId = result.customerId;
             
@@ -148,13 +152,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             snippetArea.style.display = 'block';
             copySnippetBtn.style.display = 'inline-block';
-            saveDomainBtn.style.display = 'none'; // Nascondi il bottone Salva
+            saveDomainBtn.style.display = 'none';
 
         } catch (error) {
             alert(`Errore: ${error.message}`);
         } finally {
             saveDomainBtn.disabled = false;
-            saveDomainBtn.textContent = 'Salva e Genera Snippet';
+            saveDomainBtn.textContent = 'Salva e genera snippet';
         }
     });
 
@@ -163,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.clipboard.writeText(snippetTextarea.value)
             .then(() => {
                 copySnippetBtn.textContent = 'Copiato!';
-                setTimeout(() => { copySnippetBtn.textContent = 'Copia Codice'; }, 2000);
+                setTimeout(() => { copySnippetBtn.textContent = 'Copia codice'; }, 2000);
             });
     });
 });

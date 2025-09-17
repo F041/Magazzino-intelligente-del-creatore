@@ -55,6 +55,7 @@ class BaseConfig:
 
     # --- Impostazioni Ricerca RAG ---
     RAG_DEFAULT_N_RESULTS = 50 # o 15, 5 troppo poco
+    print(f"DEBUG CONFIG.PY: Valore di RAG_DEFAULT_N_RESULTS impostato a: {RAG_DEFAULT_N_RESULTS}")
     # NUOVA LOGICA per la lista di modelli con fallback
     # Leggiamo la stringa dal .env, fornendo un default stabile se manca
     _models_str = os.environ.get('LLM_MODELS', "gemini-2.5-pro,gemini-2.0-flash")

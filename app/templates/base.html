@@ -25,6 +25,36 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/styles.css') }}"
     />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles.css') }}"
+    />
+    
+    {% if personalization_settings.brand_color %}
+    <style>
+        :root {
+            --color-primary: {{ personalization_settings.brand_color }};
+        }
+    </style>
+    {% endif %}
+    {# --- INIZIO BLOCCO FONT DINAMICO --- #}
+    {% if personalization_settings.brand_font %}
+        {# Carichiamo il font da Google Fonts solo se non è un font di sistema #}
+        {% if 'Segoe UI' not in personalization_settings.brand_font and 'Courier New' not in personalization_settings.brand_font %}
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family={{ personalization_settings.brand_font.split(',')[0].replace(' ', '+') }}:wght@400;700&display=swap" rel="stylesheet">
+        {% endif %}
+
+        {# Sovrascriviamo la variabile CSS per il font principale #}
+        <style>
+            :root {
+                --font-sans: '{{ personalization_settings.brand_font.split(',')[0] }}', {{ personalization_settings.brand_font.split(',')[1] or 'sans-serif' }};
+            }
+        </style>
+    {% endif %}
+    {# --- FINE BLOCCO FONT DINAMICO --- #}
+
     {% block head_styles %}{% endblock %}
   </head>
   <body>
@@ -32,8 +62,14 @@
       <!-- Intestazione della Sidebar (fissa) -->
       <div class="sidebar-header">
         <div class="sidebar-brand">
-          <i class="fas fa-warehouse"></i>
-          <span>Magazzino</span>
+        {# Se l'utente ha impostato un URL per il logo, mostra l'immagine... #}
+        {% if personalization_settings.brand_logo_url %}
+        <img src="{{ personalization_settings.brand_logo_url }}" alt="Logo" style="height: 32px; max-width: 40px; border-radius: 4px; margin-right: 10px;">
+        {# ...altrimenti, mostra l'icona di default. #}
+        {% else %}
+        <i class="fas fa-warehouse"></i>
+        {% endif %}
+        <span>Magazzino</span>
         </div>
       </div>
 
@@ -112,8 +148,17 @@
       <!-- Footer della Sidebar (fisso) -->
       <div class="sidebar-footer">
         <ul class="sidebar-menu">
-          <li>
-            <a href="#">
+          {% if content_counts.has_videos or content_counts.has_documents or content_counts.has_articles or content_counts.has_pages %}
+          <li class="{{ 'active' if request.endpoint == 'statistics.statistics_page' else '' }}">
+            <a href="{{ url_for('statistics.statistics_page') }}">
+              <i class="fas fa-chart-bar fa-fw"></i>
+              <span>STATistiche</span>
+            </a>
+          </li>
+          {% endif %}
+
+          <li class="{{ 'active' if request.endpoint == 'personalization_page' else '' }}">
+            <a href="{{ url_for('personalization_page') }}">
               <i class="fas fa-paint-brush fa-fw"></i>
               <span>Personalizzazione</span>
             </a>

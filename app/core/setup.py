@@ -289,6 +289,49 @@ def init_db(config):
         logger.info("Tabella 'user_settings' verificata/creata.")
 
 
+        # --- Aggiunta colonne per Personalizzazione ---
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN brand_color TEXT")
+            logger.info("Colonna 'brand_color' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'brand_color' già presente in 'user_settings'.")
+
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN brand_logo_url TEXT")
+            logger.info("Colonna 'brand_logo_url' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'brand_logo_url' già presente in 'user_settings'.")
+            
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN welcome_message TEXT")
+            logger.info("Colonna 'welcome_message' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'welcome_message' già presente in 'user_settings'.")
+
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN prompt_starter_1 TEXT")
+            logger.info("Colonna 'prompt_starter_1' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'prompt_starter_1' già presente in 'user_settings'.")
+
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN prompt_starter_2 TEXT")
+            logger.info("Colonna 'prompt_starter_2' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'prompt_starter_2' già presente in 'user_settings'.")
+            
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN prompt_starter_3 TEXT")
+            logger.info("Colonna 'prompt_starter_3' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'prompt_starter_3' già presente in 'user_settings'.")
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN brand_font TEXT")
+            logger.info("Colonna 'brand_font' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'brand_font' già presente in 'user_settings'.")
+
+
         try:
             cursor.execute("ALTER TABLE user_settings ADD COLUMN ollama_base_url TEXT")
             logger.info("Colonna 'ollama_base_url' aggiunta alla tabella 'user_settings'.")
