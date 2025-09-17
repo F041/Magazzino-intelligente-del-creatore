@@ -18,6 +18,7 @@ def test_search_api_success(client, app, monkeypatch):
     
     # Registra un utente per la sessione, necessario per le chiamate interne autenticate
     register_and_login_test_user(client, app, monkeypatch)
+    monkeypatch.setitem(app.config, 'COHERE_API_KEY', 'fake_cohere_key_for_testing')
 
     # Dati finti che i nostri "attori" (mock) restituiranno
     mock_query_embedding = [0.1] * 768

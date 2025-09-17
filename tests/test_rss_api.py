@@ -3,6 +3,14 @@ import time
 from unittest.mock import patch, MagicMock, ANY
 from flask import url_for
 import sqlite3
+from app.api.routes import rss as rss_api # Importiamo il modulo per accedere alle sue variabili
+
+def setup_function(function):
+    """Questa funzione viene eseguita prima di ogni test in questo file."""
+    # Resettiamo lo stato del processo RSS per garantire che ogni test parta pulito.
+    with rss_api.rss_status_lock:
+        rss_api.rss_processing_status['is_processing'] = False
+        rss_api.rss_processing_status['error'] = None
 
 # Helper (invariato e corretto)
 def login_test_user_for_rss(client, app, monkeypatch, email="rssuser@example.com", password="password"):

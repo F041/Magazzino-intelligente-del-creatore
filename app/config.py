@@ -125,6 +125,7 @@ class TestConfig(DevelopmentConfig):
     TESTING = True
     SECRET_KEY = 'test_secret_key'
     GOOGLE_API_KEY = 'test_google_api_key_placeholder' # Non verranno fatte chiamate reali
+    COHERE_API_KEY = 'test_cohere_api_key_placeholder'
 
     # _TEST_BASE_DIR verrà impostato dalla fixture di test
     _TEST_BASE_DIR = None

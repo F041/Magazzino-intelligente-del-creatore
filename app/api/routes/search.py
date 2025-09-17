@@ -206,12 +206,20 @@ def handle_search_request(*args, **kwargs):
                  final_payload.update({'error_code': 'VALIDATION_ERROR', 'message': "Testo della domanda mancante o non valido."})
                  raise ValueError("Query mancante o non valida")
 
+            # 1. Recupera il valore di default dalla configurazione.
             default_n_results = current_app.config.get('RAG_DEFAULT_N_RESULTS', 50)
-            n_results = default_n_results
+            
+            # 2. Prova a leggere 'n_results' dalla richiesta JSON. Se non c'è, usa il default.
+            n_results_str = data.get('n_results', default_n_results)
+            
+            # 3. Converti in numero e assicurati che sia valido.
             try:
-                n_results_temp = int(data.get('n_results', default_n_results))
-                n_results = n_results_temp if 0 < n_results_temp <= 50 else default_n_results
+                n_results = int(n_results_str)
+                # Se il numero è fuori dal range (es. 0 o 1000), forzalo al valore di default.
+                if not (0 < n_results <= 50):
+                    n_results = default_n_results
             except (ValueError, TypeError):
+                # Se la conversione fallisce, usa il default.
                 n_results = default_n_results
 
             if not get_gemini_embeddings:

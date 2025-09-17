@@ -221,67 +221,61 @@ def create_app(config_object=AppConfig):
     init_oauth(app)
     logger.info("Servizio OAuth per WordPress inizializzato.")
 
-    # --- INIZIO BLOCCO SCHEDULER CORRETTO E UNICO ---
+    # --- INIZIO BLOCCO SCHEDULER CON LOCK PER GUNICORN ---
     if not app.config.get('TESTING', False):
-        logger.info("Modalità NON TESTING: Aggiunta job e avvio APScheduler...")
-        job_id = 'check_monitored_sources_job'
+        # Definiamo un percorso per un file che useremo come "lucchetto".
+        # Lo mettiamo nella cartella 'data' che è persistente.
+        lock_file_path = os.path.join(os.path.dirname(app.config['DATABASE_FILE']), 'scheduler.lock')
         
-        with app.app_context():
-            if not app.scheduler.get_job(job_id):
-                from .scheduler_jobs import check_monitored_sources_job
-
-                # Leggiamo TUTTE le configurazioni dal file .env
-                unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
-                value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
-                hour = app.config.get('SCHEDULER_RUN_HOUR', 4)
+        try:
+            # Apriamo il file in modalità 'x'. Questa modalità speciale fa due cose:
+            # 1. Crea il file se non esiste.
+            # 2. Fallisce con un'eccezione (FileExistsError) se il file ESISTE GIÀ.
+            # È il modo perfetto per assicurarsi che solo UN processo alla volta possa creare il file.
+            with open(lock_file_path, 'x') as lock_file:
+                # Se siamo qui, siamo il PRIMO worker. Abbiamo creato il file con successo.
+                lock_file.write(str(os.getpid())) # Scriviamo il nostro ID di processo nel file (utile per debug)
                 
-                trigger_args = {}
-                trigger_type = 'cron'
+                logger.info(f"Worker PID {os.getpid()} ha acquisito il lock. AVVIO DELLO SCHEDULER.")
 
-                # Costruiamo dinamicamente gli argomenti per il trigger cron
-                if unit == 'days':
-                    trigger_args = {'hour': hour, 'minute': 0, 'day': f'*/{value}'}
-                    logger.debug(f"Configurazione job: CRON ogni {value} giorno/i alle {hour}:00.")
-                elif unit == 'hours':
-                    trigger_args = {'minute': 0, 'hour': f'*/{value}'}
-                    logger.debug(f"Configurazione job: CRON ogni {value} ora/e.")
-                elif unit == 'minutes':
-                    # Utile per testare, ma meno per produzione
-                    trigger_args = {'minute': f'*/{value}'}
-                    logger.debug(f"Configurazione job: CRON ogni {value} minuto/i.")
-                
-                app.scheduler.add_job(
-                    func=check_monitored_sources_job,
-                    trigger=trigger_type,
-                    id=job_id,
-                    name='Controllo Periodico Sorgenti Monitorate',
-                    replace_existing=True,
-                    misfire_grace_time=300,
-                    **trigger_args
-                )
-                logger.info(f"Job '{job_id}' aggiunto con trigger: {trigger_type}, argomenti: {trigger_args}")
-            else:
-                logger.info(f"Job '{job_id}' già presente nello scheduler.")
+                # Ora avviamo lo scheduler, come facevamo prima, ma solo qui.
+                with app.app_context():
+                    job_id = 'check_monitored_sources_job'
+                    if not app.scheduler.get_job(job_id):
+                        from .scheduler_jobs import check_monitored_sources_job
+                        unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
+                        value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
+                        hour = app.config.get('SCHEDULER_RUN_HOUR', 4)
+                        trigger_args, trigger_type = {}, 'cron'
+                        if unit == 'days':
+                            trigger_args = {'hour': hour, 'minute': 0, 'day': f'*/{value}'}
+                        elif unit == 'hours':
+                            trigger_args = {'minute': 0, 'hour': f'*/{value}'}
+                        elif unit == 'minutes':
+                            trigger_args = {'minute': f'*/{value}'}
+                        
+                        app.scheduler.add_job(
+                            func=check_monitored_sources_job, trigger=trigger_type, id=job_id,
+                            name='Controllo Periodico Sorgenti Monitorate', replace_existing=True,
+                            misfire_grace_time=300, **trigger_args
+                        )
+                        logger.info(f"Job '{job_id}' aggiunto con trigger: {trigger_args}")
+                    
+                    if not app.scheduler.running:
+                        app.scheduler.start()
+                        logger.info("APScheduler avviato con successo.")
+                        # Ci assicuriamo che il file di lock venga rimosso quando l'app si spegne.
+                        atexit.register(lambda: os.remove(lock_file_path))
+                        atexit.register(lambda: shutdown_scheduler(app.scheduler))
 
-            if not app.scheduler.running:
-                try:
-                    app.scheduler.start()
-                    logger.info("APScheduler avviato.")
-                    atexit.register(lambda: shutdown_scheduler(app.scheduler))
-                except Exception as e_sched_start_final:
-                    logger.error(f"Impossibile avviare APScheduler: {e_sched_start_final}", exc_info=True)
-            else:
-                logger.info("APScheduler già in esecuzione.")
+        except FileExistsError:
+            # Se siamo qui, un altro worker è stato più veloce e ha già creato il file.
+            # Noi non facciamo nulla e ce ne stiamo buoni.
+            logger.info(f"Worker PID {os.getpid()}: Lock file già presente. Lo scheduler è già gestito da un altro processo.")
+            
     else:
+        # Codice per la modalità TESTING (invariato)
         logger.info("Modalità TESTING: APScheduler NON avviato.")
-        if hasattr(app, 'scheduler') and app.scheduler.running:
-            logger.warning("APScheduler era in esecuzione in modalità TESTING, tentativo di shutdown.")
-            try:
-                app.scheduler.shutdown(wait=False)
-                logger.info("APScheduler fermato esplicitamente per i test.")
-            except Exception as e_sched_stop_test:
-                logger.error(f"Errore fermando APScheduler in modalità test: {e_sched_stop_test}")
-    # --- FINE BLOCCO SCHEDULER ---
 
 
     @login_manager.user_loader
