@@ -1,117 +1,20 @@
-# FILE: app/api/routes/statistics.py
+# FILE: app/api/routes/statistics.py (Versione Finale, Veloce e Corretta)
 
 import logging
 import sqlite3
+import json
 import os
-import textstat # Importiamo la nuova libreria
-from flask import Blueprint, render_template, current_app, jsonify
+import textstat
+# Aggiungiamo request, flash, redirect, url_for per la nuova funzione
+from flask import Blueprint, render_template, current_app, jsonify, request, flash, redirect, url_for
 from flask_login import login_required, current_user
-import json # Ci servirà per passare i dati al frontend per i grafici
 
 logger = logging.getLogger(__name__)
 stats_bp = Blueprint('statistics', __name__)
 
-def calculate_content_stats(content_path: str):
-    """
-    Funzione helper che legge un file di testo e calcola le statistiche.
-    Restituisce un dizionario con le metriche calcolate.
-    """
-    try:
-        if not content_path or not os.path.exists(content_path):
-            logger.warning(f"File non trovato o percorso nullo: {content_path}")
-            return None
-        
-        with open(content_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        if not content.strip():
-            return {'word_count': 0, 'gunning_fog': 0}
-
-        # textstat richiede un minimo di parole per calcoli sensati
-        word_count = len(content.split())
-        if word_count < 100: # Limite minimo per un indice di leggibilità affidabile
-             # Calcoliamo comunque il gunning fog, ma siamo consapevoli del limite
-             gunning_fog_index = textstat.gunning_fog(content)
-        else:
-             gunning_fog_index = textstat.gunning_fog(content)
-        
-        return {
-            'word_count': word_count,
-            'gunning_fog': gunning_fog_index
-        }
-
-    except Exception as e:
-        logger.error(f"Errore nel calcolare le statistiche per il file {content_path}: {e}")
-        return None
-
-def get_stats_for_source_type(cursor: sqlite3.Cursor, user_id: str, source_type: str):
-    """
-    Recupera i dati per un tipo di fonte (es. 'videos'), calcola le statistiche per ogni elemento
-    e restituisce un riepilogo aggregato.
-    """
-    table_map = {
-        'videos': 'videos',
-        'documents': 'documents',
-        'articles': 'articles',
-        'pages': 'pages'
-    }
-    path_column_map = {
-        'videos': 'transcript', # Per i video il testo è direttamente nel DB
-        'documents': 'filepath',
-        'articles': 'extracted_content_path',
-        'pages': 'extracted_content_path'
-    }
-    
-    table_name = table_map.get(source_type)
-    path_column = path_column_map.get(source_type)
-
-    if not table_name or not path_column:
-        return {} # Tipo di fonte non valido
-
-    # Query per recuperare il contenuto o il percorso del file
-    query = f"SELECT {path_column} FROM {table_name} WHERE user_id = ? AND processing_status = 'completed'"
-    cursor.execute(query, (user_id,))
-    
-    all_stats = []
-    for row in cursor.fetchall():
-        content_or_path = row[0]
-        
-        if source_type == 'videos': # Caso speciale per i video
-            if content_or_path and content_or_path.strip():
-                word_count = len(content_or_path.split())
-                gunning_fog = textstat.gunning_fog(content_or_path) if word_count >= 100 else 0
-                all_stats.append({'word_count': word_count, 'gunning_fog': gunning_fog})
-        else: # Per documenti e articoli
-            stats = calculate_content_stats(content_or_path)
-            if stats:
-                all_stats.append(stats)
-
-    if not all_stats:
-        return {
-            'count': 0, 'avg_word_count': 0, 'avg_gunning_fog': 0,
-            'word_count_distribution': []
-        }
-
-    # Calcoli aggregati
-    total_word_count = sum(s['word_count'] for s in all_stats)
-    total_gunning_fog = sum(s['gunning_fog'] for s in all_stats)
-    item_count = len(all_stats)
-
-    return {
-        'count': item_count,
-        'avg_word_count': round(total_word_count / item_count) if item_count > 0 else 0,
-        'avg_gunning_fog': round(total_gunning_fog / item_count, 2) if item_count > 0 else 0,
-        'word_count_distribution': [s['word_count'] for s in all_stats] # Per il grafico box plot
-    }
-
-
 @stats_bp.route('/statistics')
 @login_required
 def statistics_page():
-    """
-    Renderizza la pagina delle statistiche, recuperando e calcolando i dati
-    per ogni tipo di fonte dell'utente corrente.
-    """
     db_path = current_app.config.get('DATABASE_FILE')
     user_id = current_user.id
     final_stats = {}
@@ -119,23 +22,114 @@ def statistics_page():
 
     try:
         conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Cicliamo su ogni tipo di fonte che vogliamo analizzare
         source_types = ['videos', 'documents', 'articles', 'pages']
         for source in source_types:
-            final_stats[source] = get_stats_for_source_type(cursor, user_id, source)
-            # Convertiamo la lista per il grafico in un formato JSON sicuro per l'HTML
-            final_stats[source]['word_count_distribution_json'] = json.dumps(final_stats[source].get('word_count_distribution', []))
+            # Eseguiamo una singola, potente query SQL per ottenere TUTTO ciò che ci serve
+            query = """
+                SELECT
+                    COUNT(content_id) as item_count,
+                    AVG(word_count) as avg_word_count,
+                    AVG(gunning_fog) as avg_gunning_fog,
+                    json_group_array(word_count) as word_count_dist
+                FROM content_stats
+                WHERE user_id = ? AND source_type = ?
+            """
+            cursor.execute(query, (user_id, source))
+            data = cursor.fetchone()
+
+            if data and data['item_count'] > 0:
+                final_stats[source] = {
+                    'count': data['item_count'],
+                    'avg_word_count': round(data['avg_word_count'] or 0),
+                    'avg_gunning_fog': round(data['avg_gunning_fog'] or 0, 2),
+                    # I dati per il grafico sono già in formato JSON grazie a json_group_array()
+                    'word_count_distribution_json': data['word_count_dist'] or '[]'
+                }
+            else:
+                # Se non ci sono dati, prepariamo una struttura vuota
+                final_stats[source] = {'count': 0, 'word_count_distribution_json': '[]'}
 
     except sqlite3.Error as e:
         logger.error(f"Errore Database nella pagina statistiche per l'utente {user_id}: {e}")
-        # In caso di errore, passiamo comunque un dizionario vuoto per evitare che il template si rompa
-        final_stats = {
-            'error': 'Si è verificato un errore nel caricamento delle statistiche.'
-        }
+        final_stats = {'error': 'Si è verificato un errore nel caricamento delle statistiche.'}
     finally:
         if conn:
             conn.close()
             
     return render_template('statistics.html', stats_data=final_stats)
+
+@stats_bp.route('/statistics/recalculate', methods=['POST'])
+@login_required
+def recalculate_stats():
+    """
+    Funzione per ricalcolare e salvare le statistiche per TUTTI i contenuti
+    esistenti di un utente.
+    """
+    db_path = current_app.config.get('DATABASE_FILE')
+    user_id = current_user.id
+    conn = None
+    processed_counts = {}
+
+    logger.info(f"Avvio ricalcolo statistiche per l'utente {user_id}...")
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Definiamo le fonti e le loro tabelle/colonne
+        source_config = {
+            'videos': {'table': 'videos', 'id_col': 'video_id', 'content_col': 'transcript'},
+            'documents': {'table': 'documents', 'id_col': 'doc_id', 'content_col': 'filepath'},
+            'articles': {'table': 'articles', 'id_col': 'article_id', 'content_col': 'extracted_content_path'},
+            'pages': {'table': 'pages', 'id_col': 'page_id', 'content_col': 'extracted_content_path'}
+        }
+
+        for source_type, config in source_config.items():
+            processed_counts[source_type] = 0
+            logger.info(f"Ricalcolo per: {source_type}...")
+            
+            query = f"SELECT {config['id_col']}, {config['content_col']} FROM {config['table']} WHERE user_id = ? AND processing_status = 'completed'"
+            cursor.execute(query, (user_id,))
+            
+            items_to_process = cursor.fetchall()
+            
+            for item in items_to_process:
+                content_id, content_or_path = item[0], item[1]
+                content_text = ''
+
+                if source_type == 'videos':
+                    content_text = content_or_path or ''
+                elif content_or_path and os.path.exists(content_or_path):
+                    with open(content_or_path, 'r', encoding='utf-8') as f:
+                        content_text = f.read()
+
+                if content_text.strip():
+                    word_count = len(content_text.split())
+                    gunning_fog = textstat.gunning_fog(content_text)
+                    
+                    cursor.execute("""
+                        INSERT INTO content_stats (content_id, user_id, source_type, word_count, gunning_fog)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(content_id) DO UPDATE SET
+                            word_count = excluded.word_count,
+                            gunning_fog = excluded.gunning_fog,
+                            last_calculated = CURRENT_TIMESTAMP
+                    """, (content_id, user_id, source_type, word_count, gunning_fog))
+                    
+                    processed_counts[source_type] += 1
+
+        conn.commit()
+        logger.info(f"Ricalcolo completato per l'utente {user_id}. Dettagli: {processed_counts}")
+        flash('Le statistiche per tutti i contenuti esistenti sono state ricalcolate con successo!', 'success')
+
+    except sqlite3.Error as e:
+        logger.error(f"Errore DB durante il ricalcolo per l'utente {user_id}: {e}")
+        if conn: conn.rollback()
+        flash('Si è verificato un errore durante il ricalcolo delle statistiche.', 'error')
+    finally:
+        if conn: conn.close()
+
+    return redirect(url_for('statistics.statistics_page'))

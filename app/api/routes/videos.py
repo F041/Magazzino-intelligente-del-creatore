@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from google.api_core import exceptions as google_exceptions
 from typing import Optional
 import threading
+import textstat
 import copy
 
 
@@ -205,6 +206,28 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                 except Exception as e_video_proc:
                     logger.exception(f"[CORE YT Process] Errore generico processo video {video_id}.")
                     current_video_status = 'failed_processing'; generic_errors += 1
+
+                                # Aggiungiamo il calcolo delle statistiche PRIMA di preparare i dati per il DB
+                if current_video_status == 'completed':
+                    try:
+                        stats = { 'word_count': 0, 'gunning_fog': 0 }
+                        if transcript_text and transcript_text.strip():
+                            stats['word_count'] = len(transcript_text.split())
+                            stats['gunning_fog'] = textstat.gunning_fog(transcript_text)
+                        
+                        # Inserisce o aggiorna le statistiche nella tabella cache
+                        cursor_sqlite.execute("""
+                            INSERT INTO content_stats (content_id, user_id, source_type, word_count, gunning_fog)
+                            VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(content_id) DO UPDATE SET
+                                word_count = excluded.word_count,
+                                gunning_fog = excluded.gunning_fog,
+                                last_calculated = CURRENT_TIMESTAMP
+                        """, (video_id, user_id, 'videos', stats['word_count'], stats['gunning_fog']))
+                        logger.info(f"[CORE YT Process] [{video_id}] Statistiche salvate/aggiornate nella cache.")
+                    except Exception as e_stats:
+                        logger.error(f"[CORE YT Process] [{video_id}] Errore durante il calcolo/salvataggio delle statistiche: {e_stats}")
+                        # Non cambiamo lo stato del video per questo, ma lo logghiamo
                 
                 video_data_dict = video_model.dict()
                 video_data_dict.update({

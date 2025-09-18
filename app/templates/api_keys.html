@@ -132,16 +132,16 @@ get_flashed_messages(with_categories=true) %} {% if messages %}
 </div>
 
 <div class="generate-key-form">
-  <h2>Genera Nuova Chiave API</h2>
+  <h2>Genera nuova chiave API</h2>
   <form method="POST" action="{{ url_for('keys.generate_api_key_action') }}">
-    <label for="key_name">Nome Chiave (opzionale, per tuo riferimento):</label>
+    <label for="key_name">Nome chiave (opzionale, per tuo riferimento):</label>
     <input
       type="text"
       id="key_name"
       name="key_name"
-      placeholder="Es: Streamlit App"
+      placeholder="Es: Streamlit app"
     />
-    <button type="submit" class="action-btn">Genera Chiave</button>
+    <button type="submit" class="action-btn">Genera chiave</button>
   </form>
 </div>
 

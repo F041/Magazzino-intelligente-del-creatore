@@ -177,6 +177,28 @@ def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str
              elif 'upsert' in str(e): final_status = 'failed_chroma_write'
              else: final_status = 'failed_processing_generic'
 
+    if final_status == 'completed':
+        try:
+            import textstat
+            stats = { 'word_count': 0, 'gunning_fog': 0 }
+            if markdown_content and markdown_content.strip():
+                stats['word_count'] = len(markdown_content.split())
+                stats['gunning_fog'] = textstat.gunning_fog(markdown_content)
+
+            # Inserisce o aggiorna le statistiche nella tabella cache
+            cursor.execute("""
+                INSERT INTO content_stats (content_id, user_id, source_type, word_count, gunning_fog)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(content_id) DO UPDATE SET
+                    word_count = excluded.word_count,
+                    gunning_fog = excluded.gunning_fog,
+                    last_calculated = CURRENT_TIMESTAMP
+            """, (doc_id, user_id, 'document', stats['word_count'], stats['gunning_fog']))
+            logger.info(f"[_index_document][{doc_id}] Statistiche salvate/aggiornate nella cache.")
+        except Exception as e_stats:
+            logger.error(f"[_index_document][{doc_id}] Errore durante il calcolo/salvataggio delle statistiche: {e_stats}")
+            # Non blocchiamo il processo per questo, ma lo registriamo
+
     # Aggiorna stato DB
     try:
         logger.info(f"[_index_document][{doc_id}] Aggiornamento stato DB a '{final_status}'...")

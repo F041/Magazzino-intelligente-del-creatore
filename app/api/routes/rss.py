@@ -14,6 +14,7 @@ from urllib.parse import urlparse, urljoin
 from flask import Blueprint, request, jsonify, current_app, Response
 from google.api_core import exceptions as google_exceptions
 import threading
+import textstat
 import copy
 import io
 
@@ -215,6 +216,30 @@ def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[
              elif 'split_text_into_chunks' in str(e): final_status = 'failed_chunking'
              elif 'upsert' in str(e): final_status = 'failed_chroma_write'
              else: final_status = 'failed_processing_generic'
+
+
+    # Aggiungiamo il calcolo delle statistiche PRIMA dell'aggiornamento dello stato finale
+    if final_status == 'completed':
+        try:
+            stats = { 'word_count': 0, 'gunning_fog': 0 }
+            # La variabile 'article_content' contiene il testo dell'articolo letto in precedenza
+            if 'article_content' in locals() and article_content and article_content.strip():
+                stats['word_count'] = len(article_content.split())
+                stats['gunning_fog'] = textstat.gunning_fog(article_content)
+
+            # Inserisce o aggiorna le statistiche nella tabella cache
+            cursor.execute("""
+                INSERT INTO content_stats (content_id, user_id, source_type, word_count, gunning_fog)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(content_id) DO UPDATE SET
+                    word_count = excluded.word_count,
+                    gunning_fog = excluded.gunning_fog,
+                    last_calculated = CURRENT_TIMESTAMP
+            """, (article_id, user_id, 'articles', stats['word_count'], stats['gunning_fog']))
+            logger.info(f"[_index_article][{article_id}] Statistiche salvate/aggiornate nella cache.")
+        except Exception as e_stats:
+            logger.error(f"[_index_article][{article_id}] Errore durante il calcolo/salvataggio delle statistiche: {e_stats}")
+            # Non blocchiamo il processo per questo, ma lo registriamo
 
     # Aggiorna stato DB (NON fa commit)
     try:

@@ -1,4 +1,4 @@
-<!-- FILE: app/templates/statistics.html (CORRETTO E SENZA ERRORI LINTER) -->
+<!-- FILE: app/templates/statistics.html (Versione Finale Completa) -->
 
 {% extends "base.html" %}
 
@@ -55,6 +55,9 @@
         text-align: center;
         margin-top: 20px;
     }
+    .action-panel { 
+        margin-bottom: var(--spacing-xl); 
+    }
 </style>
 {% endblock %}
 
@@ -62,9 +65,28 @@
     <h1>Le tue STATistiche</h1>
     <p>Analisi quantitative dei tuoi contenuti per aiutarti a capire meglio il tuo magazzino. I calcoli si basano solo sui contenuti che sono stati processati con successo.</p>
 
-    <!-- **MODIFICA 1:** Aggiungiamo un contenitore nascosto per i nostri dati -->
-    <div id="stats-data-container" data-stats="{{ stats_data | tojson | safe }}" style="display: none;"></div>
+    <!-- Contenitore nascosto per passare i dati da Python a JavaScript in modo pulito -->
+    <div id="stats-data-container" data-stats='{{ stats_data | tojson | safe }}' style="display: none;"></div>
 
+    {# Pannello con il pulsante di Ricalcolo #}
+    <div class="action-panel">
+        <form action="{{ url_for('statistics.recalculate_stats') }}" method="POST" id="recalculate-form">
+            <button type="submit" id="recalculate-stats-btn" class="action-btn secondary">
+                <i class="fas fa-sync-alt"></i> Ricalcola Statistiche per Contenuti Esistenti
+            </button>
+        </form>
+    </div>
+
+    {# Area per mostrare messaggi di successo o errore (es. dopo il ricalcolo) #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="{{ 'success-message' if category == 'success' else 'error-message' }}" style="margin-bottom: 20px;">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     {% if stats_data.error %}
         <div class="error-message">{{ stats_data.error }}</div>
@@ -76,18 +98,10 @@
             <h3><i class="fas fa-video fa-fw"></i> Video ({{ stats_data.videos.count }})</h3>
             {% if stats_data.videos.count > 0 %}
                 <div class="metrics-container">
-                    <div class="metric-item">
-                        <div class="value">{{ stats_data.videos.avg_word_count }}</div>
-                        <div class="label">Parole Medie</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="value">{{ stats_data.videos.avg_gunning_fog }}</div>
-                        <div class="label">Indice Leggibilità</div>
-                    </div>
+                    <div class="metric-item"><div class="value">{{ stats_data.videos.avg_word_count }}</div><div class="label">Parole Medie</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.videos.avg_gunning_fog }}</div><div class="label">Indice Leggibilità</div></div>
                 </div>
-                <div class="chart-container">
-                    <canvas id="video-chart"></canvas>
-                </div>
+                <div class="chart-container"><canvas id="video-chart"></canvas></div>
             {% else %}
                 <p class="no-data-message">Nessun video trovato o processato.</p>
             {% endif %}
@@ -98,18 +112,10 @@
             <h3><i class="fas fa-file-alt fa-fw"></i> Documenti ({{ stats_data.documents.count }})</h3>
             {% if stats_data.documents.count > 0 %}
                 <div class="metrics-container">
-                    <div class="metric-item">
-                        <div class="value">{{ stats_data.documents.avg_word_count }}</div>
-                        <div class="label">Parole Medie</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="value">{{ stats_data.documents.avg_gunning_fog }}</div>
-                        <div class="label">Indice Leggibilità</div>
-                    </div>
+                    <div class="metric-item"><div class="value">{{ stats_data.documents.avg_word_count }}</div><div class="label">Parole Medie</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.documents.avg_gunning_fog }}</div><div class="label">Indice Leggibilità</div></div>
                 </div>
-                <div class="chart-container">
-                    <canvas id="document-chart"></canvas>
-                </div>
+                <div class="chart-container"><canvas id="document-chart"></canvas></div>
             {% else %}
                 <p class="no-data-message">Nessun documento trovato o processato.</p>
             {% endif %}
@@ -120,91 +126,100 @@
             <h3><i class="fas fa-newspaper fa-fw"></i> Articoli ({{ stats_data.articles.count }})</h3>
             {% if stats_data.articles.count > 0 %}
                 <div class="metrics-container">
-                    <div class="metric-item">
-                        <div class="value">{{ stats_data.articles.avg_word_count }}</div>
-                        <div class="label">Parole Medie</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="value">{{ stats_data.articles.avg_gunning_fog }}</div>
-                        <div class="label">Indice Leggibilità</div>
-                    </div>
+                    <div class="metric-item"><div class="value">{{ stats_data.articles.avg_word_count }}</div><div class="label">Parole Medie</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.articles.avg_gunning_fog }}</div><div class="label">Indice Leggibilità</div></div>
                 </div>
-                <div class="chart-container">
-                    <canvas id="article-chart"></canvas>
-                </div>
+                <div class="chart-container"><canvas id="article-chart"></canvas></div>
             {% else %}
                 <p class="no-data-message">Nessun articolo trovato o processato.</p>
             {% endif %}
         </div>
-
     </div>
     {% endif %}
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
-    <!-- Includiamo la libreria Chart.js e il plugin per i box plot -->
+    <!-- Includiamo la libreria Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-box-and-violin-plot@4.0.0/build/Chart.BoxPlot.min.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // **MODIFICA 2:** Leggiamo i dati dall'attributo data-* e li convertiamo da stringa JSON a oggetto JavaScript
+            // Leggiamo i dati dall'attributo data-*
             const dataContainer = document.getElementById('stats-data-container');
             const statsData = JSON.parse(dataContainer.dataset.stats || '{}');
 
-            // La funzione per creare i grafici rimane identica a prima
-            function createBoxPlot(canvasId, label, data) {
+            // Funzione per creare i grafici a barre della distribuzione
+            function createDistributionChart(canvasId, label, data) {
                 const ctx = document.getElementById(canvasId);
-                if (!ctx || !data || data.length === 0) {
-                    console.log(`Canvas o dati non trovati per ${canvasId}`);
-                    return;
+                if (!ctx || !data || data.length === 0) return;
+
+                // Creiamo dei "contenitori" (bin) per l'istogramma
+                const maxVal = Math.max(...data);
+                const binSize = Math.ceil(maxVal / 10); // Dividiamo in 10 fasce
+                const labels = [];
+                const counts = [];
+                for (let i = 0; i < maxVal; i += binSize) {
+                    const rangeEnd = i + binSize;
+                    labels.push(`${i}-${rangeEnd}`);
+                    counts.push(data.filter(val => val >= i && val < rangeEnd).length);
                 }
-                
+
                 new Chart(ctx, {
-                    type: 'boxplot',
+                    type: 'bar',
                     data: {
-                        labels: [label],
+                        labels: labels,
                         datasets: [{
-                            label: 'Distribuzione Lunghezza (parole)',
-                            data: [data], 
-                            backgroundColor: 'rgba(67, 97, 238, 0.2)',
+                            label: 'Numero di Contenuti per Lunghezza',
+                            data: counts,
+                            backgroundColor: 'rgba(67, 97, 238, 0.6)',
                             borderColor: 'rgba(67, 97, 238, 1)',
-                            borderWidth: 1.5,
-                            padding: 10,
-                            itemRadius: 0
+                            borderWidth: 1
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            }
-                        },
+                        plugins: { legend: { display: false } },
                         scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Numero di Parole'
-                                }
-                            }
+                            y: { beginAtZero: true, title: { display: true, text: 'Numero di Contenuti' } },
+                            x: { title: { display: true, text: 'Fascia di Lunghezza (parole)' } }
                         }
                     }
                 });
             }
 
-            // L'inizializzazione dei grafici rimane identica
+            // Inizializzazione dei grafici
             if (statsData.videos && statsData.videos.count > 0) {
-                createBoxPlot('video-chart', 'Video', statsData.videos.word_count_distribution);
+                createDistributionChart('video-chart', 'Video', JSON.parse(statsData.videos.word_count_distribution_json));
             }
             if (statsData.documents && statsData.documents.count > 0) {
-                createBoxPlot('document-chart', 'Documenti', statsData.documents.word_count_distribution);
+                createDistributionChart('document-chart', 'Documenti', JSON.parse(statsData.documents.word_count_distribution_json));
             }
             if (statsData.articles && statsData.articles.count > 0) {
-                createBoxPlot('article-chart', 'Articoli', statsData.articles.word_count_distribution);
+                createDistributionChart('article-chart', 'Articoli', JSON.parse(statsData.articles.word_count_distribution_json));
+            }
+
+            // Gestione del pulsante di ricalcolo
+            const recalculateForm = document.getElementById('recalculate-form');
+            if (recalculateForm) {
+                recalculateForm.addEventListener('submit', async (event) => {
+                    event.preventDefault(); 
+
+                    const confirmed = await window.showConfirmModal(
+                        'Conferma Ricalcolo',
+                        'Questa operazione analizzerà tutti i tuoi contenuti esistenti per calcolare le statistiche. Potrebbe richiedere qualche istante. Sei sicuro di voler procedere?'
+                    );
+
+                    if (confirmed) {
+                        const btn = document.getElementById('recalculate-stats-btn');
+                        if (btn) {
+                            btn.disabled = true;
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ricalcolo in corso...';
+                        }
+                        recalculateForm.submit();
+                    }
+                });
             }
         });
     </script>

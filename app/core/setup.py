@@ -289,6 +289,20 @@ def init_db(config):
         logger.info("Tabella 'user_settings' verificata/creata.")
 
 
+        # --- Tabella per Statistiche Pre-Calcolate (Caching) ---
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS content_stats (
+                content_id TEXT PRIMARY KEY,    -- Corrisponde a video_id, doc_id, article_id, etc.
+                user_id TEXT NOT NULL,
+                source_type TEXT NOT NULL,      -- 'video', 'document', 'article', 'page'
+                word_count INTEGER,
+                gunning_fog REAL,
+                last_calculated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )''')
+        logger.info("Tabella 'content_stats' per il caching delle statistiche verificata/creata.")
+
+
         # --- Aggiunta colonne per Personalizzazione ---
         try:
             cursor.execute("ALTER TABLE user_settings ADD COLUMN brand_color TEXT")

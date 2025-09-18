@@ -5,6 +5,7 @@ import copy
 from flask import Blueprint, jsonify, current_app
 from flask_login import login_required, current_user
 import os
+import textstat
 import uuid
 import markdownify as md # ho provato ad importare per preservare link nelle pagine, per favorire i contatti, ma ho fallito
 from bs4 import BeautifulSoup # per estrarre solo il testo pulito dal contenuto HTML fornito da WordPress
@@ -89,6 +90,28 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
     except Exception as e:
         logger.error(f"[_index_page][{page_id}] Errore durante indicizzazione: {e}", exc_info=True)
         final_status = 'failed_indexing'
+
+    if final_status == 'completed':
+        try:
+            stats = { 'word_count': 0, 'gunning_fog': 0 }
+            # Usiamo la variabile 'page_content' che abbiamo già letto
+            if 'page_content' in locals() and page_content and page_content.strip():
+                stats['word_count'] = len(page_content.split())
+                stats['gunning_fog'] = textstat.gunning_fog(page_content)
+
+            # Inserisce o aggiorna le statistiche nella tabella cache
+            cursor.execute("""
+                INSERT INTO content_stats (content_id, user_id, source_type, word_count, gunning_fog)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(content_id) DO UPDATE SET
+                    word_count = excluded.word_count,
+                    gunning_fog = excluded.gunning_fog,
+                    last_calculated = CURRENT_TIMESTAMP
+            """, (page_id, user_id, 'pages', stats['word_count'], stats['gunning_fog']))
+            logger.info(f"[_index_page][{page_id}] Statistiche salvate/aggiornate nella cache.")
+        except Exception as e_stats:
+            logger.error(f"[_index_page][{page_id}] Errore durante il calcolo/salvataggio delle statistiche: {e_stats}")
+
     
     try:
         cursor.execute("UPDATE pages SET processing_status = ? WHERE page_id = ?", (final_status, page_id))
