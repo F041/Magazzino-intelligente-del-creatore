@@ -261,7 +261,7 @@ a:hover {
     left: 0;
     right: 0;
     bottom: 0;
-    /* NUOVO PATTERN: Un pattern a puntini molto più leggero e tecnologico */
+    /*  Un pattern a puntini molto più leggero e tecnologico */
     background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
     background-size: 15px 15px; /* Puntini più piccoli e ravvicinati */
     pointer-events: none;

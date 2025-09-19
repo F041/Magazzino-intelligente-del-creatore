@@ -58,6 +58,53 @@
     .action-panel { 
         margin-bottom: var(--spacing-xl); 
     }
+    /* Stili per il tooltip informativo */
+    .info-tooltip {
+        position: relative;
+        display: inline-flex; /* Allinea l'icona verticalmente con il testo */
+        align-items: center;
+        margin-left: 5px;
+        cursor: help;
+    }
+    .info-tooltip .fa-info-circle {
+        color: var(--color-text-light);
+        font-size: 0.9em;
+    }
+    .info-tooltip .tooltip-text {
+        visibility: hidden;
+        width: 260px;
+        background-color: var(--color-metal-dark);
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 10px;
+        position: absolute;
+        z-index: 1;
+        bottom: 135%;
+        left: 50%;
+        margin-left: -130px; /* Metà della larghezza */
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.85rem;
+        font-weight: 400; /* Assicura che il testo sia normale */
+        line-height: 1.5;
+    }
+    .info-tooltip:hover .tooltip-text {
+        visibility: visible;
+        opacity: 1;
+    }
+    /* Freccina per il tooltip */
+    .info-tooltip .tooltip-text::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: var(--color-metal-dark) transparent transparent transparent;
+    
+}
 </style>
 {% endblock %}
 
@@ -72,7 +119,7 @@
     <div class="action-panel">
         <form action="{{ url_for('statistics.recalculate_stats') }}" method="POST" id="recalculate-form">
             <button type="submit" id="recalculate-stats-btn" class="action-btn secondary">
-                <i class="fas fa-sync-alt"></i> Ricalcola Statistiche per Contenuti Esistenti
+                <i class="fas fa-sync-alt"></i> Ricalcola statistiche per contenuti ssistenti
             </button>
         </form>
     </div>
@@ -98,8 +145,14 @@
             <h3><i class="fas fa-video fa-fw"></i> Video ({{ stats_data.videos.count }})</h3>
             {% if stats_data.videos.count > 0 %}
                 <div class="metrics-container">
-                    <div class="metric-item"><div class="value">{{ stats_data.videos.avg_word_count }}</div><div class="label">Parole Medie</div></div>
-                    <div class="metric-item"><div class="value">{{ stats_data.videos.avg_gunning_fog }}</div><div class="label">Indice Leggibilità</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.videos.avg_word_count }}</div><div class="label">Parole medie</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.videos.avg_gunning_fog }}</div><div class="label">Indice leggibilità
+                                                    <span class="info-tooltip">
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltip-text">L'indice Gunning fog stima gli anni di istruzione formale necessari per comprendere il testo. Un punteggio tra 10-14 è considerato ideale per un pubblico vasto. Valori più alti indicano maggiore complessità.</span>
+                            </span>
+                    </div></div>
+        </span>
                 </div>
                 <div class="chart-container"><canvas id="video-chart"></canvas></div>
             {% else %}
@@ -112,8 +165,14 @@
             <h3><i class="fas fa-file-alt fa-fw"></i> Documenti ({{ stats_data.documents.count }})</h3>
             {% if stats_data.documents.count > 0 %}
                 <div class="metrics-container">
-                    <div class="metric-item"><div class="value">{{ stats_data.documents.avg_word_count }}</div><div class="label">Parole Medie</div></div>
-                    <div class="metric-item"><div class="value">{{ stats_data.documents.avg_gunning_fog }}</div><div class="label">Indice Leggibilità</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.documents.avg_word_count }}</div><div class="label">Parole medie</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.documents.avg_gunning_fog }}</div><div class="label">Indice leggibilità
+                                                    <span class="info-tooltip">
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltip-text">L'indice Gunning fog stima gli anni di istruzione formale necessari per comprendere il testo. Un punteggio tra 10-14 è considerato ideale per un pubblico vasto. Valori più alti indicano maggiore complessità.</span>
+                            </span>
+                    </div></div>
+
                 </div>
                 <div class="chart-container"><canvas id="document-chart"></canvas></div>
             {% else %}
@@ -126,8 +185,15 @@
             <h3><i class="fas fa-newspaper fa-fw"></i> Articoli ({{ stats_data.articles.count }})</h3>
             {% if stats_data.articles.count > 0 %}
                 <div class="metrics-container">
-                    <div class="metric-item"><div class="value">{{ stats_data.articles.avg_word_count }}</div><div class="label">Parole Medie</div></div>
-                    <div class="metric-item"><div class="value">{{ stats_data.articles.avg_gunning_fog }}</div><div class="label">Indice Leggibilità</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.articles.avg_word_count }}</div><div class="label">Parole medie</div></div>
+                    <div class="metric-item"><div class="value">{{ stats_data.articles.avg_gunning_fog }}</div><div class="label">Indice leggibilità
+                                                    <span class="info-tooltip">
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltip-text">L'indice Gunning fog stima gli anni di istruzione formale necessari per comprendere il testo. Un punteggio tra 10-14 è considerato ideale per un pubblico vasto. Valori più alti indicano maggiore complessità.</span>
+                            </span>
+                    </div>
+                </div>
+                    
                 </div>
                 <div class="chart-container"><canvas id="article-chart"></canvas></div>
             {% else %}
