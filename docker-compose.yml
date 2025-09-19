@@ -1,3 +1,5 @@
+# FILE: docker-compose.yml (Versione Finale Definitiva e Completa)
+
 services:
   app:
     image: ghcr.io/f041/magazzino-creatore-selfhosted:latest
@@ -5,17 +7,24 @@ services:
     ports:
       - "5001:5000"
     volumes:
-      # Mappa la tua directory 'data' specifica
-      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/data:/app/data # MODIFICA!
+      # Mappatura relativa per i dati persistenti. Indispensabile.
+      - ./data:/app/data
     env_file:
-      # Specifica il percorso del tuo file .env
-      - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/.env # MODIFICA!
+      # Percorso relativo per il file di configurazione.
+      # Questo è sufficiente per risolvere il problema dello scheduler.
+      - ./.
+    # Precedentemente
+    # volumes:
+    #        # Mappa la tua directory 'data' specifica
+    #   - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/data:/app/data # MODIFICA!
+    # env_file:
+    #   # Specifica il percorso del tuo file .env
+    #   - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/.env # MODIFICA!
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
       - magazzino_net
-    
   
   telegram_bot:
     build: .  
