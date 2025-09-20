@@ -6,7 +6,57 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chat_styles.css') }}">
 
 <style>
+    /* --- INIZIO BLOCCO CSS AGGIUNTIVO PER METRICHE --- */
+    .metrics-toggle {
+        background: none;
+        border: none;
+        color: var(--color-primary); /* Usa il colore primario del tema */
+        cursor: pointer;
+        font-size: 0.85em; /* Più piccolo dei riferimenti */
+        padding: 0;
+        margin-top: 5px; /* Spazio dal messaggio */
+        display: inline-block;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    .metrics-toggle:hover {
+        color: var(--color-primary-hover);
+        text-decoration: underline;
+    }
 
+    .metrics-container {
+        margin-top: 10px;
+        padding: 10px;
+        background-color: #f1f3f5; /* Sfondo leggermente più scuro */
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        font-size: 0.8em; /* Dimensione testo più piccola */
+        color: #555;
+        display: none; /* Nascosto di default */
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    .metrics-container p {
+        margin: 2px 0;
+        line-height: 1.4;
+    }
+    .metrics-container strong {
+        color: #333;
+    }
+    .metrics-container .duration-bar-container {
+        height: 6px;
+        background-color: #e9ecef;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 5px;
+    }
+    .metrics-container .duration-bar {
+        height: 100%;
+        background-color: var(--color-primary);
+        width: 0%; /* Settato da JS */
+        transition: width 0.5s ease-out;
+    }
+    /* --- FINE BLOCCO CSS AGGIUNTIVO --- */
 </style>
 {% endblock %}
 
@@ -47,6 +97,30 @@
         <button id="send-button" class="send-btn">Invia</button>
     </div>
 
+</div>
+
+{# --- INIZIO BLOCCO HTML AGGIUNTIVO PER MODALE/OVERLAY --- #}
+<div id="modal-overlay"></div>
+<div id="embed-code-modal">
+    <h3>Incorpora la chat sul tuo sito</h3>
+    <p>Per garantire la sicurezza, la chat funzionerà solo sul dominio che specifichi qui. Assicurati di inserire il dominio corretto del tuo sito (es. `www.ilmiosito.com`).</p>
+    
+    <div class="form-group" style="text-align: left;">
+        <label for="widget-domain" style="font-weight: bold; margin-bottom: 5px;">Dominio autorizzato:</label>
+        <input type="text" id="widget-domain" placeholder="www.esempio.com" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+        <small style="color: #6c757d;">Puoi cambiarlo in seguito tornando qui.</small>
+    </div>
+
+    <div id="generated-snippet-group" style="display: none; margin-top: 20px;">
+        <label for="embed-code-textarea" style="font-weight: bold; display: block; margin-bottom: 5px;">Copia e incolla questo codice nel tuo sito:</label>
+        <textarea id="embed-code-textarea" readonly rows="3" style="width: 100%; font-family: monospace;"></textarea>
+    </div>
+
+    <div class="embed-modal-buttons" style="margin-top: 20px;">
+        <button id="save-domain-btn" class="action-btn">Salva e Genera Snippet</button>
+        <button id="copy-embed-code" class="action-btn" style="display: none; background-color: #28a745;">Copia Codice</button>
+        <button id="close-embed-modal" style="background-color: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer;">Chiudi</button>
+    </div>
 </div>
 
 <div id="modal-overlay"></div>

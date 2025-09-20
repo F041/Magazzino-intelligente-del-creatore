@@ -805,3 +805,11 @@ label {
     .badge-cost { background-color: #d4edda; color: #155724; } 
     .badge-privacy { background-color: #cce5ff; color: #004085; }
     .badge-difficulty { background-color: #ffcdcd; color: #49463d; }
+
+    .sidebar‑metal {
+    background: url('https://media.fab.com/image_previews/gallery_images/ec8e0cad-26b8-4c5c-9e13-0aec00013a9c/37ce55a4-f6e3-4676-bd44-41ec152b8c53.jpg') repeat;
+    color: #f0f0f0;            /* testo chiaro su metallo scuro */
+    }
+
+
+    

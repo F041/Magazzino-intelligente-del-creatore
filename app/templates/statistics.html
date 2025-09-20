@@ -1,111 +1,10 @@
-<!-- FILE: app/templates/statistics.html (Versione Finale Completa) -->
-
 {% extends "base.html" %}
 
 {% block title %}STATistiche - Magazzino del Creatore{% endblock %}
 
 {% block head_styles %}
-<style>
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-        gap: var(--spacing-xl);
-        margin-top: var(--spacing-xl);
-    }
-    .stat-card {
-        background-color: var(--color-background-secondary);
-        border: 1px solid var(--color-border);
-        border-radius: var(--border-radius-md);
-        padding: var(--spacing-xl);
-        box-shadow: var(--box-shadow-sm);
-        display: flex;
-        flex-direction: column;
-    }
-    .stat-card h3 {
-        font-family: var(--font-sans);
-        font-size: 1.2rem;
-        margin-top: 0;
-        margin-bottom: var(--spacing-lg);
-        color: var(--color-text-secondary);
-        border-bottom: 1px solid var(--color-border-light);
-        padding-bottom: var(--spacing-md);
-    }
-    .metrics-container {
-        display: flex;
-        justify-content: space-around;
-        text-align: center;
-        margin-bottom: var(--spacing-xl);
-    }
-    .metric-item .value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--color-primary);
-    }
-    .metric-item .label {
-        font-size: 0.9rem;
-        color: var(--color-text-light);
-    }
-    .chart-container {
-        flex-grow: 1; /* Assicura che il grafico occupi lo spazio rimanente */
-        min-height: 250px; /* Altezza minima per il grafico */
-    }
-    .no-data-message {
-        color: var(--color-text-light);
-        font-style: italic;
-        text-align: center;
-        margin-top: 20px;
-    }
-    .action-panel { 
-        margin-bottom: var(--spacing-xl); 
-    }
-    /* Stili per il tooltip informativo */
-    .info-tooltip {
-        position: relative;
-        display: inline-flex; /* Allinea l'icona verticalmente con il testo */
-        align-items: center;
-        margin-left: 5px;
-        cursor: help;
-    }
-    .info-tooltip .fa-info-circle {
-        color: var(--color-text-light);
-        font-size: 0.9em;
-    }
-    .info-tooltip .tooltip-text {
-        visibility: hidden;
-        width: 260px;
-        background-color: var(--color-metal-dark);
-        color: #fff;
-        text-align: center;
-        border-radius: 6px;
-        padding: 10px;
-        position: absolute;
-        z-index: 1;
-        bottom: 135%;
-        left: 50%;
-        margin-left: -130px; /* Metà della larghezza */
-        opacity: 0;
-        transition: opacity 0.3s;
-        font-size: 0.85rem;
-        font-weight: 400; /* Assicura che il testo sia normale */
-        line-height: 1.5;
-    }
-    .info-tooltip:hover .tooltip-text {
-        visibility: visible;
-        opacity: 1;
-    }
-    /* Freccina per il tooltip */
-    .info-tooltip .tooltip-text::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: var(--color-metal-dark) transparent transparent transparent;
-    
-}
-</style>
+    {# Ora linkiamo il nostro nuovo file CSS dedicato #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/statistics.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -119,7 +18,7 @@
     <div class="action-panel">
         <form action="{{ url_for('statistics.recalculate_stats') }}" method="POST" id="recalculate-form">
             <button type="submit" id="recalculate-stats-btn" class="action-btn secondary">
-                <i class="fas fa-sync-alt"></i> Ricalcola statistiche per contenuti ssistenti
+                <i class="fas fa-sync-alt"></i> Ricalcola statistiche per contenuti esistenti
             </button>
         </form>
     </div>
@@ -138,12 +37,14 @@
     {% if stats_data.error %}
         <div class="error-message">{{ stats_data.error }}</div>
     {% else %}
+    
+    {# --- SEZIONE 1: GRIGLIA DEI CONTENUTI --- #}
     <div class="stats-grid">
         
-        {# --- Scheda per i VIDEO --- #}
+        {# Scheda per i VIDEO #}
         <div class="stat-card">
-            <h3><i class="fas fa-video fa-fw"></i> Video ({{ stats_data.videos.count }})</h3>
-            {% if stats_data.videos.count > 0 %}
+            <h3><i class="fas fa-video fa-fw"></i> Video ({{ stats_data.videos.count if stats_data.videos else 0 }})</h3>
+            {% if stats_data.videos and stats_data.videos.count > 0 %}
                 <div class="metrics-container">
                     <div class="metric-item"><div class="value">{{ stats_data.videos.avg_word_count }}</div><div class="label">Parole medie</div></div>
                     <div class="metric-item"><div class="value">{{ stats_data.videos.avg_gunning_fog }}</div><div class="label">Indice leggibilità
@@ -151,8 +52,7 @@
                                 <i class="fas fa-info-circle"></i>
                                 <span class="tooltip-text">L'indice Gunning fog stima gli anni di istruzione formale necessari per comprendere il testo. Un punteggio tra 10-14 è considerato ideale per un pubblico vasto. Valori più alti indicano maggiore complessità.</span>
                             </span>
-                    </div></div>
-        </span>
+                   </div></div>
                 </div>
                 <div class="chart-container"><canvas id="video-chart"></canvas></div>
             {% else %}
@@ -160,10 +60,10 @@
             {% endif %}
         </div>
 
-        {# --- Scheda per i DOCUMENTI --- #}
+        {# Scheda per i DOCUMENTI #}
         <div class="stat-card">
-            <h3><i class="fas fa-file-alt fa-fw"></i> Documenti ({{ stats_data.documents.count }})</h3>
-            {% if stats_data.documents.count > 0 %}
+            <h3><i class="fas fa-file-alt fa-fw"></i> Documenti ({{ stats_data.documents.count if stats_data.documents else 0 }})</h3>
+            {% if stats_data.documents and stats_data.documents.count > 0 %}
                 <div class="metrics-container">
                     <div class="metric-item"><div class="value">{{ stats_data.documents.avg_word_count }}</div><div class="label">Parole medie</div></div>
                     <div class="metric-item"><div class="value">{{ stats_data.documents.avg_gunning_fog }}</div><div class="label">Indice leggibilità
@@ -180,10 +80,10 @@
             {% endif %}
         </div>
 
-        {# --- Scheda per gli ARTICOLI --- #}
+        {# Scheda per gli ARTICOLI #}
         <div class="stat-card">
-            <h3><i class="fas fa-newspaper fa-fw"></i> Articoli ({{ stats_data.articles.count }})</h3>
-            {% if stats_data.articles.count > 0 %}
+            <h3><i class="fas fa-newspaper fa-fw"></i> Articoli ({{ stats_data.articles.count if stats_data.articles else 0 }})</h3>
+            {% if stats_data.articles and stats_data.articles.count > 0 %}
                 <div class="metrics-container">
                     <div class="metric-item"><div class="value">{{ stats_data.articles.avg_word_count }}</div><div class="label">Parole medie</div></div>
                     <div class="metric-item"><div class="value">{{ stats_data.articles.avg_gunning_fog }}</div><div class="label">Indice leggibilità
@@ -200,83 +100,241 @@
                 <p class="no-data-message">Nessun articolo trovato o processato.</p>
             {% endif %}
         </div>
+        
+    </div> {# FINE stats-grid per i contenuti #}
+
+    {# --- SEZIONE 2: Scheda Log domande --- #}
+    <div class="stat-card">
+        <h3><i class="fas fa-question-circle fa-fw"></i> Log Domande ({{ stats_data.query_logs.total_queries if stats_data.query_logs else 0 }})</h3>
+        
+        {% if stats_data.query_logs and stats_data.query_logs.total_queries > 0 %}
+            
+            {# Grafico a spezzate per le domande giornaliere #}
+            <h4 style="font-size: 1rem; margin-bottom: 10px; margin-top: 0; flex-shrink: 0;">Domande negli ultimi 30 giorni</h4>
+            <div class="line-chart-container">
+                <canvas id="query-trend-chart"></canvas>
+            </div>
+
+            {# Contatori per fonte #}
+            <div class="metrics-container" style="margin-top: var(--spacing-xl);">
+                <div class="metric-item">
+                    <div class="value">{{ stats_data.query_logs.source_counts.get('telegram', 0) }}</div>
+                    <div class="label">da Telegram</div>
+                </div>
+                <div class="metric-item">
+                    <div class="value">{{ stats_data.query_logs.source_counts.get('web_chat', 0) }}</div>
+                    <div class="label">da Chat Web</div>
+                </div>
+                <div class="metric-item">
+                    <div class="value">{{ stats_data.query_logs.source_counts.get('widget_chat', 0) }}</div>
+                    <div class="label">da Widget</div>
+                </div>
+            </div>
+
+            {# Lista delle domande recenti (riaggiunta qui, sotto i contatori) #}
+            <h4 style="font-size: 1rem; margin-bottom: 10px; margin-top: 20px; flex-shrink: 0;">Domande più recenti:</h4>
+            <ul class="recent-queries-list">
+                {% for query in stats_data.query_logs.recent_queries %}
+                <li>
+                    <span class="query-text">{{ query.query_text | truncate(80) }}</span>
+                    <span class="query-source source-{{ query.source | replace('_', '-') }}">{{ query.source | replace('_', ' ') }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+
+        {% else %}
+            <p class="no-data-message">Nessuna domanda registrata finora.</p>
+        {% endif %}
+    </div> {# FINE stat-card per Log Domande #}
+
+{% if stats_data.db_status %}
+<div class="stat-card db-status-card">
+    <h3><i class="fas fa-database fa-fw"></i> Stato Database</h3>
+    {% set db_s = stats_data.db_status %}
+    <div class="status-sections-container">
+        <div class="db-status-section">
+            <h4>Dimensioni</h4>
+
+            <!-- ---------- SQLite ---------- -->
+            <div class="metrics-row">
+                <span class="metric-label">SQLite:</span>
+                <span class="metric-value">
+                    {{ db_s.sqlite_file_size_mb }} MB
+                    <span class="info-tooltip">
+                        <i class="fas fa-info-circle"></i>
+                        <span class="tooltip-text">
+                            ≈ {{ db_s.sqlite_photos_equiv | default('—') }} foto moderne
+                        </span>
+                    </span>
+                </span>
+            </div>
+
+            <!-- ---------- ChromaDB ---------- -->
+            <div class="metrics-row">
+                <span class="metric-label">ChromaDB:</span>
+                <span class="metric-value">
+                    {{ db_s.chroma_db_folder_size_mb }} MB
+                    <span class="info-tooltip">
+                        <i class="fas fa-info-circle"></i>
+                        <span class="tooltip-text">
+                            ≈ {{ db_s.chroma_photos_equiv | default('—') }} foto moderne
+                        </span>
+                    </span>
+                </span>
+            </div>
+        </div>
+
+        <div class="db-status-section">
+            <h4>Oggetti</h4>
+            <div class="metrics-row">
+                <span class="metric-label">Chunks:</span>
+                <span class="metric-value">{{ db_s.chroma_total_chunks | default(0) }}</span>
+            </div>
+            {% if db_s.sqlite_table_counts.users is defined %}
+                <div class="metrics-row">
+                    <span class="metric-label">Utenti:</span>
+                    <span class="metric-value">{{ db_s.sqlite_table_counts.users }}</span>
+                </div>
+            {% endif %}
+            {% if db_s.sqlite_table_counts.api_keys is defined %}
+                <div class="metrics-row">
+                    <span class="metric-label">API Keys:</span>
+                    <span class="metric-value">{{ db_s.sqlite_table_counts.api_keys }}</span>
+                </div>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
+</div> {# FINE stat-card per Stato Database #}
+{% endif %}
+
+    {% endif %} {# FINE if stats_data.error #}
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
     <!-- Includiamo la libreria Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    {# Importa l'adattatore per le date di Chart.js #}
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Leggiamo i dati dall'attributo data-*
             const dataContainer = document.getElementById('stats-data-container');
+            if (!dataContainer) return;
             const statsData = JSON.parse(dataContainer.dataset.stats || '{}');
 
-            // Funzione per creare i grafici a barre della distribuzione
-            function createDistributionChart(canvasId, label, data) {
+            // Funzione per creare i grafici a barre della distribuzione (invariata)
+            function createDistributionChart(canvasId, data) {
                 const ctx = document.getElementById(canvasId);
                 if (!ctx || !data || data.length === 0) return;
 
-                // Creiamo dei "contenitori" (bin) per l'istogramma
                 const maxVal = Math.max(...data);
-                const binSize = Math.ceil(maxVal / 10); // Dividiamo in 10 fasce
+                const binCount = Math.min(10, Math.ceil(maxVal / 100) || 1); 
+                const binSize = Math.ceil(maxVal / binCount);
+                
                 const labels = [];
                 const counts = [];
-                for (let i = 0; i < maxVal; i += binSize) {
-                    const rangeEnd = i + binSize;
-                    labels.push(`${i}-${rangeEnd}`);
-                    counts.push(data.filter(val => val >= i && val < rangeEnd).length);
+                if (maxVal > 0 && binSize > 0) {
+                    for (let i = 0; i < maxVal; i += binSize) {
+                        const rangeEnd = i + binSize;
+                        labels.push(`${i}-${rangeEnd}`);
+                        counts.push(data.filter(val => val >= i && val < rangeEnd).length);
+                    }
                 }
 
                 new Chart(ctx, {
                     type: 'bar',
+                    data: { labels: labels, datasets: [{ label: 'Numero di Contenuti', data: counts, backgroundColor: 'rgba(67, 97, 238, 0.6)', borderColor: 'rgba(67, 97, 238, 1)', borderWidth: 1 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Numero di Contenuti' } }, x: { title: { display: true, text: 'Fascia di lunghezza (parole)' } } } }
+                });
+            }
+
+            // --- NUOVA FUNZIONE PER GRAFICO A SPEZZATE (query_logs) ---
+            function createQueryTrendChart(canvasId, trendData) {
+                const ctx = document.getElementById(canvasId);
+                if (!ctx || !trendData || trendData.length === 0) return;
+
+                // Prepariamo i dati per Chart.js
+                // Assicurati che tutte le date degli ultimi 30 giorni siano presenti, anche quelle con 0 domande
+                const allDates = [];
+                const today = new Date();
+                for (let i = 29; i >= 0; i--) { // Ultimi 30 giorni (0-29)
+                    const d = new Date(today);
+                    d.setDate(today.getDate() - i);
+                    allDates.push(d.toISOString().slice(0, 10)); // Formato 'YYYY-MM-DD'
+                }
+
+                const dataMap = new Map(trendData.map(item => [item.query_date, item.query_count]));
+                const dataPoints = allDates.map(date => dataMap.get(date) || 0);
+
+                new Chart(ctx, {
+                    type: 'line', 
                     data: {
-                        labels: labels,
+                        labels: allDates, // Usiamo tutte le date generate
                         datasets: [{
-                            label: 'Numero di Contenuti per Lunghezza',
-                            data: counts,
-                            backgroundColor: 'rgba(67, 97, 238, 0.6)',
+                            label: 'Numero di Domande',
+                            data: dataPoints,
+                            fill: true, 
+                            backgroundColor: 'rgba(67, 97, 238, 0.2)',
                             borderColor: 'rgba(67, 97, 238, 1)',
-                            borderWidth: 1
+                            tension: 0.3, 
+                            pointBackgroundColor: 'rgba(67, 97, 238, 1)',
+                            pointRadius: 4,
+                            pointHoverRadius: 6
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
+                        plugins: {
+                            legend: { display: false }
+                        },
                         scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Numero di Contenuti' } },
-                            x: { title: { display: true, text: 'Fascia di Lunghezza (parole)' } }
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'Numero di Domande' },
+                                ticks: {
+                                    stepSize: 1,
+                                    callback: function(value) {if (Math.floor(value) === value) {return value;}}
+                                }
+                            },
+                            x: {
+                                type: 'time', 
+                                time: {
+                                    unit: 'day', 
+                                    tooltipFormat: 'dd MMM yyyy', 
+                                    displayFormats: {
+                                        day: 'dd MMM'
+                                    }
+                                },
+                                title: { display: true, text: 'Data' }
+                            }
                         }
                     }
                 });
             }
+            // --- FINE NUOVA FUNZIONE ---
 
-            // Inizializzazione dei grafici
-            if (statsData.videos && statsData.videos.count > 0) {
-                createDistributionChart('video-chart', 'Video', JSON.parse(statsData.videos.word_count_distribution_json));
-            }
-            if (statsData.documents && statsData.documents.count > 0) {
-                createDistributionChart('document-chart', 'Documenti', JSON.parse(statsData.documents.word_count_distribution_json));
-            }
-            if (statsData.articles && statsData.articles.count > 0) {
-                createDistributionChart('article-chart', 'Articoli', JSON.parse(statsData.articles.word_count_distribution_json));
-            }
+            // Inizializzazione dei grafici a barre (esistenti)
+            if (statsData.videos && statsData.videos.count > 0) { createDistributionChart('video-chart', JSON.parse(statsData.videos.word_count_distribution_json)); }
+            if (statsData.documents && statsData.documents.count > 0) { createDistributionChart('document-chart', JSON.parse(statsData.documents.word_count_distribution_json)); }
+            if (statsData.articles && statsData.articles.count > 0) { createDistributionChart('article-chart', JSON.parse(statsData.articles.word_count_distribution_json)); }
 
-            // Gestione del pulsante di ricalcolo
+            // --- CHIAMATA PER IL GRAFICO A SPEZZATE ---
+            if (statsData.query_logs && statsData.query_logs.daily_query_trend) {
+                createQueryTrendChart('query-trend-chart', statsData.query_logs.daily_query_trend);
+            }
+            // --- FINE CHIAMATA ---
+            
+            // Gestione del pulsante di ricalcolo (invariato)
             const recalculateForm = document.getElementById('recalculate-form');
             if (recalculateForm) {
                 recalculateForm.addEventListener('submit', async (event) => {
                     event.preventDefault(); 
-
                     const confirmed = await window.showConfirmModal(
                         'Conferma Ricalcolo',
                         'Questa operazione analizzerà tutti i tuoi contenuti esistenti per calcolare le statistiche. Potrebbe richiedere qualche istante. Sei sicuro di voler procedere?'
                     );
-
                     if (confirmed) {
                         const btn = document.getElementById('recalculate-stats-btn');
                         if (btn) {

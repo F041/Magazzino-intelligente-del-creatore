@@ -10,9 +10,7 @@ services:
       # Mappatura relativa per i dati persistenti. Indispensabile.
       - ./data:/app/data
     env_file:
-      # Percorso relativo per il file di configurazione.
-      # Questo è sufficiente per risolvere il problema dello scheduler.
-      - ./.
+      - ./.env
     # Precedentemente
     # volumes:
     #        # Mappa la tua directory 'data' specifica

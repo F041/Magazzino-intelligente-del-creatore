@@ -52,6 +52,148 @@ def statistics_page():
                 # Se non ci sono dati, prepariamo una struttura vuota
                 final_stats[source] = {'count': 0, 'word_count_distribution_json': '[]'}
 
+            query_stats = {
+            'total_queries': 0,
+            'source_counts': {},
+            'recent_queries': [],
+            'daily_query_trend': []
+        }
+        
+        # 1. Conteggio totale e per fonte
+        cursor.execute("SELECT source, COUNT(*) as count FROM query_logs GROUP BY source")
+        source_data = cursor.fetchall()
+        for row in source_data:
+            query_stats['source_counts'][row['source']] = row['count']
+            query_stats['total_queries'] += row['count']
+
+        # 2. Ultime 10 domande
+        cursor.execute("SELECT query_text, source, created_at FROM query_logs ORDER BY created_at DESC LIMIT 10")
+        query_stats['recent_queries'] = [dict(row) for row in cursor.fetchall()]
+
+        # ---   BLOCCO PER IL GRAFICO ---
+        # 3. Dati per il grafico dell'andamento giornaliero (ultimi 30 giorni)
+        # La funzione DATE() di SQLite estrae solo la data (es. '2025-09-20') dal timestamp completo.
+        # Questo ci permette di raggruppare tutte le domande dello stesso giorno.
+        cursor.execute("""
+            SELECT 
+                DATE(created_at) as query_date, 
+                COUNT(*) as query_count
+            FROM query_logs
+            WHERE created_at >= DATE('now', '-30 days')
+            GROUP BY query_date
+            ORDER BY query_date ASC
+        """)
+        # Convertiamo il risultato in una lista di dizionari per passarlo facilmente al frontend
+        daily_trend_data = [dict(row) for row in cursor.fetchall()]
+        query_stats['daily_query_trend'] = daily_trend_data
+
+        # Aggiungiamo le statistiche delle query all'oggetto principale
+        final_stats['query_logs'] = query_stats
+
+        # ---  BLOCCO: STATO DATABASE ---
+        db_stats = {
+            'sqlite_file_size_mb': 0,
+            'chroma_db_folder_size_mb': 0,
+            'chroma_total_chunks': 0,
+            'sqlite_table_counts': {}
+        }
+
+        # 1. Dimensione file SQLite
+        if os.path.exists(db_path):
+            db_stats['sqlite_file_size_mb'] = round(os.path.getsize(db_path) / (1024 * 1024), 2)
+        else:
+            logger.warning(f"File SQLite non trovato a: {db_path}")
+
+        # 2. Dimensione cartella ChromaDB e conteggio chunk
+        chroma_path = current_app.config.get('CHROMA_PERSIST_PATH')
+        if chroma_path and os.path.exists(chroma_path):
+            total_size_bytes = 0
+            for dirpath, dirnames, filenames in os.walk(chroma_path):
+                for f in filenames:
+                    fp = os.path.join(dirpath, f)
+                    if not os.path.islink(fp): # Evita errori con symlink
+                        total_size_bytes += os.path.getsize(fp)
+            db_stats['chroma_db_folder_size_mb'] = round(total_size_bytes / (1024 * 1024), 2)
+
+            MB_PER_PHOTO = 2          # 1 foto ≈ 2 MB  
+
+            # 2️⃣  Calcola il numero di foto equivalenti
+            db_stats['sqlite_photos_equiv'] = int(
+                db_stats['sqlite_file_size_mb'] / MB_PER_PHOTO
+            )
+            db_stats['chroma_photos_equiv'] = int(
+                db_stats['chroma_db_folder_size_mb'] / MB_PER_PHOTO
+            )
+
+            # Conteggio chunk in ChromaDB
+            chroma_client = current_app.config.get('CHROMA_CLIENT')
+            if chroma_client:
+                app_mode = current_app.config.get('APP_MODE', 'single')
+                total_chunks = 0
+                collections_to_check = []
+                
+                # Nomi base delle collezioni
+                base_names = {
+                    "VIDEO": current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts'),
+                    "DOCUMENT": current_app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content'),
+                    "ARTICLE": current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content'),
+                    "PAGE": "page_content"
+                }
+
+                for coll_type, base_name in base_names.items():
+                    if app_mode == 'single':
+                        # In modalità single, usiamo le collezioni direttamente dalla config (già create)
+                        collection_instance = current_app.config.get(f'CHROMA_{coll_type}_COLLECTION')
+                        if collection_instance:
+                            collections_to_check.append(collection_instance)
+                    elif app_mode == 'saas':
+                        # In modalità saas, dobbiamo costruire il nome e recuperare la collezione
+                        if user_id:
+                            coll_name = f"{base_name}_{user_id}"
+                            try:
+                                collection_instance = chroma_client.get_collection(name=coll_name)
+                                collections_to_check.append(collection_instance)
+                            except Exception as e:
+                                logger.debug(f"Collezione Chroma '{coll_name}' non trovata per l'utente {user_id}. ({e})")
+                
+                for collection in collections_to_check:
+                    try:
+                        total_chunks += collection.count()
+                    except Exception as e:
+                        logger.warning(f"Errore conteggio chunk per collezione Chroma '{collection.name}': {e}")
+                
+                db_stats['chroma_total_chunks'] = total_chunks
+            else:
+                logger.warning("Chroma Client non disponibile in config per conteggio chunk.")
+        else:
+            logger.warning(f"Cartella ChromaDB non trovata a: {chroma_path}")
+
+        # 3. Conteggio righe tabelle SQLite (opzionale, ma utile)
+        sqlite_tables = ['users', 'api_keys', 'videos', 'documents', 'articles', 'pages', 'query_logs']
+        for table_name in sqlite_tables:
+            try:
+                # Contiamo i record solo per l'utente attuale se la tabella ha user_id, altrimenti il totale
+                if table_name in ['users', 'api_keys', 'videos', 'documents', 'articles', 'pages']:
+                    # Verifica se la colonna user_id esiste nella tabella
+                    cursor.execute(f"PRAGMA table_info({table_name})")
+                    columns = [col[1] for col in cursor.fetchall()]
+                    if 'user_id' in columns:
+                        cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE user_id = ?", (user_id,))
+                        db_stats['sqlite_table_counts'][table_name] = cursor.fetchone()[0]
+                    else:
+                        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                        db_stats['sqlite_table_counts'][table_name] = cursor.fetchone()[0]
+                elif table_name == 'query_logs':
+                    # Per query_logs, vogliamo il conteggio totale indipendentemente dall'utente loggato,
+                    # dato che non ha user_id e registra tutte le query sul Magazzino.
+                    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                    db_stats['sqlite_table_counts'][table_name] = cursor.fetchone()[0]
+            except sqlite3.Error as e:
+                logger.warning(f"Errore conteggio righe per tabella SQLite '{table_name}': {e}")
+                db_stats['sqlite_table_counts'][table_name] = "N/D"
+
+        final_stats['db_status'] = db_stats
+
     except sqlite3.Error as e:
         logger.error(f"Errore Database nella pagina statistiche per l'utente {user_id}: {e}")
         final_stats = {'error': 'Si è verificato un errore nel caricamento delle statistiche.'}
@@ -89,12 +231,23 @@ def recalculate_stats():
 
         for source_type, config in source_config.items():
             processed_counts[source_type] = 0
+            
+            # --- AGGIUNTA DI DEBUG ---
+            if source_type == 'articles':
+                logger.info("--- INIZIO DEBUG RICALCOLO ARTICOLI ---")
+            # --- FINE AGGIUNTA ---
+
             logger.info(f"Ricalcolo per: {source_type}...")
             
             query = f"SELECT {config['id_col']}, {config['content_col']} FROM {config['table']} WHERE user_id = ? AND processing_status = 'completed'"
             cursor.execute(query, (user_id,))
             
             items_to_process = cursor.fetchall()
+
+            # --- AGGIUNTA DI DEBUG ---
+            if source_type == 'articles':
+                logger.info(f"Trovati {len(items_to_process)} articoli con stato 'completed' da processare.")
+            # --- FINE AGGIUNTA ---
             
             for item in items_to_process:
                 content_id, content_or_path = item[0], item[1]
@@ -103,8 +256,16 @@ def recalculate_stats():
                 if source_type == 'videos':
                     content_text = content_or_path or ''
                 elif content_or_path and os.path.exists(content_or_path):
+                    # --- AGGIUNTA DI DEBUG ---
+                    if source_type == 'articles':
+                        logger.info(f"Articolo '{content_id}': Il file '{content_or_path}' ESISTE. Procedo con la lettura.")
+                    # --- FINE AGGIUNTA ---
                     with open(content_or_path, 'r', encoding='utf-8') as f:
                         content_text = f.read()
+                # --- AGGIUNTA DI DEBUG ---
+                elif source_type == 'articles':
+                    logger.warning(f"Articolo '{content_id}': Il file '{content_or_path}' NON ESISTE o il percorso è nullo. SALTO.")
+                # --- FINE AGGIUNTA ---
 
                 if content_text.strip():
                     word_count = len(content_text.split())

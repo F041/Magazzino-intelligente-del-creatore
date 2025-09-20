@@ -303,6 +303,17 @@ def init_db(config):
         logger.info("Tabella 'content_stats' per il caching delle statistiche verificata/creata.")
 
 
+        # --- Tabella per Log delle Domande ---
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS query_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source TEXT NOT NULL,               -- Da dove arriva la domanda (es. 'telegram', 'web_chat')
+                query_text TEXT NOT NULL,           -- La domanda effettiva dell'utente finale
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )''')
+        logger.info("Tabella 'query_logs' per le domande degli utenti verificata/creata.")
+
+
         # --- Aggiunta colonne per Personalizzazione ---
         try:
             cursor.execute("ALTER TABLE user_settings ADD COLUMN brand_color TEXT")

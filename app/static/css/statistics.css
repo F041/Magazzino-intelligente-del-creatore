@@ -1,0 +1,142 @@
+/* Stili specifici per la pagina delle statistiche */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--spacing-xl);
+    margin-top: var(--spacing-xl);
+    align-items: stretch; /* Forza le schede all'interno della griglia ad avere la stessa altezza */
+}
+
+.stat-card {
+    background-color: var(--color-background-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-xl);
+    box-shadow: var(--box-shadow-sm);
+    display: flex; /* Rende la card un contenitore flex */
+    flex-direction: column; /* I figli si dispongono in colonna */
+}
+
+/* --- Regola per la spaziatura tra le sezioni del layout principale --- */
+/* Applica un margine superiore a tutte le .stat-card che NON sono figlie dirette di .stats-grid,
+   e a tutte le .stat-card che seguono un'altra .stat-card (per separare Log Domande e Stato DB) */
+.stat-card:not(.stats-grid .stat-card) {
+    margin-top: var(--spacing-xxl); /* Spazio grande per separare le sezioni principali */
+}
+/* --- Fine Regola Spaziatura --- */
+
+
+.stat-card h3 {
+    font-family: var(--font-sans);
+    font-size: 1.2rem;
+    margin-top: 0;
+    margin-bottom: var(--spacing-lg);
+    color: var(--color-text-secondary);
+    border-bottom: 1px solid var(--color-border-light);
+    padding-bottom: var(--spacing-md);
+    flex-shrink: 0; /* Impedisce al titolo di rimpicciolirsi */
+}
+
+.metrics-container {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+    margin-bottom: var(--spacing-xl);
+    flex-shrink: 0; /* Impedisce alle metriche di rimpicciolirsi */
+}
+
+.metric-item .value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.metric-item .label {
+    font-size: 0.9rem;
+    color: var(--color-text-light);
+}
+
+.chart-container {
+    flex-grow: 1; /* Occupa tutto lo spazio verticale rimanente nel flex container */
+    position: relative; /* Necessario per Chart.js per gestire il responsive */
+    min-height: 250px; /* Altezza minima per i grafici a barre */
+}
+
+.no-data-message {
+    color: var(--color-text-light);
+    font-style: italic;
+    text-align: center;
+    margin: auto; /* Centra verticalmente e orizzontalmente il messaggio */
+    flex-grow: 1; /* Permette al messaggio di occupare lo spazio */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Stili per il tooltip informativo (invariati) */
+.info-tooltip {
+    position: relative; display: inline-flex; align-items: center; margin-left: 5px; cursor: help;
+}
+.info-tooltip .fa-info-circle {
+    color: var(--color-text-light); font-size: 0.9em;
+}
+.info-tooltip .tooltip-text {
+    visibility: hidden; width: 260px; background-color: var(--color-metal-dark); color: #fff; text-align: center; border-radius: 6px; padding: 10px; position: absolute; z-index: 1; bottom: 135%; left: 50%; margin-left: -130px; opacity: 0; transition: opacity 0.3s; font-size: 0.85rem; font-weight: 400; line-height: 1.5;
+}
+.info-tooltip:hover .tooltip-text {
+    visibility: visible; opacity: 1;
+}
+.info-tooltip .tooltip-text::after {
+    content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--color-metal-dark) transparent transparent transparent;
+}
+
+/* Stili per il Log Domande (invariati, ma ora include il grafico) */
+.recent-queries-list {
+    list-style: none; padding: 0; margin-top: var(--spacing-lg); font-size: 0.9em; flex-grow: 1; overflow-y: auto; max-height: 250px;
+}
+.recent-queries-list li {
+    padding: var(--spacing-sm) 0; border-bottom: 1px solid var(--color-border-light); display: flex; justify-content: space-between; align-items: center;
+}
+.recent-queries-list li:last-child {
+    border-bottom: none;
+}
+.query-text {
+    color: var(--color-text-main); flex-grow: 1; margin-right: var(--spacing-md);
+}
+.query-source {
+    font-size: 0.8em; font-weight: 500; padding: 3px 8px; border-radius: 10px; flex-shrink: 0;
+}
+.source-telegram { background-color: #cce5ff; color: #004085; }
+.source-web-chat { background-color: #d4edda; color: #155724; }
+.source-widget-chat { background-color: #f8d7da; color: #721c24; }
+.source-unknown { background-color: #e9ecef; color: #495057; }
+
+/* Stili per la scheda Stato Database (invariati) */
+.db-status-card .status-sections-container {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-xl); align-items: start; width: 100%; flex-grow: 1;
+}
+.db-status-card .db-status-section {
+    padding-top: var(--spacing-sm);
+}
+.db-status-card h4 {
+    margin-top: 0; font-size: 1rem; margin-bottom: var(--spacing-sm); color: var(--color-text-secondary); border-bottom: 1px solid var(--color-border-light); padding-bottom: var(--spacing-xs); font-weight: 600;
+}
+.db-status-card .metrics-row {
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--spacing-xs); font-size: 0.9em;
+}
+.db-status-card .metric-label {
+    color: var(--color-text-secondary); margin-right: var(--spacing-sm);
+}
+.db-status-card .metric-value {
+    font-weight: 700; color: var(--color-primary); flex-shrink: 0;
+}
+
+/* --- NUOVI STILI PER IL GRAFICO A SPEZZATE --- */
+.line-chart-container {
+    margin-top: var(--spacing-xl); /* Spazio sopra il grafico, ma interno alla card */
+    height: 250px; /* Altezza fissa per il grafico */
+    position: relative; /* Necessario per Chart.js */
+    flex-shrink: 0; /* Impedisce al contenitore del grafico di rimpicciolirsi */
+}
+

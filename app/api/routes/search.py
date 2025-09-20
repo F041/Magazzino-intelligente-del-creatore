@@ -188,10 +188,14 @@ def handle_search_request(*args, **kwargs):
     logger.info(f"Richiesta di ricerca ricevuta. Accept Header: '{accept_header}', SSE Richiesto: {is_sse_request}")
 
     def execute_search_logic(**kwargs):
+        # Inizializziamo i nostri contenitori per i risultati e le metriche
         final_payload = { "success": False, "answer": None, "retrieved_results": [], "error_code": None, "message": None }
+        performance_metrics = {}
+        total_start_time = time.time() # Avviamo il cronometro generale
         query_text_internal = "N/D"
 
         try:
+            # ... (la validazione iniziale della richiesta rimane invariata)
             if not request.is_json:
                 final_payload.update({'error_code': 'INVALID_CONTENT_TYPE', 'message': 'Richiesta deve essere JSON.'})
                 raise ValueError("Richiesta non JSON")
@@ -199,12 +203,32 @@ def handle_search_request(*args, **kwargs):
             data = request.get_json()
             query_text_internal = data.get('query')
             history_from_request = data.get('history', [])
-
-            logger.info(f"Dati richiesta: Query='{str(query_text_internal)[:100]}', History Items={len(history_from_request)}")
-
-            if not query_text_internal or not isinstance(query_text_internal, str) or not query_text_internal.strip():
-                 final_payload.update({'error_code': 'VALIDATION_ERROR', 'message': "Testo della domanda mancante o non valido."})
-                 raise ValueError("Query mancante o non valida")
+            
+            # --- LOGGING DELLA DOMANDA ---
+            if query_text_internal:
+                source = 'unknown'
+                auth_header = request.headers.get('Authorization', '')
+                if kwargs.get('api_user_id_override') and 'Bearer' in auth_header:
+                    source = 'widget_chat'
+                elif kwargs.get('api_user_id_override'):
+                    source = 'telegram'
+                elif current_user.is_authenticated:
+                    source = 'web_chat'
+                if source != 'unknown':
+                    log_conn = None
+                    try:
+                        db_path_for_log = current_app.config.get('DATABASE_FILE')
+                        log_conn = sqlite3.connect(db_path_for_log)
+                        log_cursor = log_conn.cursor()
+                        log_cursor.execute("INSERT INTO query_logs (source, query_text) VALUES (?, ?)", (source, query_text_internal))
+                        log_conn.commit()
+                        logger.info(f"Domanda da '{source}' registrata nel log.")
+                    except sqlite3.Error as e_log:
+                        logger.error(f"Fallimento registrazione domanda nel log DB: {e_log}")
+                        if log_conn: log_conn.rollback()
+                    finally:
+                        if log_conn:
+                            log_conn.close()
 
             # --- LOGICA DI DEBUG DETTAGLIATA PER n_results ---
             # 1. Valore di default dalla configurazione dell'app
@@ -222,10 +246,8 @@ def handle_search_request(*args, **kwargs):
             if n_results_from_request is not None:
                 try:
                     valore_richiesto = int(n_results_from_request)
-                    logger.info(f"DEBUG N_RESULTS (Passo 3a): Valore richiesto convertito in intero: {valore_richiesto}")
                     if 0 < valore_richiesto <= 50:
                         n_results = valore_richiesto
-                        logger.info(f"DEBUG N_RESULTS (Passo 3b): Valore richiesto e' valido. n_results ORA E': {n_results}")
                     else:
                         logger.warning(f"DEBUG N_RESULTS (Passo 3b): Valore richiesto ({valore_richiesto}) e' FUORI RANGE. Mantenuto il default: {n_results}")
                 except (ValueError, TypeError):
@@ -233,7 +255,6 @@ def handle_search_request(*args, **kwargs):
             else:
                 logger.info("DEBUG N_RESULTS (Passo 3): Nessun 'n_results' nella richiesta. Mantenuto il default.")
             
-            logger.info(f"====> VALORE FINALE DI n_results PRIMA DELLA QUERY: {n_results} <====")
             # --- FINE LOGICA DI DEBUG ---
 
             if not get_gemini_embeddings:
@@ -243,6 +264,7 @@ def handle_search_request(*args, **kwargs):
             app_mode = current_app.config.get('APP_MODE', 'single')
             user_id_to_use = kwargs.get('api_user_id_override') or (current_user.id if current_user.is_authenticated else None)
             logger.info(f"ID utente identificato per la ricerca: {user_id_to_use}")
+            
 
             llm_provider = 'google'
             llm_api_key = current_app.config.get('GOOGLE_API_KEY')
@@ -273,11 +295,14 @@ def handle_search_request(*args, **kwargs):
                 finally:
                     if conn_settings: conn_settings.close()
             
+            # --- FASE 1: EMBEDDING (con misurazione) ---
+            start_embedding_time = time.time()
             query_embedding_list = get_gemini_embeddings([query_text_internal], api_key=llm_api_key, model_name=embedding_model, task_type=TASK_TYPE_QUERY)
+            performance_metrics['embedding_duration_ms'] = round((time.time() - start_embedding_time) * 1000)
             if not query_embedding_list or not query_embedding_list[0]:
                 raise RuntimeError("Fallimento generazione embedding per la query.")
             query_embedding = query_embedding_list[0]
-            logger.info("Embedding query generato.")
+            logger.info(f"Embedding query generato in {performance_metrics['embedding_duration_ms']}ms.")
             
             chroma_client = current_app.config.get('CHROMA_CLIENT')
             if not chroma_client: raise RuntimeError("Client ChromaDB non inizializzato")
@@ -290,6 +315,9 @@ def handle_search_request(*args, **kwargs):
             }
 
             logger.info(f"DEBUG VALORE n_results: Il valore usato per la query a ChromaDB e': {n_results}")
+
+            # --- FASE 2: RICERCA VETTORIALE (con misurazione) ---
+            start_retrieval_time = time.time()
 
             all_results_combined = []
             for coll_type, base_name in base_names.items():
@@ -312,12 +340,19 @@ def handle_search_request(*args, **kwargs):
                 except Exception as e:
                     logger.warning(f"Collezione '{coll_name}' non trovata o errore query: {e}")
 
+            performance_metrics['retrieval_duration_ms'] = round((time.time() - start_retrieval_time) * 1000)
+            performance_metrics['retrieved_chunks_count'] = len(all_results_combined)
+            logger.info(f"Ricerca vettoriale completata in {performance_metrics['retrieval_duration_ms']}ms. Trovati {len(all_results_combined)} chunk.")
+
             chunks_for_prompt = []
             if all_results_combined:
                 all_results_combined.sort(key=lambda x: x.get('distance', float('inf')))
                 logger.info(f"Recuperati {len(all_results_combined)} chunk iniziali da ChromaDB.")
                 cohere_api_key = current_app.config.get('COHERE_API_KEY')
+                
+                # --- FASE 3: RE-RANKING (con misurazione) ---
                 if cohere_api_key:
+                    start_reranking_time = time.time() 
                     try:
                         logger.info("Avvio re-ranking con l'API di Cohere...")
                         co = cohere.Client(cohere_api_key)
@@ -335,17 +370,21 @@ def handle_search_request(*args, **kwargs):
                     except Exception as e:
                         logger.error(f"Errore durante il re-ranking con Cohere: {e}. Uso i risultati originali.", exc_info=True)
                         chunks_for_prompt = all_results_combined[:15]
+                    
+                    performance_metrics['reranking_duration_ms'] = round((time.time() - start_reranking_time) * 1000)
+                    logger.info(f"Re-ranking completato in {performance_metrics['reranking_duration_ms']}ms.")
                 else:
-                    logger.warning("COHERE_API_KEY non configurata. Salto il re-ranking e prendo i primi 15 risultati.")
+                    performance_metrics['reranking_duration_ms'] = 0
                     chunks_for_prompt = all_results_combined[:15]
-            else:
-                logger.warning("Nessun risultato trovato da ChromaDB.")
 
             prompt = build_prompt(query_text_internal, chunks_for_prompt, history=history_from_request, llm_provider=llm_provider)
             
             llm_answer = None
             llm_success = False
             last_error = None
+            successful_model = "N/D"             
+            # --- FASE 4: GENERAZIONE LLM (con misurazione) ---
+            start_generation_time = time.time() # <-- RIGA AGGIUNTA
 
             if llm_provider == 'ollama':
                 logger.info("Tentativo di generazione risposta con OLLAMA.")
@@ -355,6 +394,7 @@ def handle_search_request(*args, **kwargs):
                 try:
                     llm_answer = _get_ollama_completion(prompt, ollama_base_url, ollama_model)
                     llm_success = True
+                    successful_model = ollama_model # <-- RIGA AGGIUNTA
                     logger.info("Risposta generata con successo da Ollama.")
                 except Exception as e:
                     last_error = e
@@ -371,6 +411,7 @@ def handle_search_request(*args, **kwargs):
                             llm_answer = response_llm.text
                             llm_success = True
                             logger.info(f"Risposta LLM generata con successo dal modello {model_name}.")
+                            successful_model = model_name # <-- RIGA AGGIUNTA
                             break
                         except ValueError:
                             block_reason_obj = getattr(getattr(response_llm, 'prompt_feedback', None), 'block_reason', None)
@@ -389,6 +430,10 @@ def handle_search_request(*args, **kwargs):
                         llm_success = False
                         break
             
+            performance_metrics['llm_generation_duration_ms'] = round((time.time() - start_generation_time) * 1000) # <-- RIGA AGGIUNTA
+            performance_metrics['llm_model_used'] = successful_model # <-- RIGA AGGIUNTA
+            logger.info(f"Generazione LLM completata in {performance_metrics['llm_generation_duration_ms']}ms con il modello '{successful_model}'.") # <-- RIGA AGGIUNTA
+
             if not llm_success and last_error:
                 error_code_llm = 'LLM_GENERATION_FAILED'; message_llm = f'Errore LLM dopo aver provato i modelli disponibili: {last_error}'
                 if llm_provider == 'google': # Applica questa logica solo se l'errore proviene da Google
@@ -416,16 +461,19 @@ def handle_search_request(*args, **kwargs):
                 final_payload.update({
                     'success': llm_success, 'query': query_text_internal, 'answer': llm_answer,
                     'retrieved_results': chunks_for_prompt
-                })
-            
-            return final_payload
-
+                })        
         except Exception as e_logic:
             logger.error(f"Errore in execute_search_logic per query '{query_text_internal}': {e_logic}", exc_info=True)
             if not final_payload.get("message"):
                 final_payload['message'] = f"Errore interno del server: {str(e_logic)}"
             final_payload['success'] = False
-            return final_payload
+            raise # Rilancia l'eccezione, sarà catturata dal blocco superiore che gestisce SSE/JSON
+
+        finally: 
+            # Questo blocco viene eseguito SEMPRE, sia in caso di successo che di errore
+            performance_metrics['total_duration_ms'] = round((time.time() - total_start_time) * 1000)
+            final_payload['performance_metrics'] = performance_metrics
+        return final_payload # <-- RIGA ESSENZIALE
 
     if is_sse_request:
         def generate_events_sse():

@@ -1,7 +1,6 @@
 <div align="center">
 
-[![Stato dei Test](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/tests.yml/badge.svg)](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/tests.yml)
-[![Stato della Build Docker](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/ci-pipeline.yml/badge.svg)](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/ci-pipeline.yml)
+[![Stato dei test](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/tests.yml/badge.svg)](https://github.com/F041/Magazzino-intelligente-del-creatore/actions/workflows/tests.yml)
 
 </div>
 
@@ -349,7 +348,7 @@ Una volta eseguito lo script, l'applicazione dovrebbe avviarsi e potrai accedere
 **Per fermare l'applicazione (quando eseguita direttamente con Python):**
 Premi `Ctrl+C` nel terminale dove hai avviato `python -m app.main`.
 
-### Esecuzione Avanzata: Usare l'Immagine Pre-Compilata da GHCR
+### Esecuzione avanzata: usare l'immagine pre-compilata da GHCR (per server/VPS)
 
 Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le immagini stabili che vengono automaticamente costruite e pubblicate su GitHub Container Registry (GHCR) dopo ogni aggiornamento al codice principale. Supporta linux/amd64 che linux/arm64
 
@@ -358,33 +357,55 @@ Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le imm
 3.  Crea la sottodirectory `data`.
 4.  Prepara il tuo file `client_secrets.json` e mettilo in `data/client_secrets.json`.
 5.  Crea un file `.env` con le tue configurazioni (vedi sezione "Configura il File d'Ambiente (`.env`)" sopra).
-6.  Crea un file `docker-compose.yml` (o `docker-compose.portainer.yml`) con il seguente contenuto, **adattando i percorsi assoluti** alla tua configurazione sul VPS (es. `/srv/magazzino-creatore/` o `/home/tuoutente/progetti/magazzino-creatore/`):
+6.  Crea un file `docker-compose.yml` (o `docker-compose.portainer.yml`) con il seguente contenuto:
+
 
     ```yaml
     services:
-      app:
-        image: ghcr.io/f041/magazzino-creatore-selfhosted:latest # Usa l'immagine da GHCR e il tag :latest per Watchtower
-        container_name: magazzino_creatore_app # Nome container suggerito
+    app:
+        image: ghcr.io/f041/magazzino-creatore-selfhosted:latest
+        container_name: magazzino_creatore_app
         ports:
-          - "5001:5000" # Modifica la porta host (la prima '5001') se il tuo setup (es. Cloudflare Tunnel) punta a una porta diversa
+        - "5001:5000"
         volumes:
-          # Percorso assoluto alla tua directory 'data' sull'host del VPS
-          - /percorso/assoluto/alla/tua/cartella_progetto/data:/app/data 
+        # Mappatura relativa per i dati persistenti. Indispensabile.
+        - ./data:/app/data
         env_file:
-          # Percorso assoluto al tuo file '.env' sull'host del VPS
-          - /percorso/assoluto/alla/tua/cartella_progetto/.env
+        - ./.env
         restart: unless-stopped
         labels:
-          - "com.centurylinklabs.watchtower.enable=true" # Per abilitare gli aggiornamenti automatici con Watchtower
+        - "com.centurylinklabs.watchtower.enable=true"
+        networks:
+        - magazzino_net
+    
+    telegram_bot:
+        build: .  
+        container_name: magazzino_telegram_bot
+        command: python telegram_bot_magazzino/bot.py 
+        env_file:
+        - .env 
+        restart: unless-stopped
+        depends_on:
+        app:
+            condition: service_started
+        networks:
+        - magazzino_net
+
+    networks: 
+    magazzino_net: 
+        driver: bridge 
     ```
+
     **Nota Importante sui Volumi:** Per un setup di produzione che si affida all'immagine pre-compilata e a Watchtower per gli aggiornamenti, **NON mappare il codice sorgente locale nel container** (es. NON usare un volume come `- ./app:/app` o `- ./:/app`). Il codice deve provenire dall'immagine Docker stessa per garantire che gli aggiornamenti dell'immagine vengano applicati.
 
 7.  **Avvia l'applicazione (tramite Portainer o CLI):**
     *   **Con Portainer (Consigliato):**
         1.  Vai su "Stacks" > "+ Add stack".
-        2.  Dai un nome allo stack.
-        3.  Scegli "Web editor" e incolla il contenuto YAML qui sopra dopo aver cambiato i percorsi.
-        4.  **Non usare l'opzione `env_file` nel YAML se Portainer ha problemi ad accedervi.** Invece, rimuovi la sezione `env_file` dal YAML e inserisci tutte le variabili d'ambiente (dal tuo file `.env` host) manualmente nella sezione "Environment variables" dell'interfaccia di Portainer per lo stack.
+        2.  Dai un nome allo stack (es. `magazzino-creatore`).
+        3.  Scegli "Web editor" e incolla il contenuto YAML qui sopra, dopo aver cambiato i percorsi.
+        4.  **Gestione delle Variabili d'Ambiente:** Hai due opzioni:
+            *   **Metodo 1 (Consigliato):** Rimuovi la riga `env_file: ...` dal file YAML. Inserisci tutte le variabili d'ambiente (dal tuo file `.env`) una per una nella sezione "Advanced container settings" > "Environment variables" dell'interfaccia di Portainer. Questo è il metodo più robusto.
+            *   **Metodo 2 (`env_file`):** Se preferisci usare un file, assicurati che Portainer abbia i permessi per leggere il percorso assoluto del tuo file `.env` sull'host.
         5.  Clicca "Deploy the stack".
     *   **Con Docker Compose CLI (dalla directory del progetto sull'host dove hai il `docker-compose.yml` e il `.env`):**
         ```bash
@@ -446,6 +467,9 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
     *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
     *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
 
+*   **Attenzione: File .env non trovato in /app all'interno dei log del container**
+    *   vedi sezione "Configura il File d'Ambiente (`.env`)" sopra
+
 
 ## TODO e Prossimi Passi
 
@@ -505,6 +529,9 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 
 **UI/UX:**
 *   [ ] **Feedback Processi Background:** Migliorare ulteriormente il feedback per operazioni lunghe (re-indicizzazione).
+*   [ ] **Funzione /dati_personali su bot telegram:** Aggiugnere funzionalità bot: spiegare che il log domande non raccoglie dati personali, quindi non serve consenso GDPR.
+
+
 
 
 **DevOps e Deployment:**
