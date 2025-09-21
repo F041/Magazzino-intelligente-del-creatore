@@ -331,6 +331,9 @@ def create_app(config_object=AppConfig):
         from .api.routes.statistics import stats_bp
         app.register_blueprint(stats_bp)
         logger.info("Blueprint Statistics registrato.")
+        from .api.routes.ideas import ideas_bp
+        app.register_blueprint(ideas_bp, url_prefix='/api/ideas')
+        logger.info("Blueprint Ideas (generatore idee) registrato con prefisso /api/ideas.")
     except ImportError as e:
          logger.critical(f"Errore importazione/registrazione blueprint: {e}", exc_info=True)
          sys.exit(1)

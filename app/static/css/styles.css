@@ -77,12 +77,31 @@ body {
     font-weight: var(--font-weight-regular);
     display: flex;
     min-height: 100vh;
+
+    /* Background immagine */
+    background-image: url("https://media.fab.com/image_previews/gallery_images/01aa8cc5-6575-4095-9505-05c2c7aab856/2aae4ab6-c405-45f3-89d7-14e5113753dd.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+
+    /* Fallback colore */
     background-color: var(--color-background-main);
+
     color: var(--color-text-main);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+
+    position: relative; /* necessario per lo pseudo-overlay */
+    z-index: 0;
 }
+
+body::before {
+    content: "";
+    display: none;
+}
+
 
 h1, h2, h3, h4, h5, h6 {
     /* Rimuoviamo il font-family da qui per darlo in modo specifico */
@@ -136,17 +155,20 @@ a:hover {
 
 .sidebar {
     width: var(--sidebar-width);
-    background-color: var(--color-metal-dark);
+    background-color: rgba(52,58,64,0.64); 
     color: white;
-    display: flex; /* Mantiene flexbox */
-    flex-direction: column; /* Mantiene la direzione a colonna */
-    height: 100vh; /* FONDAMENTALE: la sidebar occupa il 100% dell'altezza dello schermo */
-    position: sticky; /* FONDAMENTALE: la fissa in posizione */
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: sticky;
     top: 0;
     flex-shrink: 0;
     box-shadow: 5px 0 15px rgba(0,0,0,0.15);
     border-right: 1px solid rgba(0, 0, 0, 0.3);
+    z-index: 20;
 }
+
+
 
 /* Nuova regola per l'header della sidebar */
 .sidebar-header {
@@ -250,9 +272,12 @@ a:hover {
     flex-grow: 1;
     padding: var(--spacing-xxxl);
     overflow-y: auto;
-    background-color: var(--color-background-main);
+    background-color: rgba(255,255,255,0.60); /* prova 0.7 - 0.85 */
     position: relative;
+    z-index: 10;
+    border-radius: 8px;
 }
+
 
 .main-content::before {
     content: "";
@@ -261,12 +286,11 @@ a:hover {
     left: 0;
     right: 0;
     bottom: 0;
-    /*  Un pattern a puntini molto più leggero e tecnologico */
-    background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
-    background-size: 15px 15px; /* Puntini più piccoli e ravvicinati */
+
     pointer-events: none;
-    z-index: -1; /* Lo mettiamo sotto lo sfondo principale */
+    z-index: -1;
 }
+
 
 
 /* ==========================================================================

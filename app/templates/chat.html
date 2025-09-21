@@ -93,36 +93,28 @@
     </div>
 
     <div class="input-area">
-        <textarea id="user-input" placeholder="Chiedi qualcosa..." rows="1"></textarea>
-        <button id="send-button" class="send-btn">Invia</button>
+        {# Nuovo contenitore per la textarea e i pulsanti interni #}
+        <div class="input-wrapper">
+        <button id="exit-idea-mode-btn" class="action-btn-icon" title="Torna alla chat normale" style="display: none;">
+            <i class="fas fa-times"></i>
+        </button>
+            <textarea id="user-input" placeholder="Chiedi qualcosa..." rows="1"></textarea>
+            
+            {# Il pulsante lampadina è ORA posizionato *dentro* il wrapper #}
+            <button id="idea-generator-btn" class="action-btn-icon" title="Genera nuove idee di contenuti">
+                <i class="fas fa-lightbulb"></i>
+            </button>
+        </div>
+        
+        {# Il pulsante Invia rimane fuori dal wrapper, ma SEMPRE DENTRO input-area #}
+        <button id="send-button" class="send-btn">
+    <i id="send-button-icon" class="fas fa-paper-plane"></i> 
+    <span id="send-button-text">Invia</span>
+</button>
+
     </div>
 
-</div>
-
-{# --- INIZIO BLOCCO HTML AGGIUNTIVO PER MODALE/OVERLAY --- #}
-<div id="modal-overlay"></div>
-<div id="embed-code-modal">
-    <h3>Incorpora la chat sul tuo sito</h3>
-    <p>Per garantire la sicurezza, la chat funzionerà solo sul dominio che specifichi qui. Assicurati di inserire il dominio corretto del tuo sito (es. `www.ilmiosito.com`).</p>
-    
-    <div class="form-group" style="text-align: left;">
-        <label for="widget-domain" style="font-weight: bold; margin-bottom: 5px;">Dominio autorizzato:</label>
-        <input type="text" id="widget-domain" placeholder="www.esempio.com" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
-        <small style="color: #6c757d;">Puoi cambiarlo in seguito tornando qui.</small>
-    </div>
-
-    <div id="generated-snippet-group" style="display: none; margin-top: 20px;">
-        <label for="embed-code-textarea" style="font-weight: bold; display: block; margin-bottom: 5px;">Copia e incolla questo codice nel tuo sito:</label>
-        <textarea id="embed-code-textarea" readonly rows="3" style="width: 100%; font-family: monospace;"></textarea>
-    </div>
-
-    <div class="embed-modal-buttons" style="margin-top: 20px;">
-        <button id="save-domain-btn" class="action-btn">Salva e Genera Snippet</button>
-        <button id="copy-embed-code" class="action-btn" style="display: none; background-color: #28a745;">Copia Codice</button>
-        <button id="close-embed-modal" style="background-color: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 5px; cursor: pointer;">Chiudi</button>
-    </div>
-</div>
-
+{# --- Blocco HTML per Modale Embed (NON DUPLICATO) --- #}
 <div id="modal-overlay"></div>
 <div id="embed-code-modal">
     <h3>Incorpora la chat sul tuo sito</h3>
@@ -152,9 +144,13 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
 
+{# Questo script verrà sovrascritto nel prossimo passo #}
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
 
 <script>
+// Questo è il codice JavaScript per la gestione del modale di embed
+// che DEVE rimanere qui, dopo l'inclusione di chat.js, perché usa elementi
+// che chat.js non dovrebbe conoscere (per separazione di responsabilità).
 document.addEventListener('DOMContentLoaded', () => {
     const openModalButton = document.getElementById('open-embed-modal-button');
     const embedModal = document.getElementById('embed-code-modal');

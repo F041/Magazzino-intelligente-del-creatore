@@ -1,16 +1,11 @@
-// FILE: app/static/js/chat.js
-
 document.addEventListener('DOMContentLoaded', () => {
     let JWT_TOKEN = null; 
     
+    // Funzione per estrarre il token JWT dal parametro 'token' dell'URL
     function getTokenFromUrl() {
         const params = new URLSearchParams(window.location.search);
         const token = params.get('token');
-        if (token) {
-            console.log("Chat JS: Token JWT trovato nell'URL.");
-            return token;
-        }
-        console.log("Chat JS: Nessun token JWT trovato nell'URL.");
+        if (token) return token;
         return null;
     }
     JWT_TOKEN = getTokenFromUrl(); 
@@ -18,63 +13,126 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`Chat JS loaded. Token JWT presente: ${JWT_TOKEN ? 'Sì' : 'No'}`);
 
     let chatHistory = [];
+    let currentMode = 'chat'; // 'chat' o 'idea'
     const MAX_HISTORY_MESSAGES_TO_SEND = 6;
     const MAX_LOCAL_HISTORY_ITEMS = 50;
 
     const chatWindow = document.getElementById('messages-list'); 
     const userInput = document.getElementById('user-input');
     const sendButton = document.getElementById('send-button');
+    const ideaGeneratorBtn = document.getElementById('idea-generator-btn'); // Il nostro nuovo pulsante lampadina
+    const exitIdeaModeBtn = document.getElementById('exit-idea-mode-btn'); // Il pulsante 'X' per uscire
     const promptStartersContainer = document.getElementById('prompt-starters');
 
-    if (!chatWindow || !userInput || !sendButton) {
-        console.error("Elementi base della chat non trovati!");
+    if (!chatWindow || !userInput || !sendButton || !ideaGeneratorBtn || !exitIdeaModeBtn) {
+        console.error("Elementi UI della chat mancanti! Impossibile inizializzare.");
         return;
     }
+
+    // --- LOGICA DI GESTIONE DINAMICA DELL'INTERFACCIA (REVISIONATA E CORRETTA) ---
+    
+    // Questa funzione è il cuore dello stato UI: decide cosa mostrare e cosa abilitare
+function updateUIState() {
+    const hasText = userInput.value.trim().length > 0;
+    const sendBtnIcon = document.getElementById('send-button-icon');
+    const sendBtnText = document.getElementById('send-button-text');
+
+    // Reset visibilità di tutti i pulsanti icona
+    ideaGeneratorBtn.style.display = 'none';
+    exitIdeaModeBtn.style.display = 'none';
+    
+    // Impostazioni di base per la textarea (torna editabile per default)
+    userInput.readOnly = false;
+    userInput.placeholder = 'Chiedi qualcosa...';
+
+    if (currentMode === 'idea') {
+        // *** MODALITÀ IDEE ATTIVA ***
+        sendButton.style.display = 'inline-flex';
+        sendButton.disabled = false; // Il pulsante "Altre" è sempre attivo in questa modalità
+        sendButton.classList.add('idea-mode');
+        sendBtnIcon.className = 'fas fa-sync-alt'; // Icona di refresh
+        sendBtnText.textContent = 'Altre';
+
+        exitIdeaModeBtn.style.display = 'inline-flex'; // La "X" è visibile
+        exitIdeaModeBtn.disabled = false;
+
+        // Rendi la textarea non editabile e chiarisci il placeholder
+        userInput.readOnly = true;
+        userInput.placeholder = 'Modalità idee — premi "Altre" per nuovi suggerimenti o premi la x a sinistra per uscire';
+        // Rimuovi eventuale testo selezionabile per chiarezza (ma non svuotare)
+        // userInput.value = ''; // (non forzare lo svuotamento qui per non perdere stato)
+    } else {
+        // *** MODALITÀ CHAT NORMALE ***
+        sendButton.classList.remove('idea-mode'); // Assicurati che non abbia lo stile "idea"
+        sendBtnIcon.className = 'fas fa-paper-plane'; // Icona normale
+        sendBtnText.textContent = 'Invia';
+
+        exitIdeaModeBtn.style.display = 'none'; // La "X" è nascosta
+        exitIdeaModeBtn.disabled = true;
+
+        // In chat normale la textarea è editabile
+        userInput.readOnly = false;
+        userInput.placeholder = 'Chiedi qualcosa...';
+
+        if (hasText) {
+            // C'è testo nell'input: mostra "Invia", nascondi "Lampadina"
+            sendButton.style.display = 'inline-flex';
+            sendButton.disabled = false;
+            ideaGeneratorBtn.style.display = 'none';
+            ideaGeneratorBtn.disabled = true;
+        } else {
+            // Non c'è testo: mostra "Lampadina", nascondi "Invia"
+            sendButton.style.display = 'none'; // "Invia" è nascosto se non c'è testo
+            sendButton.disabled = true; // "Invia" è disabilitato se nascosto o vuoto
+            ideaGeneratorBtn.style.display = 'inline-flex';
+            ideaGeneratorBtn.disabled = false; // La lampadina è abilitata se visibile
+        }
+    }
+    // Assicurati che i pulsanti icona disabilitati siano effettivamente disabilitati
+    if (ideaGeneratorBtn.style.display === 'none') ideaGeneratorBtn.disabled = true;
+    if (exitIdeaModeBtn.style.display === 'none') exitIdeaModeBtn.disabled = true;
+}
+    
+    // Questa funzione abilita/disabilita l'intera interfaccia utente durante un'operazione API
+    // È essenziale che chiami updateUIState() quando riabilita.
+    function enableFullUI(enable = true) {
+        userInput.disabled = !enable;
+        if (enable) {
+            updateUIState(); // REIMPORTANTE: aggiorna lo stato dei pulsanti alla fine dell'operazione
+            userInput.focus();
+        } else {
+            // Quando si disabilita l'UI, disabilita esplicitamente TUTTI i pulsanti
+            sendButton.disabled = true;
+            ideaGeneratorBtn.disabled = true;
+            exitIdeaModeBtn.disabled = true;
+        }
+    }
+
+    // --- FUNZIONI HELPER PER I MESSAGGI ---
 
     function setupPromptStarters() {
         if (!promptStartersContainer) return;
 
-        promptStartersContainer.querySelectorAll('.prompt-starter-btn').forEach((button, index) => {
+        promptStartersContainer.querySelectorAll('.prompt-starter-btn').forEach((button) => {
             button.addEventListener('click', () => {
                 const promptText = button.textContent.trim();
-                console.log("[prompt-starter] click. index:", index, "promptText:", JSON.stringify(promptText));
-
                 userInput.value = promptText;
-                userInput.dispatchEvent(new Event('input', { bubbles: true }));
+                userInput.dispatchEvent(new Event('input', { bubbles: true })); 
                 userInput.focus();
-
-                if (typeof handleSendMessage === 'function') {
-                    window.handleSendMessage = handleSendMessage;
-                }
-
-                Promise.resolve().then(() => {
-                    enableUI(true);
-                    if (!sendButton.disabled) {
-                        sendButton.click();
-                        setTimeout(() => {
-                            if (typeof handleSendMessage === 'function' && !sendButton.disabled) {
-                                console.log("[prompt-starter] fallback: chiamo handleSendMessage() per index", index);
-                                handleSendMessage();
-                            }
-                        }, 50);
-                    } else {
-                        console.log("[prompt-starter] sendButton è disabilitato, chiamo handleSendMessage() direttamente per index", index);
-                        if (typeof handleSendMessage === 'function') handleSendMessage();
+                
+                setTimeout(() => {
+                    // In modalità chat e con testo, manda il messaggio
+                    if (currentMode === 'chat' && userInput.value.trim().length > 0 && !sendButton.disabled) {
+                        handleSendMessage();
+                    } else if (currentMode === 'idea' && !sendButton.disabled) {
+                        // Se in modalità idea e il pulsante "Altre" è attivo, cliccalo
+                        handleGenerateIdeas();
                     }
-                });
+                }, 50);
             });
         });
     }
 
-    function manageChatHistory(newEntry) {
-        chatHistory.push(newEntry);
-        if (chatHistory.length > MAX_LOCAL_HISTORY_ITEMS) { 
-            chatHistory = chatHistory.slice(-MAX_LOCAL_HISTORY_ITEMS); 
-            console.log(`Cronologia locale troncata a ${MAX_LOCAL_HISTORY_ITEMS} messaggi.`); 
-        }
-    }
-
-    // --- FUNZIONE AGGIORNATA addMessage per includere le metriche ---
     function addMessage(content, sender, references = null, isError = false, isLoading = false, performanceMetrics = null) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', `${sender}-message`);
@@ -84,7 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (content && typeof content === 'string' && content.trim() !== '') {
             const paragraph = document.createElement('p');
             if (sender === 'bot' && !isLoading && !isError) {
-                paragraph.innerHTML = content; 
+                const rawHtml = marked.parse(content);
+                paragraph.innerHTML = DOMPurify.sanitize(rawHtml);
             } else {
                 paragraph.innerHTML = String(content).replace(/\n/g, '<br>');
             }
@@ -145,11 +204,11 @@ document.addEventListener('DOMContentLoaded', () => {
             refsContainer.appendChild(toggleButton); refsContainer.appendChild(refsList); messageDiv.appendChild(refsContainer);
         }
 
-        // --- INIZIO BLOCCO METRICHE DI PERFORMANCE ---
+        // --- BLOCCO METRICHE DI PERFORMANCE (INVARIATO) ---
         if (sender === 'bot' && performanceMetrics && !isError && !isLoading) {
             const metricsContainer = document.createElement('div');
             metricsContainer.classList.add('metrics-container');
-            metricsContainer.style.display = 'none'; // Nascosto di default
+            metricsContainer.style.display = 'none';
 
             const metricsToggle = document.createElement('button');
             metricsToggle.classList.add('metrics-toggle');
@@ -160,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 metricsToggle.textContent = `Dettagli Performance ${isHidden ? '▲' : '▼'}`;
             });
 
-            // Funzione helper per creare una riga metrica
             function createMetricRow(label, value, totalDuration = null, barColor = 'var(--color-primary)') {
                 const p = document.createElement('p');
                 let displayValue = value !== undefined && value !== null ? value : 'N/D';
@@ -173,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         barContainer.classList.add('duration-bar-container');
                         const bar = document.createElement('div');
                         bar.classList.add('duration-bar');
-                        bar.style.width = `${Math.min(percentage, 100)}%`; // Non superare 100%
+                        bar.style.width = `${Math.min(percentage, 100)}%`;
                         bar.style.backgroundColor = barColor;
                         barContainer.appendChild(bar);
                         p.appendChild(barContainer);
@@ -184,14 +242,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return p;
             }
 
-            // Aggiungi le metriche una per una
             const totalDuration = performanceMetrics.total_duration_ms;
 
             metricsContainer.appendChild(createMetricRow('Totale', totalDuration, totalDuration, 'var(--color-secondary)'));
             metricsContainer.appendChild(createMetricRow('Embedding', performanceMetrics.embedding_duration_ms, totalDuration, '#4cc9f0'));
             metricsContainer.appendChild(createMetricRow('Ricerca Vettoriale', performanceMetrics.retrieval_duration_ms, totalDuration, '#4895ef'));
             
-            // Re-ranking è opzionale, lo mostriamo solo se eseguito
             if (performanceMetrics.reranking_duration_ms !== undefined && performanceMetrics.reranking_duration_ms > 0) {
                 metricsContainer.appendChild(createMetricRow('Re-ranking Cohere', performanceMetrics.reranking_duration_ms, totalDuration, '#f72585'));
             }
@@ -203,49 +259,42 @@ document.addEventListener('DOMContentLoaded', () => {
             messageDiv.appendChild(metricsToggle);
             messageDiv.appendChild(metricsContainer);
         }
-        // --- FINE BLOCCO METRICHE DI PERFORMANCE ---
 
-        if (messageDiv.hasChildNodes() || isLoading) {
-             chatWindow.appendChild(messageDiv);
-             chatWindow.scrollTop = chatWindow.scrollHeight;
-             return messageDiv;
+        const chatContainerElement = document.getElementById('messages-list');
+        if ((messageDiv.hasChildNodes() || isLoading) && chatContainerElement) {
+            chatContainerElement.appendChild(messageDiv);
+            chatContainerElement.scrollTop = chatContainerElement.scrollHeight;
+            return messageDiv;
         }
         return null;
     }
 
-    function enableUI(enable = true) {
-        userInput.disabled = !enable;
-        sendButton.disabled = !enable;
-        if (enable) userInput.focus();
-    }
-
+    // --- FUNZIONE PER INVIARE IL MESSAGGIO TESTO ALL'API ---
     async function handleSendMessage() {
         const query = userInput.value.trim();
-        if (!query || sendButton.disabled) return;
+        
+        // Se siamo in modalità 'idea' o se l'input è vuoto, e clicchiamo Invio,
+        // chiamiamo handleGenerateIdeas()
+        if (currentMode === 'idea' || !query) { 
+            handleGenerateIdeas();
+            return; 
+        }
 
+        // Se siamo qui, è modalità 'chat' normale E c'è testo
         if (promptStartersContainer) {
-        promptStartersContainer.style.display = 'none';
+            promptStartersContainer.style.display = 'none';
         }
 
         addMessage(query, 'user');
         userInput.value = '';
         userInput.style.height = 'auto';
-        enableUI(false);
+        enableFullUI(false); 
         let currentStatusMessageElement = addMessage("Elaborazione in corso...", 'bot', null, false, true);
 
-        manageChatHistory({ role: "user", content: query });
-
-        const payload = {
-            query: query,
-        };
-
-        console.log("Controllo se inviare cronologia. chatHistory.length:", chatHistory.length);
-        if (chatHistory.length > 1) {
-            const historyForPrompt = chatHistory.slice(0, -1);
-            const historyToSend = historyForPrompt.slice(-MAX_HISTORY_MESSAGES_TO_SEND);
-            if (historyToSend.length > 0) {
-                payload.history = historyToSend;
-            }
+        const payload = { query: query };
+        if (chatHistory.length > 0) {
+            const historyForPrompt = chatHistory.slice(-MAX_HISTORY_MESSAGES_TO_SEND);
+            payload.history = historyForPrompt;
         }
 
         try {
@@ -253,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 'Content-Type': 'application/json',
                 'Accept': 'text/event-stream'
             };
-
             if (JWT_TOKEN) {
                 fetchHeaders['Authorization'] = `Bearer ${JWT_TOKEN}`;
             }
@@ -282,20 +330,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
             let finalResultReceived = false;
-            // --- NUOVA VARIABILE PER METRICHE ---
             let receivedPerformanceMetrics = null; 
 
             function processStreamChunk() {
                 reader.read().then(({ value, done }) => {
                     if (done) {
                         console.log("Stream SSE completato.");
-                        if (currentStatusMessageElement && chatWindow.contains(currentStatusMessageElement)) {
-                            currentStatusMessageElement.remove();
-                        }
-                        if (!finalResultReceived) {
-                           addMessage("La risposta dal server sembra incompleta.", 'bot', null, true);
-                        }
-                        enableUI(true);
+                        if (currentStatusMessageElement) currentStatusMessageElement.remove();
+                        if (!finalResultReceived) addMessage("La risposta dal server sembra incompleta.", 'bot', null, true);
+                        enableFullUI(true);
                         return;
                     }
 
@@ -306,15 +349,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     events.forEach(eventString => {
                         if (!eventString.trim()) return;
 
-                        let eventType = 'message';
-                        let eventDataString = '';
-
+                        let eventType = 'message'; let eventDataString = '';
                         eventString.split('\n').forEach(line => {
-                            if (line.startsWith('event:')) {
-                                eventType = line.substring(6).trim();
-                            } else if (line.startsWith('data:')) {
-                                eventDataString += line.substring(5);
-                            }
+                            if (line.startsWith('event:')) eventType = line.substring(6).trim();
+                            else if (line.startsWith('data:')) eventDataString += line.substring(5);
                         });
 
                         try {
@@ -327,15 +365,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             } else if (eventType === 'result' || eventType === 'error_final') {
                                 finalResultReceived = true;
-                                if (currentStatusMessageElement && chatWindow.contains(currentStatusMessageElement)) {
-                                    currentStatusMessageElement.remove();
-                                }
-                                // --- LEGGI LE METRICHE DAL PAYLOAD FINALE ---
-                                if (eventData.performance_metrics) {
-                                    receivedPerformanceMetrics = eventData.performance_metrics;
-                                    console.log("Metriche di Performance ricevute:", receivedPerformanceMetrics);
-                                }
-                                // --- FINE BLOCCO METRICHE ---
+                                if (currentStatusMessageElement) currentStatusMessageElement.remove();
+                                if (eventData.performance_metrics) receivedPerformanceMetrics = eventData.performance_metrics;
 
                                 if (eventData.success && eventData.answer) {
                                     if (eventData.answer.startsWith("BLOCKED:")) {
@@ -344,10 +375,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                     } else {
                                         const rawHtml = marked.parse(eventData.answer);
                                         const sanitizedHtml = DOMPurify.sanitize(rawHtml);
-                                        // PASSA LE METRICHE A addMessage
                                         addMessage(sanitizedHtml, 'bot', eventData.retrieved_results, false, false, receivedPerformanceMetrics);
-   
-                                        manageChatHistory({ role: "assistant", content: eventData.answer });                                    }
+                                        manageChatHistory({ role: "assistant", content: eventData.answer });
+                                    }
                                 } else {
                                     addMessage(eventData.message || `Errore: ${eventData.error_code || 'Sconosciuto'}`, 'bot', null, true, false, receivedPerformanceMetrics);
                                 }
@@ -359,42 +389,112 @@ document.addEventListener('DOMContentLoaded', () => {
                     processStreamChunk();
                 }).catch(streamError => {
                     console.error('Errore lettura stream SSE:', streamError);
-                    if (currentStatusMessageElement && chatWindow.contains(currentStatusMessageElement)) {
-                        currentStatusMessageElement.remove();
-                    }
+                    if (currentStatusMessageElement) currentStatusMessageElement.remove();
                     addMessage(`Errore di comunicazione con il server: ${streamError.message}`, 'bot', null, true);
-                    enableUI(true);
+                    enableFullUI(true);
                 });
             }
             processStreamChunk();
 
         } catch (error) {
             console.error('Errore invio query o gestione risposta iniziale:', error);
-            if (currentStatusMessageElement && chatWindow.contains(currentStatusMessageElement)) {
-                currentStatusMessageElement.remove();
-            }
+            if (currentStatusMessageElement) currentStatusMessageElement.remove();
             let errorMessage = `Si è verificato un errore: ${error.message}`;
             if (error instanceof TypeError) { 
                 errorMessage = "Il server ha impiegato troppo tempo a rispondere. Potrebbe essere sovraccarico. Riprova la tua domanda.";
             }
             addMessage(errorMessage, 'bot', null, true);
-            enableUI(true);
+            enableFullUI(true);
         }
     }
 
+// --- FUNZIONE PER GENERARE IDEE DI CONTENUTI (RIFATTORIZZATA) ---
+async function handleGenerateIdeas() {
+    // Se siamo già in un contesto in cui la UI impedisce le chiamate esterne,
+    // rispettiamo comunque lo stato, ma non dipendiamo dallo stato del singolo
+    // pulsante lampadina (ideaGeneratorBtn) perché in modalità "idea" quella
+    // lampadina viene nascosta/disabilitata mentre il pulsante "Altre" è il sendButton.
+    if (typeof currentMode !== 'undefined' && currentMode === 'idea' && sendButton && sendButton.disabled) {
+        return; // se il sendButton è disabilitato, non facciamo nulla
+    }
+
+    // Non bloccare la generazione semplicemente perché ideaGeneratorBtn è disabilitato.
+    // Questo permette al pulsante "Altre" (sendButton in idea-mode) di funzionare correttamente.
+    enableFullUI(false); 
+    let thinkingMessage = addMessage("Sto cercando l'ispirazione...", 'bot', null, false, true);
+    
+    try {
+        const response = await fetch('/api/ideas/generate');
+        // Controlliamo anche lo status HTTP
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Errore server: ${response.status}`);
+        }
+        const data = await response.json();
+
+        if (thinkingMessage) thinkingMessage.remove();
+
+        const rawHtml = marked.parse(data.ideas || data.ideas_html || '');
+        const sanitizedHtml = DOMPurify.sanitize(rawHtml);
+        
+        addMessage(sanitizedHtml, 'bot');
+
+        // Mettiamo la UI in modalità idea (assicurati che l'UI rifletta questo stato)
+        currentMode = 'idea';
+        userInput.value = ''; // Pulisci l'input per mostrare lo stato "Altre"
+        userInput.dispatchEvent(new Event('input', { bubbles: true })); // Aggiorna lo stato UI
+        userInput.focus();
+
+    } catch (error) {
+        console.error("Errore durante la generazione di idee:", error);
+        if (thinkingMessage) thinkingMessage.remove();
+        addMessage(`Si è verificato un errore: ${error.message}`, 'bot', null, true);
+    } finally {
+        enableFullUI(true); // Riabilita sempre l'interfaccia
+    }
+}
+
+    // --- ASCOLTATORI DI EVENTI (INIZIALIZZAZIONE) ---
+
+    // Quando l'utente scrive nella textarea: autosize e aggiorna lo stato dei pulsanti
     userInput.addEventListener('input', () => {
-    userInput.style.height = 'auto'; 
-    userInput.style.height = (userInput.scrollHeight) + 'px'; 
+        userInput.style.height = 'auto'; 
+        userInput.style.height = (userInput.scrollHeight) + 'px';
+        updateUIState(); 
     });
 
-    sendButton.addEventListener('click', handleSendMessage);
+    sendButton.addEventListener('click', handleSendMessage); // Click sul pulsante "Invia"
+    ideaGeneratorBtn.addEventListener('click', handleGenerateIdeas); // Click sul pulsante "Lampadina"
+
+    // Click sul pulsante "X" per uscire dalla modalità idea
+    exitIdeaModeBtn.addEventListener('click', () => {
+        currentMode = 'chat'; // Torna alla modalità chat
+        userInput.value = ''; // Pulisci l'input
+        userInput.dispatchEvent(new Event('input', { bubbles: true })); // Aggiorna lo stato UI
+        userInput.focus();
+    });
+
+    // Pressione del tasto Invio: invia solo se c'è testo e il pulsante è abilitato
     userInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
-            handleSendMessage();
+        if (event.key === 'Enter' && !event.shiftKey) { // Invio senza Shift
+            event.preventDefault(); 
+            // In modalità 'idea', Invio richiama handleGenerateIdeas
+            if (currentMode === 'idea') {
+                handleGenerateIdeas();
+            } else {
+                // In modalità 'chat' normale, Invio manda il messaggio solo se c'è testo
+                if (userInput.value.trim().length > 0) {
+                    handleSendMessage();
+                } else {
+                    // Se l'input è vuoto in modalità chat normale e premo Invio,
+                    // non succede nulla (gestito da updateUIState che disabilita Invio)
+                }
+            }
         }
     });
-    
-    userInput.focus();
-    setupPromptStarters();   
+
+    // --- INIZIALIZZAZIONE ---
+    userInput.focus(); 
+    updateUIState(); // Imposta lo stato iniziale corretto dei pulsanti (lampadina visibile, invia nascosto)
+    setupPromptStarters(); // Inizializza i pulsanti prompt starter (se presenti)
 });
