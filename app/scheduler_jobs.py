@@ -41,7 +41,7 @@ def check_monitored_sources_job():
             'VIDEO_COLLECTION_NAME': current_app.config.get('VIDEO_COLLECTION_NAME'),
             'ARTICLE_COLLECTION_NAME': current_app.config.get('ARTICLE_COLLECTION_NAME'),
             'DOCUMENT_COLLECTION_NAME': current_app.config.get('DOCUMENT_COLLECTION_NAME'),
-            'CHROMA_VIDEO_COLLECTION': current_app.config.get('CHROMA_VIDEO_COLLECTION') # Aggiunto per completezza
+            'CHROMA_VIDEO_COLLECTION': current_app.config.get('CHROMA_VIDEO_COLLECTION')
         }
         # Verifica rapida
         if not core_config.get('DATABASE_FILE') or not core_config.get('CHROMA_CLIENT'):
@@ -75,7 +75,7 @@ def check_monitored_sources_job():
             monitor_id, user_id, channel_id = channel['id'], channel['user_id'], channel['channel_id']
             logger.info(f"Controllo YT Canale: {channel_id} (User: {user_id})")
             try:
-                # La funzione core si aspetta solo 3 argomenti
+                # La funzione core ora accetta il dizionario di configurazione
                 result_data = _process_youtube_channel_core(channel_id, user_id, core_config)
                 if result_data.get("success", False):
                     channel_ids_processed.append(monitor_id)
@@ -97,7 +97,7 @@ def check_monitored_sources_job():
             monitor_id, user_id, feed_url = feed['id'], feed['user_id'], feed['feed_url']
             logger.info(f"Controllo RSS Feed: {feed_url} (User: {user_id})")
             try:
-                # La funzione core si aspetta 5 argomenti, gli ultimi 2 sono per la UI, quindi passiamo None
+                # La funzione core ora accetta il dizionario di configurazione
                 success = _process_rss_feed_core(feed_url, user_id, core_config, None, None)
                 if success:
                     feed_ids_processed.append(monitor_id)

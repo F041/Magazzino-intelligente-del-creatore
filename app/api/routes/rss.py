@@ -16,6 +16,7 @@ from google.api_core import exceptions as google_exceptions
 import threading
 import textstat
 import copy
+import logging 
 import io
 
 try:
@@ -26,6 +27,7 @@ except ImportError:
     split_text_into_chunks = None
     get_gemini_embeddings = None
     TASK_TYPE_DOCUMENT = "retrieval_document"
+
 
 
 logger = logging.getLogger(__name__)
@@ -448,7 +450,6 @@ def _process_rss_feed_core(
     else: logger.error(log_summary)
 
     return overall_success
-
 
 # --- Funzione Background per RSS ---
 def _background_rss_processing(app_context, initial_feed_url: str, user_id: Optional[str], initial_status: dict):

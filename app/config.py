@@ -1,16 +1,31 @@
 import os
 from dotenv import load_dotenv
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
+import logging
+
+logger = logging.getLogger(__name__)
 
 app_dir = os.path.abspath(os.path.dirname(__file__))
 basedir = os.path.dirname(app_dir)
 
-dotenv_path = os.path.join(basedir, '.env')
-if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path)
-    print(f"Caricate variabili d'ambiente da: {dotenv_path}") # Log conferma
-else:
-    print(f"Attenzione: File .env non trovato in {basedir}")
+# Proviamo a caricare .env da più percorsi, se presente.
+candidates = [
+    os.path.join(basedir, '.env'),        # /app/.env (root del progetto dentro container)
+    os.path.join(os.getcwd(), '.env'),    # working directory corrente
+    '/app/.env'                           # percorso esplicito comune in container
+]
+
+_loaded = False
+for p in candidates:
+    if p and os.path.exists(p):
+        load_dotenv(p)
+        logger.info(f"Caricate variabili d'ambiente da: {p}")
+        _loaded = True
+        break
+
+if not _loaded:
+    # Non falliamo: Docker può aver già iniettato le variabili via env_file o environment.
+    logger.debug(f"File .env non trovato in nessuno dei percorsi: {candidates} — proseguo usando le variabili d'ambiente esistenti.")
 
 
 class BaseConfig:
