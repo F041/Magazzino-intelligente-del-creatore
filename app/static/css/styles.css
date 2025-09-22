@@ -836,4 +836,23 @@ label {
     }
 
 
-    
+    #process-status {
+    background-color: rgba(255, 255, 255, 0.85); /* Sfondo bianco semi-trasparente */
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--box-shadow-md);
+    backdrop-filter: blur(4px); /* Effetto vetro smerigliato per staccare dallo sfondo */
+}
+
+/* Anche i singoli messaggi (successo/errore) beneficiano di questo stile */
+.success-message, .error-message, .info-message {
+    background-color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(4px);
+}
+
+/* Rendiamo il testo del messaggio più scuro per aumentare il contrasto */
+#status-message {
+    color: var(--color-text-main);
+    font-weight: var(--font-weight-medium);
+}

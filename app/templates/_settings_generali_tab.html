@@ -1,0 +1,290 @@
+<div id="generali" class="tab-content">
+    <div class="form-section">
+        <h2><span>Intelligenza artificiale</span></h2>
+        <div class="form-group">
+            <label>Fornitore modello linguistico</label>
+            <div class="custom-select-container">
+                {# Questo input nascosto conterrà il valore reale ('google' o 'ollama') per il form #}
+                <input
+                    type="hidden"
+                    id="llm_provider"
+                    name="llm_provider"
+                    value="{{ settings.get('llm_provider') or 'google' }}"
+                />
+
+                {# Questo è l'elemento visibile che mostra la selezione corrente #}
+                <div class="select-selected">
+                    {% if settings.get('llm_provider') == 'ollama' %} {# HTML per quando Ollama è selezionato #}
+                    <div class="option-content">
+                        <div class="option-main">
+                            <img
+                                src="https://ollama.com/public/ollama.png"
+                                alt="Ollama logo"
+                            />
+                            <span>Ollama (Locale)</span>
+                        </div>
+                        <div class="option-badges">
+                            <span class="option-badge badge-cost">-Costi</span>
+                            <span class="option-badge badge-privacy">+Riservatezza</span>
+                            <span class="option-badge badge-difficulty">Difficile</span>
+                        </div>
+                    </div>
+                    {% else %} {# HTML per quando Google è selezionato (default) #}
+                    <div class="option-content">
+                        <div class="option-main">
+                            <i class="fab fa-google"></i>
+                            <span>Google Gemini</span>
+                        </div>
+                        <div class="option-badges">
+                            <span class="option-badge badge-easy">Facile</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {# Questa è la lista delle opzioni, nascosta di default #}
+                <div class="select-items select-hide">
+                    <div data-value="google">
+                        <div class="option-content">
+                            <div class="option-main">
+                                <i class="fab fa-google"></i>
+                                <span>Google Gemini</span>
+                            </div>
+                            <div class="option-badges">
+                                <span class="option-badge badge-easy">Facile</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div data-value="ollama">
+                        <div class="option-content">
+                            <div class="option-main">
+                                <img
+                                    src="https://ollama.com/public/ollama.png"
+                                    alt="Ollama logo"
+                                />
+                                <span>Ollama (Locale)</span>
+                            </div>
+                            <div class="option-badges">
+                                <span class="option-badge badge-cost">-Costi</span>
+                                <span class="option-badge badge-privacy"
+                                    >+Riservatezza</span
+                                >
+                                <span class="option-badge badge-difficulty">Difficile</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# --- BLOCCO IMPOSTAZIONI GOOGLE --- #}
+        <div
+            id="google-settings-group"
+            class="{% if settings.get('llm_provider') != 'ollama' %}visible{% else %}hidden{% endif %}"
+        >
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="llm_model_name_primary"
+                        >Modello IA primario (per generazione)</label
+                    >
+                    <span class="info-tooltip warning-tooltip">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span class="tooltip-text"
+                            ><strong>Modello consigliato:</strong> testato con
+                            <code>gemini-2.5-pro</code> e <code>gemini-2.0-flash</code>.
+                            Altri potrebbero funzionare.</span
+                        >
+                    </span>
+                </div>
+                <input
+                    type="text"
+                    id="llm_model_name_primary"
+                    name="llm_model_name_primary"
+                    value="{{ settings.get('llm_model_name_primary', '') }}"
+                    placeholder="Consigliato: gemini-2.5-pro"
+                />
+            </div>
+
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="llm_model_name_fallback"
+                        >Modello di ripiego (opzionale)</label
+                    >
+                    <div class="tooltip-group">
+                        <span class="info-tooltip">
+                            <span class="fa-stack"
+                                ><i class="fas fa-circle fa-stack-2x"></i
+                                ><i class="fas fa-info fa-stack-1x fa-inverse"></i
+                            ></span>
+                            <span class="tooltip-text"
+                                >Se il modello primario fallisce, l'applicazione proverà ad
+                                usare questo.</span
+                            >
+                        </span>
+                    </div>
+                </div>
+                <input
+                    type="text"
+                    id="llm_model_name_fallback"
+                    name="llm_model_name_fallback"
+                    value="{{ settings.get('llm_model_name_fallback', '') }}"
+                    placeholder="Es: gemini-2.0-flash"
+                />
+            </div>
+
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="llm_embedding_model"
+                        >Modello per trasformare il testo in linguaggio macchina</label
+                    >
+                    <div class="tooltip-group">
+                        <span class="info-tooltip">
+                            <span class="fa-stack"
+                                ><i class="fas fa-circle fa-stack-2x"></i
+                                ><i class="fas fa-info fa-stack-1x fa-inverse"></i
+                            ></span>
+                            <span class="tooltip-text"
+                                >Il "traduttore" che trasforma il testo in numeri per la
+                                ricerca. Per Gemini,
+                                <code>models/text-embedding-004</code> è una scelta
+                                stabile.</span
+                            >
+                        </span>
+                    </div>
+                </div>
+                <input
+                    type="text"
+                    id="llm_embedding_model"
+                    name="llm_embedding_model"
+                    value="{{ settings.get('llm_embedding_model') or '' }}"
+                    placeholder="Default: models/text-embedding-004"
+                    autocomplete="off"
+                />
+            </div>
+
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="llm_api_key"
+                        >Chiave per servizio modello linguistico</label
+                    >
+                    <div class="tooltip-group">
+                        <span class="info-tooltip">
+                            <span class="fa-stack">
+                                <i class="fas fa-circle fa-stack-2x"></i>
+                                <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                            </span>
+                            <span class="tooltip-text"
+                                >La tua "password" per usare il servizio di Intelligenza
+                                Artificiale scelto. Viene salvata in modo sicuro. Se lasci
+                                vuoto, verrà usata quella di default del sistema.</span
+                            >
+                        </span>
+                        <a
+                            href="https://console.cloud.google.com/apis/credentials"
+                            target="_blank"
+                            class="help-video-link"
+                            title="Guarda come trovare la tua API Key"
+                        >
+                            <i class="fab fa-youtube"></i>
+                        </a>
+                    </div>
+                </div>
+                <input type="password" id="llm_api_key" name="llm_api_key" value="{{ settings.get('llm_api_key') or '' }}" placeholder="Incolla la tua API Key qui" autocomplete="new-password" readonly>
+            </div>
+        </div>
+
+        {# --- BLOCCO IMPOSTAZIONI OLLAMA (CON TOOLTIP AGGIUNTIVI) --- #}
+        <div
+            id="ollama-settings-group"
+            class="{% if settings.get('llm_provider') == 'ollama' %}visible{% else %}hidden{% endif %}"
+        >
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="ollama_base_url">Indirizzo server Ollama</label>
+                    <div class="tooltip-group">
+                        <span class="info-tooltip docker-tooltip">
+                            <i class="fab fa-docker"></i>
+                            <span class="tooltip-text">
+                                <strong>Nota per utenti Docker:</strong> Se Ollama è
+                                installato sulla tua macchina (host) e non dentro Docker,
+                                usa <code>http://host.docker.internal:11434</code>.
+                            </span>
+                        </span>
+                        {# NUOVO TOOLTIP PER VPN/RETE LOCALE #}
+                        <span class="info-tooltip network-tooltip">
+                            <i class="fas fa-network-wired"></i>
+                            <span class="tooltip-text">
+                                <strong>Nota per VPN/Rete Locale:</strong> Se Ollama si
+                                trova su un'altra macchina nella tua stessa rete, dovrai
+                                usare l'indirizzo IP di quella macchina. Esempio:
+                                <code>http://192.168.1.50:11434</code>.
+                            </span>
+                        </span>
+                    </div>
+                </div>
+                <input
+                    type="url"
+                    id="ollama_base_url"
+                    name="ollama_base_url"
+                    value="{{ settings.get('ollama_base_url') or 'http://localhost:11434' }}"
+                    placeholder="Es: http://localhost:11434"
+                />
+            </div>
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="ollama_model_name"
+                        >Nome modello Ollama (per generazione)</label
+                    >
+                    <div class="tooltip-group">
+                        <span class="info-tooltip warning-tooltip">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span class="tooltip-text"
+                                >I modelli più piccoli potrebbero avere difficoltà a seguire
+                                le istruzioni. Per risultati affidabili, si consiglia di
+                                partire da modelli con ALMENO 1.7 miliardi di parametri (es.
+                                <code>qwen3:1.7b</code>) o superiori (es.
+                                <code>qwen3:8b</code>).</span
+                            >
+                        </span>
+
+                        <a
+                            href="https://ollama.com/library"
+                            target="_blank"
+                            class="help-video-link"
+                            title="Sfoglia la libreria di modelli Ollama"
+                            rel="noopener noreferrer"
+                        >
+                            <i class="fas fa-book-open"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <input
+                    type="text"
+                    id="ollama_model_name"
+                    name="ollama_model_name"
+                    value="{{ settings.get('llm_model_name') or '' }}"
+                    placeholder="Es: gemma3:8b, qwen3:1.7b"
+                />
+                <small
+                    >Il nome esatto del modello che hai scaricato con
+                    <code>ollama pull</code>. Su Windows, puoi vedere i modelli che
+                    hai scaricato tramite Powershell digitando
+                    <code>ollama ps</code>.</small
+                >
+            </div>
+
+            <div style="margin-top: 15px">
+                <button
+                    type="button"
+                    id="test-ollama-btn"
+                    class="action-btn"
+                    style="background: var(--color-text-light)"
+                >
+                    Testa connessione
+                </button>
+                <div id="ollama-test-result" style="margin-top: 10px"></div>
+            </div>
+        </div>
+    </div>
+</div>

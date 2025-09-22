@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Stato del Sistema - Magazzino del Creatore{% endblock %}
+
+{% block head_styles %}
+    {# Usiamo gli stessi stili della pagina delle statistiche per coerenza #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/statistics.css') }}">
+{% endblock %}
+
+{% block content %}
+    <h1>Stato del sistema</h1>
+    <p>Questo è il cruscotto tecnico del tuo Magazzino. Qui puoi monitorare le risorse utilizzate e lo stato dei processi automatici.</p>
+
+    {% if stats_data.error %}
+        <div class="error-message">{{ stats_data.error }}</div>
+    {% else %}
+        {# Qui incolleremo il blocco HTML che toglieremo da statistics.html #}
+        {% if stats_data.db_status %}
+        <div class="stat-card db-status-card" style="margin-top: 20px;">
+            <h3><i class="fas fa-database fa-fw"></i> Stato database</h3>
+            {% set db_s = stats_data.db_status %}
+            <div class="status-sections-container">
+                <div class="db-status-section">
+                    <h4>Dimensioni</h4>
+                    <div class="metrics-row">
+                        <span class="metric-label">SQLite:</span>
+                        <span class="metric-value">
+                            {{ db_s.sqlite_file_size_mb }} MB
+                            <span class="info-tooltip">
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltip-text">
+                                    ≈ {{ db_s.sqlite_photos_equiv | default('—') }} foto moderne
+                                </span>
+                            </span>
+                        </span>
+                    </div>
+                    <div class="metrics-row">
+                        <span class="metric-label">ChromaDB:</span>
+                        <span class="metric-value">
+                            {{ db_s.chroma_db_folder_size_mb }} MB
+                            <span class="info-tooltip">
+                                <i class="fas fa-info-circle"></i>
+                                <span class="tooltip-text">
+                                    ≈ {{ db_s.chroma_photos_equiv | default('—') }} foto moderne
+                                </span>
+                            </span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="db-status-section">
+                    <h4>Oggetti</h4>
+                    <div class="metrics-row">
+                        <span class="metric-label">Frammenti di testo:</span>
+                        <span class="metric-value">{{ db_s.chroma_total_chunks | default(0) }}</span>
+                    </div>
+                    {% if db_s.sqlite_table_counts.users is defined %}
+                        <div class="metrics-row">
+                            <span class="metric-label">Utenti:</span>
+                            <span class="metric-value">{{ db_s.sqlite_table_counts.users }}</span>
+                        </div>
+                    {% endif %}
+                    {% if db_s.sqlite_table_counts.api_keys is defined %}
+                        <div class="metrics-row">
+                            <span class="metric-label">API Keys:</span>
+                            <span class="metric-value">{{ db_s.sqlite_table_counts.api_keys }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endif %}
+
+        {# --- CARD PER LO SCHEDULER --- #}
+        {% if stats_data.scheduler_status %}
+        <div class="stat-card" style="margin-top: 20px;">
+            <h3><i class="fas fa-clock fa-fw"></i> Stato processi automatici</h3>
+            <div class="metrics-row">
+                <span class="metric-label">Prossimo controllo pianificato:</span>
+                <span class="metric-value" style="font-size: 1.1rem; color: var(--color-text-main);">
+                    {{ stats_data.scheduler_status.next_run }}
+                </span>
+            </div>
+            {# Potremmo aggiungere qui l'esito dell'ultima esecuzione in futuro #}
+        </div>
+        {% endif %}
+
+        {# ---  CARD PER LA RAM --- #}
+        {% if stats_data.ram_status %}
+        <div class="stat-card" style="margin-top: 20px;">
+            <h3><i class="fas fa-memory fa-fw"></i> Utilizzo memoria (RAM)</h3>
+            
+            <div class="metrics-row">
+                <span class="metric-label">Consumo attuale dell'applicazione:</span>
+                <span class="metric-value" style="font-size: 1.5rem; color: var(--color-secondary);">
+                    {{ stats_data.ram_status.app_memory_mb }} MB
+                </span>
+            </div>
+
+            <small style="color: var(--color-text-light); margin-top: 15px; display: block;">
+                Questo è il consumo di memoria RAM del solo processo del Magazzino.
+            </small>
+        </div>
+        {% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    {# Eventuali script specifici per questa pagina andranno qui in futuro #}
+{% endblock %}

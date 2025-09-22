@@ -147,65 +147,7 @@
         {% endif %}
     </div> {# FINE stat-card per Log Domande #}
 
-{% if stats_data.db_status %}
-<div class="stat-card db-status-card">
-    <h3><i class="fas fa-database fa-fw"></i> Stato Database</h3>
-    {% set db_s = stats_data.db_status %}
-    <div class="status-sections-container">
-        <div class="db-status-section">
-            <h4>Dimensioni</h4>
 
-            <!-- ---------- SQLite ---------- -->
-            <div class="metrics-row">
-                <span class="metric-label">SQLite:</span>
-                <span class="metric-value">
-                    {{ db_s.sqlite_file_size_mb }} MB
-                    <span class="info-tooltip">
-                        <i class="fas fa-info-circle"></i>
-                        <span class="tooltip-text">
-                            ≈ {{ db_s.sqlite_photos_equiv | default('—') }} foto moderne
-                        </span>
-                    </span>
-                </span>
-            </div>
-
-            <!-- ---------- ChromaDB ---------- -->
-            <div class="metrics-row">
-                <span class="metric-label">ChromaDB:</span>
-                <span class="metric-value">
-                    {{ db_s.chroma_db_folder_size_mb }} MB
-                    <span class="info-tooltip">
-                        <i class="fas fa-info-circle"></i>
-                        <span class="tooltip-text">
-                            ≈ {{ db_s.chroma_photos_equiv | default('—') }} foto moderne
-                        </span>
-                    </span>
-                </span>
-            </div>
-        </div>
-
-        <div class="db-status-section">
-            <h4>Oggetti</h4>
-            <div class="metrics-row">
-                <span class="metric-label">Chunks:</span>
-                <span class="metric-value">{{ db_s.chroma_total_chunks | default(0) }}</span>
-            </div>
-            {% if db_s.sqlite_table_counts.users is defined %}
-                <div class="metrics-row">
-                    <span class="metric-label">Utenti:</span>
-                    <span class="metric-value">{{ db_s.sqlite_table_counts.users }}</span>
-                </div>
-            {% endif %}
-            {% if db_s.sqlite_table_counts.api_keys is defined %}
-                <div class="metrics-row">
-                    <span class="metric-label">API Keys:</span>
-                    <span class="metric-value">{{ db_s.sqlite_table_counts.api_keys }}</span>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-</div> {# FINE stat-card per Stato Database #}
-{% endif %}
 
     {% endif %} {# FINE if stats_data.error #}
 {% endblock %}

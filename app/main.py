@@ -10,6 +10,9 @@ import atexit
 from .models.user import User
 from .utils import generate_api_key
 from .core.setup import init_db, setup_chroma_directory, load_credentials, save_credentials
+from .core.system_info import get_system_stats
+
+  
 
 # --- Import Flask e Correlati ---
 from flask import ( Flask, jsonify, redirect, request, session, url_for,
@@ -223,55 +226,56 @@ def create_app(config_object=AppConfig):
 
     # --- INIZIO BLOCCO SCHEDULER CON LOCK PER GUNICORN ---
     if not app.config.get('TESTING', False):
-        # Definiamo un percorso per un file che useremo come "lucchetto".
-        # Lo mettiamo nella cartella 'data' che è persistente.
-        lock_file_path = os.path.join(os.path.dirname(app.config['DATABASE_FILE']), 'scheduler.lock')
         
-        try:
-            # Apriamo il file in modalità 'x'. Questa modalità speciale fa due cose:
-            # 1. Crea il file se non esiste.
-            # 2. Fallisce con un'eccezione (FileExistsError) se il file ESISTE GIÀ.
-            # È il modo perfetto per assicurarsi che solo UN processo alla volta possa creare il file.
-            with open(lock_file_path, 'x') as lock_file:
-                # Se siamo qui, siamo il PRIMO worker. Abbiamo creato il file con successo.
-                lock_file.write(str(os.getpid())) # Scriviamo il nostro ID di processo nel file (utile per debug)
-                
-                logger.info(f"Worker PID {os.getpid()} ha acquisito il lock. AVVIO DELLO SCHEDULER.")
+        # 1. OGNI worker definisce il job.
+        #    In questo modo, chiunque riceva una richiesta dall'interfaccia web
+        #    conosce l'esistenza del job e può modificarlo.
+        with app.app_context():
+            job_id = 'check_monitored_sources_job'
+            # Usiamo 'replace_existing=True' per assicurarci che il job sia definito,
+            # ma senza creare duplicati. 'paused=True' assicura che non parta subito.
+            from .scheduler_jobs import check_monitored_sources_job
+            
+            # Recuperiamo la configurazione iniziale dal file .env come prima
+            unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
+            value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
+            hour = app.config.get('SCHEDULER_RUN_HOUR', 4)
+            trigger_args, trigger_type = {}, 'cron'
+            if unit == 'days':
+                trigger_args = {'hour': hour, 'minute': 0, 'day': f'*/{value}'}
+            elif unit == 'hours':
+                trigger_args = {'minute': 0, 'hour': f'*/{value}'}
+            elif unit == 'minutes':
+                trigger_args = {'minute': f'*/{value}'}
 
-                # Ora avviamo lo scheduler, come facevamo prima, ma solo qui.
-                with app.app_context():
-                    job_id = 'check_monitored_sources_job'
-                    if not app.scheduler.get_job(job_id):
-                        from .scheduler_jobs import check_monitored_sources_job
-                        unit = app.config.get('SCHEDULER_INTERVAL_UNIT', 'days')
-                        value = app.config.get('SCHEDULER_INTERVAL_VALUE', 1)
-                        hour = app.config.get('SCHEDULER_RUN_HOUR', 4)
-                        trigger_args, trigger_type = {}, 'cron'
-                        if unit == 'days':
-                            trigger_args = {'hour': hour, 'minute': 0, 'day': f'*/{value}'}
-                        elif unit == 'hours':
-                            trigger_args = {'minute': 0, 'hour': f'*/{value}'}
-                        elif unit == 'minutes':
-                            trigger_args = {'minute': f'*/{value}'}
-                        
-                        app.scheduler.add_job(
-                            func=check_monitored_sources_job, trigger=trigger_type, id=job_id,
-                            name='Controllo Periodico Sorgenti Monitorate', replace_existing=True,
-                            misfire_grace_time=300, **trigger_args
-                        )
-                        logger.info(f"Job '{job_id}' aggiunto con trigger: {trigger_args}")
-                    
-                    if not app.scheduler.running:
-                        app.scheduler.start()
-                        logger.info("APScheduler avviato con successo.")
-                        # Ci assicuriamo che il file di lock venga rimosso quando l'app si spegne.
-                        atexit.register(lambda: os.remove(lock_file_path))
-                        atexit.register(lambda: shutdown_scheduler(app.scheduler))
+            app.scheduler.add_job(
+                func=check_monitored_sources_job,
+                trigger=trigger_type,
+                id=job_id,
+                name='Controllo Periodico Sorgenti Monitorate',
+                replace_existing=True,
+                misfire_grace_time=300,
+                **trigger_args
+            )
+            logger.info(f"Worker PID {os.getpid()}: Job '{job_id}' definito/aggiornato nella configurazione dello scheduler.")
+
+
+        # 2. SOLO UN worker avvia effettivamente lo scheduler.
+        #    Usiamo la stessa logica del lock file di prima.
+        lock_file_path = os.path.join(os.path.dirname(app.config['DATABASE_FILE']), 'scheduler.lock')
+        try:
+            with open(lock_file_path, 'x') as lock_file:
+                lock_file.write(str(os.getpid()))
+                logger.info(f"Worker PID {os.getpid()} ha acquisito il lock. AVVIO DELLO SCHEDULER.")
+                
+                if not app.scheduler.running:
+                    app.scheduler.start()
+                    logger.info("APScheduler avviato con successo.")
+                    atexit.register(lambda: os.remove(lock_file_path))
+                    atexit.register(lambda: shutdown_scheduler(app.scheduler))
 
         except FileExistsError:
-            # Se siamo qui, un altro worker è stato più veloce e ha già creato il file.
-            # Noi non facciamo nulla e ce ne stiamo buoni.
-            logger.info(f"Worker PID {os.getpid()}: Lock file già presente. Lo scheduler è già gestito da un altro processo.")
+            logger.info(f"Worker PID {os.getpid()}: Lock file già presente. Lo scheduler è già in esecuzione in un altro processo.")
             
     else:
         # Codice per la modalità TESTING (invariato)
@@ -328,6 +332,11 @@ def create_app(config_object=AppConfig):
         app.register_blueprint(settings_bp) # Nessun prefisso, la rotta è /settings
         #from .api.routes.wordpress_oauth import wordpress_oauth_bp, init_oauth
         logger.info("Blueprint Settings registrato.")
+
+        from .api.routes.protection import protection_bp
+        app.register_blueprint(protection_bp, url_prefix='/api/protection')
+        logger.info("Blueprint Protection registrato con prefisso /api/protection.")
+
         from .api.routes.statistics import stats_bp
         app.register_blueprint(stats_bp)
         logger.info("Blueprint Statistics registrato.")
@@ -906,6 +915,18 @@ def create_app(config_object=AppConfig):
             if conn: conn.close()
         
         return redirect(url_for('personalization_page'))
+    
+    @app.route('/system-status')
+    @login_required
+    def system_status_page():
+        """
+        Mostra la pagina con le statistiche tecniche e lo stato di salute del sistema.
+        """
+        # Chiama la funzione esterna per ottenere tutti i dati
+        system_stats_data = get_system_stats()
+        
+        # Passa i dati al template per la visualizzazione
+        return render_template('system_status.html', stats_data=system_stats_data)
 
     @app.context_processor
     def inject_global_data():

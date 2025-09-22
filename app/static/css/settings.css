@@ -1,0 +1,142 @@
+.settings-form {
+  max-width: 800px;
+}
+.form-section {
+  background: var(--color-background-secondary);
+  padding: var(--spacing-xl);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  margin-bottom: var(--spacing-xxl);
+  box-shadow: var(--box-shadow-md);
+}
+.form-section h2 {
+  font-size: 1.5rem;
+  margin-top: 0;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.form-group {
+  margin-bottom: var(--spacing-lg);
+}
+.label-wrapper {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+}
+.label-wrapper .tooltip-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-left: var(--spacing-sm);
+}
+.info-tooltip,
+.help-video-link {
+  display: inline-block;
+  position: relative;
+  cursor: help;
+}
+.info-tooltip .fa-stack {
+  font-size: 0.8em;
+  vertical-align: middle;
+}
+.info-tooltip .fa-stack .fa-circle {
+  color: var(--color-text-light);
+}
+.info-tooltip .fa-stack .fa-info {
+  color: white;
+}
+.help-video-link i {
+  color: var(--color-primary);
+  font-size: 1.6em;
+  vertical-align: middle;
+  transition: transform 0.2s ease;
+}
+.help-video-link:hover i {
+  transform: scale(1.2);
+}
+.info-tooltip .tooltip-text {
+  visibility: hidden;
+  width: 300px;
+  background-color: var(--color-metal-dark);
+  color: #fff;
+  text-align: center;
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-md);
+  position: absolute;
+  z-index: 1;
+  bottom: 150%;
+  left: 50%;
+  margin-left: -150px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.info-tooltip .tooltip-text::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--color-metal-dark) transparent transparent transparent;
+}
+.info-tooltip:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+.warning-tooltip i {
+  color: var(--color-warning);
+  font-size: 1.6em;
+  vertical-align: middle;
+}
+.warning-tooltip .tooltip-text {
+  background-color: var(--color-warning);
+  color: var(--color-text-main);
+  border: 1px solid #e6a23c;
+}
+.warning-tooltip .tooltip-text::after {
+  border-color: var(--color-warning) transparent transparent transparent;
+}
+
+/* Stile per il contenitore dei pulsanti in fondo al form */
+.form-actions {
+  display: flex;
+  justify-content: flex-end; /* Allinea a destra */
+  align-items: center;
+  gap: 10px; /* Spazio tra i pulsanti */
+  margin-top: 30px;
+  border-top: 1px solid var(--color-border-light);
+  padding-top: 20px;
+}
+
+.network-tooltip i {
+  color: var(--color-secondary); /* Un viola che si distingue */
+  font-size: 1.2em; /* Leggermente più piccolo dell'icona Docker */
+  vertical-align: middle;
+  transition: transform 0.2s ease;
+}
+.network-tooltip:hover i {
+  transform: scale(1.1);
+}
+
+/* piccolo spinner inline per il pulsante di sincronizzazione */
+.inline-spinner {
+  display: inline-block;
+  margin-left: 10px;
+}
+
+/* classi per mostrare/nascondere i pannelli (usate al posto di inline-style con Jinja) */
+.hidden {
+  display: none !important;
+}
+.visible {
+  display: block !important;
+}

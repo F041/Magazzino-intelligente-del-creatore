@@ -167,6 +167,14 @@
               <span>Impostazioni</span>
             </a>
           </li>
+          <li
+            class="{{ 'active' if request.endpoint == 'system_status_page' else '' }}"
+          >
+            <a href="{{ url_for('system_status_page') }}">
+              <i class="fas fa-microchip fa-fw"></i>
+              <span>Stato del sistema</span>
+            </a>
+          </li>
         </ul>
         <hr />
         <ul class="sidebar-menu">

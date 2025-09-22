@@ -9,8 +9,8 @@ services:
     volumes:
       # Mappatura relativa per i dati persistenti. Indispensabile.
       - ./data:/app/data
-    env_file:
-      - ./.env
+      - ./.env:/app/.env:ro
+
     # Precedentemente
     # volumes:
     #        # Mappa la tua directory 'data' specifica

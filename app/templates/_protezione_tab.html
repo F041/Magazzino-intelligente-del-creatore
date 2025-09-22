@@ -1,0 +1,42 @@
+<div id="protezione" class="tab-content">
+    <div class="form-section">
+        <h2>
+            <span><i class="fas fa-shield-alt"></i> Backup e ripristino</span>
+        </h2>
+        <p>
+            Questa sezione ti permette di creare e ripristinare un backup "leggero" del tuo Magazzino: una copia di riserva per situazioni critiche.
+            Viene salvato solo il database principale (<code>.db</code>), che contiene tutte le informazioni essenziali sui tuoi contenuti e le tue impostazioni.
+        </p>
+        <p>
+            <strong>Nota importante:</strong> Il database vettoriale (ChromaDB), che è molto pesante, viene escluso.
+            Quando ripristini un backup, il sistema dovrà <strong>re-indicizzare tutti i tuoi contenuti</strong> per ricostruirlo.
+            Questa operazione potrebbe richiedere tempo e consumare crediti delle API (se usi Gemini).
+        </p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border-light);">
+            <h4 style="margin-bottom: 15px;">1. Crea un backup</h4>
+            <p>
+                Clicca qui per scaricare una copia del tuo database principale. Conserva questo file in un luogo sicuro.
+            </p>
+            <a href="{{ url_for('protection.download_database_backup') }}" class="action-btn success-btn">
+                <i class="fas fa-download"></i> Scarica backup database (.db)
+            </a>
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border-light);">
+            <h4 style="margin-bottom: 15px;">2. Ripristina da un backup</h4>
+            <p>
+                Carica un file di backup <code>.db</code> per ripristinare il tuo Magazzino a uno stato precedente.
+                <strong>ATTENZIONE:</strong> Questa azione sovrascriverà irreversibilmente i dati attuali.
+            </p>
+            <button id="restore-backup-btn" class="action-btn">
+                <i class="fas fa-upload"></i> Carica e ripristina database
+            </button>
+            <input type="file" id="backup-file-input" accept=".db" style="display: none;">
+
+            <!-- Contenitore per mostrare lo stato del ripristino -->
+            <div id="restore-status" style="margin-top: 20px; display: none;"></div>
+        </div>
+
+    </div>
+</div>
