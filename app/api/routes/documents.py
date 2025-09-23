@@ -133,8 +133,13 @@ def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str
         cursor.execute("SELECT filepath, original_filename FROM documents WHERE doc_id = ?", (doc_id,))
         doc_data = cursor.fetchone()
         if not doc_data: logger.error(f"[_index_document][{doc_id}] Record non trovato nel DB."); return 'failed_doc_not_found'
-        md_filepath, original_filename = doc_data
-        logger.info(f"[_index_document][{doc_id}] Trovato: {original_filename}, File: {md_filepath}")
+        
+        relative_path_from_db, original_filename = doc_data
+        # Ricostruiamo il percorso completo partendo dalla base del progetto
+        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
+        md_filepath = os.path.join(base_dir, relative_path_from_db)
+
+        logger.info(f"[_index_document][{doc_id}] Trovato: {original_filename}, Percorso ricostruito: {md_filepath}")
 
         markdown_content = None
         if not md_filepath or not os.path.exists(md_filepath): logger.error(f"[_index_document][{doc_id}] File Markdown non trovato: {md_filepath}"); return 'failed_file_not_found'
@@ -267,37 +272,39 @@ def upload_documents():
                 if extracted_text is not None:
                     doc_id = str(uuid.uuid4())
                     stored_md_filename = f"{doc_id}.md"
-                    md_filepath = os.path.join(upload_folder, stored_md_filename)
+                    
+                    # Percorso completo per salvare il file
+                    full_md_filepath = os.path.join(upload_folder, stored_md_filename)
+                    # PERCORSO RELATIVO da salvare nel DB
+                    relative_md_filepath = os.path.join(os.path.basename(os.path.dirname(upload_folder)), stored_md_filename)
+
                     original_mimetype = file.mimetype
                     md_filesize = 0
 
                     # ---- BLOCCO TRY/EXCEPT PRINCIPALE PER IL SINGOLO FILE ----
                     try:
-                        # Salva MD
-                        with open(md_filepath, 'w', encoding='utf-8') as f_md:
+                        # Salva MD usando il percorso completo
+                        with open(full_md_filepath, 'w', encoding='utf-8') as f_md:
                             f_md.write(extracted_text)
-                        md_filesize = os.path.getsize(md_filepath)
+                        md_filesize = os.path.getsize(full_md_filepath)
                         logger.info(f"File '{original_filename}' salvato come MD: {stored_md_filename}")
 
                         # INSERT SQLite (con user_id)
-                        # Assicurati che l'ordine delle colonne qui corrisponda all'ordine dei '?'
-                        # e che l'ordine dei valori nella tupla corrisponda ai '?'.
                         sql_insert_doc = """
                             INSERT INTO documents (
                                 doc_id, original_filename, stored_filename, filepath,
                                 filesize, mimetype, user_id, processing_status
-                                -- uploaded_at ha un default CURRENT_TIMESTAMP
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                         """
                         values_to_insert = (
                             doc_id,
                             original_filename,
                             stored_md_filename,
-                            md_filepath,
+                            relative_md_filepath.replace('\\', '/'), # SALVIAMO IL PERCORSO RELATIVO
                             md_filesize,
-                            original_mimetype, # Avevi file.mimetype, assicurati che original_mimetype sia definito
-                            current_user_id,   # Può essere None se APP_MODE è 'single'
-                            'pending'          # Stato iniziale prima dell'indicizzazione
+                            original_mimetype,
+                            current_user_id,
+                            'pending'
                         )
 
                         cursor.execute(sql_insert_doc, values_to_insert)

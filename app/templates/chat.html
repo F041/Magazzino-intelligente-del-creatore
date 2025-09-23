@@ -69,19 +69,17 @@
 <div class="chat-container">
 
     <div class="chat-header">
-        <h3>Conversa con i tuoi Contenuti</h3>
+        <h3>Conversa con i tuoi contenuti</h3>
     </div>
 
     <div class="chat-window" id="chat-window">
         
-        {# --- NUOVO CONTENITORE PER I MESSAGGI --- #}
         <div id="messages-list">
             <div class="message bot-message">
                 <p>{{ personalization_settings.welcome_message | safe }}</p>
             </div>
             {# I messaggi dinamici verranno aggiunti QUI dentro dal JS #}
         </div>
-        {# --- FINE NUOVO CONTENITORE --- #}
         
         {% if personalization_settings.prompt_starters %}
         <div class="prompt-starters-container" id="prompt-starters">

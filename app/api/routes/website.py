@@ -61,7 +61,10 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
         if not page_data:
             raise FileNotFoundError(f"Pagina con ID {page_id} non trovata nel DB.")
         
-        content_filepath, title, page_url = page_data[0], page_data[1], page_data[2]
+        relative_path_from_db, title, page_url = page_data[0], page_data[1], page_data[2]
+        # Ricostruiamo il percorso completo
+        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
+        content_filepath = os.path.join(base_dir, relative_path_from_db)
 
         with open(content_filepath, 'r', encoding='utf-8') as f:
             page_content = f.read()
@@ -316,15 +319,19 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict):
                             cursor.execute("UPDATE pages SET content_hash = ?, processing_status = 'pending' WHERE page_id = ?", (content_hash, item_id))
                             _index_page(item_id, conn, user_id)
                             updated_pages += 1
-                    else:
-                        item_id = str(uuid.uuid4())
-                        content_path = os.path.join(pages_folder, f"{item_id}.txt")
-                        with open(content_path, 'w', encoding='utf-8') as f: f.write(content_text)
-                        published_date = item_data.get('modified_gmt', '') + 'Z'
-                        cursor.execute("INSERT INTO pages (page_id, page_url, title, published_at, extracted_content_path, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
-                                       (item_id, item_url, title_text, published_date, content_path, content_hash, user_id))
-                        _index_page(item_id, conn, user_id)
-                        new_pages += 1
+                else:
+                    item_id = str(uuid.uuid4())
+                    # Percorso completo per salvare
+                    full_content_path = os.path.join(pages_folder, f"{item_id}.txt")
+                    # Percorso relativo per il DB
+                    relative_content_path = os.path.join(os.path.basename(pages_folder), f"{item_id}.txt")
+
+                    with open(full_content_path, 'w', encoding='utf-8') as f: f.write(content_text)
+                    published_date = item_data.get('modified_gmt', '') + 'Z'
+                    cursor.execute("INSERT INTO pages (page_id, page_url, title, published_at, extracted_content_path, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
+                                   (item_id, item_url, title_text, published_date, relative_content_path.replace('\\', '/'), content_hash, user_id))
+                    _index_page(item_id, conn, user_id)
+                    new_pages += 1
                 
                 conn.commit()
 

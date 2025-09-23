@@ -961,42 +961,64 @@ def download_all_transcripts():
 
 def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Optional[str]) -> str:
     """
-    Re-indicizza un singolo video. Se la trascrizione non è nel DB, la scarica da YouTube.
-    Questo ora è un wrapper robusto per _reprocess_single_video.
+    Re-indicizza un singolo video. USA LA TRASCRIZIONE DAL DB SE ESISTE.
+    Se non esiste, la scarica da YouTube.
     """
-    logger.info(f"[_reindex_video_from_db][{video_id}] Avvio re-indicizzazione/recupero per utente: {user_id}")
+    app_mode = current_app.config.get('APP_MODE', 'single')
+    logger.info(f"[_reindex_video_from_db][{video_id}] Avvio re-indicizzazione intelligente per utente: {user_id}")
+    
     final_status = 'failed_reindex_init'
     cursor = conn.cursor()
-    conn.row_factory = sqlite3.Row 
-    
-    try:
-        # Recupera i metadati essenziali dal DB
-        sql_get_meta = "SELECT title, channel_id, published_at FROM videos WHERE video_id = ? AND user_id = ?"
-        cursor.execute(sql_get_meta, (video_id, user_id))
-        video_meta = cursor.fetchone()
+    # Aggiungiamo il row_factory qui per assicurarci di poter accedere ai dati per nome
+    conn.row_factory = sqlite3.Row
 
-        if not video_meta:
+    try:
+        # 1. Recupera TUTTI i dati del video dal DB, inclusa la trascrizione (se c'è)
+        sql_get_video = "SELECT title, channel_id, published_at, transcript, transcript_language, captions_type FROM videos WHERE video_id = ? AND user_id = ?"
+        cursor.execute(sql_get_video, (video_id, user_id))
+        video_data = cursor.fetchone()
+
+        if not video_data:
             logger.warning(f"[_reindex_video_from_db][{video_id}] Video non trovato nel DB per utente {user_id}.")
             return 'failed_not_found'
 
-        # Recupera la trascrizione da YouTube (logica del pulsante "Riprocessa")
-        token_path = current_app.config.get('TOKEN_PATH')
-        youtube_client = YouTubeClient(token_file=token_path)
-        transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
+        video_meta_dict = dict(video_data)
+        transcript_text = video_meta_dict.get('transcript')
+        transcript_lang = video_meta_dict.get('transcript_language')
+        transcript_type = video_meta_dict.get('captions_type')
 
-        transcript_text, transcript_lang, transcript_type = None, None, None
-        if transcript_result and not transcript_result.get('error'):
-            transcript_text = transcript_result['text']
-            transcript_lang = transcript_result['language']
-            transcript_type = transcript_result['type']
+        # 2. Logica "intelligente": scarica la trascrizione SOLO se non è presente nel DB
+        if not transcript_text or not transcript_text.strip():
+            logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione non trovata nel DB. Tento il download da YouTube (costo: 200 punti).")
+            try:
+                token_path = current_app.config.get('TOKEN_PATH')
+                youtube_client = YouTubeClient(token_file=token_path)
+                transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
+
+                if transcript_result and not transcript_result.get('error'):
+                    transcript_text = transcript_result['text']
+                    transcript_lang = transcript_result['language']
+                    transcript_type = transcript_result['type']
+                    # Aggiorniamo subito il DB con la trascrizione appena scaricata
+                    cursor.execute(
+                        "UPDATE videos SET transcript = ?, transcript_language = ?, captions_type = ? WHERE video_id = ?",
+                        (transcript_text, transcript_lang, transcript_type, video_id)
+                    )
+                    logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione scaricata e salvata nel DB.")
+                else:
+                    logger.warning(f"[_reindex_video_from_db][{video_id}] Download da YouTube fallito. Stato: failed_transcript.")
+                    final_status = 'failed_transcript'
+                    cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
+                    return final_status # Usciamo, non possiamo continuare
+            except Exception as e_yt:
+                logger.error(f"[_reindex_video_from_db][{video_id}] Errore critico durante il download da YouTube: {e_yt}", exc_info=True)
+                final_status = 'failed_transcript_api'
+                cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
+                return final_status
         else:
-            logger.warning(f"[_reindex_video_from_db][{video_id}] Trascrizione non recuperata da YouTube. Stato: failed_transcript.")
-            final_status = 'failed_transcript'
-            # Aggiorniamo subito lo stato nel DB e usciamo
-            cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
-            return final_status # Usciamo qui, non c'è altro da fare
+            logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione trovata nel DB. Procedo a costo zero.")
 
-        # Se abbiamo la trascrizione, procediamo con l'indicizzazione
+        # 3. Se arriviamo qui, abbiamo una trascrizione (dal DB o da YouTube) e possiamo procedere
         llm_api_key = current_app.config.get('GOOGLE_API_KEY')
         embedding_model = current_app.config.get('GEMINI_EMBEDDING_MODEL')
         chunk_size = current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
@@ -1006,18 +1028,18 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
 
         user_video_collection_name = f"{base_video_collection_name}_{user_id}"
         video_collection = chroma_client.get_or_create_collection(name=user_video_collection_name)
+        
+        # Puliamo i vecchi chunk prima di inserire i nuovi
+        video_collection.delete(where={"video_id": video_id})
 
-        # Pulizia vecchi chunk e upsert dei nuovi
         chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         if chunks:
             embeddings = get_gemini_embeddings(chunks, api_key=llm_api_key, model_name=embedding_model, task_type=TASK_TYPE_DOCUMENT)
             if embeddings and len(embeddings) == len(chunks):
-                video_collection.delete(where={"video_id": video_id})
-                
                 ids_upsert = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
                 metadatas_upsert = [{
-                    'video_id': video_id, 'video_title': video_meta['title'], 'channel_id': video_meta['channel_id'],
-                    'published_at': str(video_meta['published_at']), 'chunk_index': i, 'language': transcript_lang,
+                    'video_id': video_id, 'video_title': video_meta_dict['title'], 'channel_id': video_meta_dict['channel_id'],
+                    'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 'language': transcript_lang,
                     'caption_type': transcript_type, 'user_id': user_id
                 } for i in range(len(chunks))]
                 
@@ -1026,24 +1048,13 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
             else:
                 final_status = 'failed_embedding'
         else:
-            # Nessun chunk, ma abbiamo la trascrizione. Lo consideriamo completo.
-            video_collection.delete(where={"video_id": video_id}) # Puliamo comunque i vecchi chunk
-            final_status = 'completed'
-        
-        # Aggiorna il DB con la trascrizione e lo stato finale
-        cursor.execute(
-            "UPDATE videos SET transcript = ?, transcript_language = ?, captions_type = ?, processing_status = ? WHERE video_id = ?",
-            (transcript_text, transcript_lang, transcript_type, final_status, video_id)
-        )
-        logger.info(f"[_reindex_video_from_db][{video_id}] DB aggiornato con trascrizione e stato finale '{final_status}'.")
+            final_status = 'completed' # Nessun chunk da indicizzare, ma l'operazione è OK
 
     except Exception as e:
         logger.error(f"[_reindex_video_from_db][{video_id}] Errore critico durante re-indicizzazione: {e}", exc_info=True)
         final_status = 'failed_reindex_critical'
-        # Tentiamo di aggiornare lo stato anche in caso di errore critico
-        try:
-            cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
-        except sqlite3.Error as db_err:
-            logger.error(f"[_reindex_video_from_db][{video_id}] Impossibile aggiornare lo stato DB dopo errore critico: {db_err}")
-
+    
+    # Aggiorna lo stato finale nel DB (NON fa commit, se lo aspetta dal chiamante)
+    cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
+    logger.info(f"[_reindex_video_from_db][{video_id}] Re-indicizzazione terminata con stato: {final_status}")
     return final_status

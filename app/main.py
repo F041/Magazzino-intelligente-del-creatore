@@ -664,25 +664,34 @@ def create_app(config_object=AppConfig):
                 
                 cursor.execute(sql_query, tuple(params))
                 
-                # NUOVA LOGICA: Leggiamo l'anteprima per ogni articolo
-                for row in cursor.fetchall():
-                    article_dict = dict(row) # Converti la riga in un dizionario
+                # --- LOGICA OTTIMIZZATA ---
+                # 1. Recupera tutti i dati dal DB in una sola volta
+                all_rows = cursor.fetchall()
+                conn.close() # Chiudiamo subito la connessione al DB
+
+                # 2. Ora cicliamo sui dati in memoria per leggere i file
+                for row in all_rows:
+                    article_dict = dict(row)
                     preview_text = None
-                    content_path = article_dict.get('extracted_content_path')
                     
-                    if content_path and os.path.exists(content_path):
-                        try:
-                            with open(content_path, 'r', encoding='utf-8') as f:
-                                # Leggiamo solo i primi 200 caratteri per l'anteprima
-                                preview_text = f.read(200) 
-                        except Exception as e:
-                            logger.warning(f"Impossibile leggere il file di anteprima {content_path}: {e}")
+                    # Usiamo il percorso relativo che abbiamo salvato
+                    relative_path = article_dict.get('extracted_content_path')
+                    if relative_path:
+                        # Ricostruiamo il percorso completo
+                        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
+                        full_content_path = os.path.join(base_dir, relative_path)
+
+                        if os.path.exists(full_content_path):
+                            try:
+                                with open(full_content_path, 'r', encoding='utf-8') as f:
+                                    preview_text = f.read(200)
+                            except Exception as e:
+                                logger.warning(f"Impossibile leggere il file di anteprima {full_content_path}: {e}")
                     
                     article_dict['content_preview'] = preview_text
                     articles_from_db.append(article_dict)
 
-                conn.close()
-                logger.info(f"/my-articles: Recuperati {len(articles_from_db)} articoli e le loro anteprime dal DB.")
+                logger.info(f"/my-articles: Recuperati e processati {len(articles_from_db)} articoli.")
             except sqlite3.Error as e:
                 logger.error(f"Errore lettura DB per /my-articles: {e}")
 
@@ -716,24 +725,30 @@ def create_app(config_object=AppConfig):
                 
                 cursor.execute(sql_query, tuple(params))
 
-                # NUOVA LOGICA: Leggiamo l'anteprima per ogni pagina
-                for row in cursor.fetchall():
-                    page_dict = dict(row) # Converti la riga in un dizionario
+                # --- LOGICA OTTIMIZZATA ---
+                all_rows = cursor.fetchall()
+                conn.close() # Chiudi subito la connessione al DB
+
+                for row in all_rows:
+                    page_dict = dict(row)
                     preview_text = None
-                    content_path = page_dict.get('extracted_content_path')
                     
-                    if content_path and os.path.exists(content_path):
-                        try:
-                            with open(content_path, 'r', encoding='utf-8') as f:
-                                # Leggiamo solo i primi 200 caratteri per l'anteprima
-                                preview_text = f.read(200) 
-                        except Exception as e:
-                            logger.warning(f"Impossibile leggere il file di anteprima {content_path}: {e}")
+                    relative_path = page_dict.get('extracted_content_path')
+                    if relative_path:
+                        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
+                        full_content_path = os.path.join(base_dir, relative_path)
+                        
+                        if os.path.exists(full_content_path):
+                            try:
+                                with open(full_content_path, 'r', encoding='utf-8') as f:
+                                    preview_text = f.read(200)
+                            except Exception as e:
+                                logger.warning(f"Impossibile leggere il file di anteprima {full_content_path}: {e}")
                     
                     page_dict['content_preview'] = preview_text
                     pages_from_db.append(page_dict)
-
-                conn.close()
+                
+                logger.info(f"/my-pages: Recuperate e processate {len(pages_from_db)} pagine.")
             except sqlite3.Error as e:
                 logger.error(f"Errore lettura DB per /my-pages: {e}")
 

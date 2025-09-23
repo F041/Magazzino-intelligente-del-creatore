@@ -110,126 +110,136 @@ def parse_feed_date(feed_date_struct):
     except (TypeError, ValueError):
         return None # Restituisce None se la data non è valida
 
-def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None) -> str:
+def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[str], core_config: dict) -> str:
     """
     Esegue l'indicizzazione di un articolo (legge contenuto, chunk, embed, Chroma).
     Gestisce modalità 'single' e 'saas'.
     NON fa commit; si aspetta che il chiamante gestisca la transazione.
     Restituisce lo stato finale ('completed' o 'failed_...').
     """
-    app_mode = current_app.config.get('APP_MODE', 'single')
+    # --- MODIFICA 1: Usa core_config invece di current_app ---
+    app_mode = core_config.get('APP_MODE', 'single')
     logger.info(f"[_index_article][{article_id}] Avvio indicizzazione (Modalità: {app_mode}, UserID: {user_id if user_id else 'N/A'})")
 
     final_status = 'failed_indexing_init'
     cursor = conn.cursor()
 
-    # Recupera Configurazione Essenziale
-    llm_api_key = current_app.config.get('GOOGLE_API_KEY')
-    embedding_model = current_app.config.get('GEMINI_EMBEDDING_MODEL')
-    chunk_size = current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
-    chunk_overlap = current_app.config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
-    base_article_collection_name = current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content') # Nome base
+    # --- MODIFICA 2: Recupera tutte le configurazioni da core_config ---
+    llm_api_key = core_config.get('GOOGLE_API_KEY')
+    embedding_model = core_config.get('GEMINI_EMBEDDING_MODEL')
+    chunk_size = core_config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
+    chunk_overlap = core_config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
+    base_article_collection_name = core_config.get('ARTICLE_COLLECTION_NAME', 'article_content')
 
     # Ottieni Collezione ChromaDB
     article_collection = None
     collection_name_for_log = "N/A"
+    
+    # --- MODIFICA 3: Usa core_config per il client ChromaDB ---
+    chroma_client = core_config.get('CHROMA_CLIENT')
+    if not chroma_client: 
+        logger.error(f"[_index_article][{article_id}] Chroma Client non trovato in core_config!")
+        return 'failed_config_client_missing'
 
     if app_mode == 'single':
-        article_collection = current_app.config.get('CHROMA_ARTICLE_COLLECTION')
-        if article_collection: collection_name_for_log = article_collection.name
-        else: logger.error(f"[_index_article][{article_id}] Modalità SINGLE: Collezione articoli non trovata!"); return 'failed_config_collection_missing'
+        try:
+            article_collection = chroma_client.get_or_create_collection(name=base_article_collection_name)
+            if article_collection: collection_name_for_log = article_collection.name
+        except Exception as e:
+             logger.error(f"[_index_article][{article_id}] Modalità SINGLE: Errore get/create collezione: {e}")
+             return 'failed_config_collection_missing'
     elif app_mode == 'saas':
-        if not user_id: logger.error(f"[_index_article][{article_id}] Modalità SAAS: User ID mancante!"); return 'failed_user_id_missing'
-        chroma_client = current_app.config.get('CHROMA_CLIENT')
-        if not chroma_client: logger.error(f"[_index_article][{article_id}] Modalità SAAS: Chroma Client non trovato!"); return 'failed_config_client_missing'
-
+        if not user_id: 
+            logger.error(f"[_index_article][{article_id}] Modalità SAAS: User ID mancante!")
+            return 'failed_user_id_missing'
+        
         user_article_collection_name = f"{base_article_collection_name}_{user_id}"
         collection_name_for_log = user_article_collection_name
         try:
-            logger.info(f"[_index_article][{article_id}] Modalità SAAS: Ottenimento/Creazione collezione '{user_article_collection_name}'...")
             article_collection = chroma_client.get_or_create_collection(name=user_article_collection_name)
-        except Exception as e_saas_coll: logger.error(f"[_index_article][{article_id}] Modalità SAAS: Errore get/create collezione '{user_article_collection_name}': {e_saas_coll}"); return 'failed_chroma_collection_saas'
-    else: logger.error(f"[_index_article][{article_id}] Modalità APP non valida: {app_mode}"); return 'failed_invalid_mode'
+        except Exception as e_saas_coll: 
+            logger.error(f"[_index_article][{article_id}] Modalità SAAS: Errore get/create collezione '{user_article_collection_name}': {e_saas_coll}")
+            return 'failed_chroma_collection_saas'
+    else: 
+        logger.error(f"[_index_article][{article_id}] Modalità APP non valida: {app_mode}")
+        return 'failed_invalid_mode'
 
-    if not article_collection: logger.error(f"[_index_article][{article_id}] Fallimento ottenimento collezione ChromaDB (Nome tentato: {collection_name_for_log})."); return 'failed_chroma_collection_generic'
+    if not article_collection: 
+        logger.error(f"[_index_article][{article_id}] Fallimento ottenimento collezione ChromaDB (Nome tentato: {collection_name_for_log}).")
+        return 'failed_chroma_collection_generic'
+    
     logger.info(f"[_index_article][{article_id}] Collezione Chroma '{collection_name_for_log}' pronta.")
 
-    if not llm_api_key or not embedding_model: logger.error(f"[_index_article][{article_id}] Configurazione Embedding mancante."); return 'failed_config_embedding'
-    if not split_text_into_chunks or not get_gemini_embeddings: logger.error(f"[_index_article][{article_id}] Funzioni chunk/embed non disponibili."); return 'failed_server_setup'
-
-    # Logica Indicizzazione
+    if not llm_api_key or not embedding_model: 
+        logger.error(f"[_index_article][{article_id}] Configurazione Embedding mancante.")
+        return 'failed_config_embedding'
+    
+    # Logica Indicizzazione (invariata, ma ora usa percorsi relativi)
     try:
-        # 1. Recupera dati articolo (invariato)
         cursor.execute("SELECT extracted_content_path, title, article_url FROM articles WHERE article_id = ?", (article_id,))
         article_data = cursor.fetchone()
-        if not article_data: logger.error(f"[_index_article][{article_id}] Record non trovato nel DB."); return 'failed_article_not_found'
-        content_filepath, title, article_url = article_data
-        logger.info(f"[_index_article][{article_id}] Trovato: '{title}', File: {content_filepath}")
+        if not article_data: 
+            logger.error(f"[_index_article][{article_id}] Record non trovato nel DB.")
+            return 'failed_article_not_found'
+        
+        relative_path_from_db, title, article_url = article_data
+        # --- MODIFICA 4: Usa core_config per ricostruire il percorso ---
+        base_dir = core_config.get('BASE_DIR', os.getcwd())
+        content_filepath = os.path.join(base_dir, relative_path_from_db)
 
-        # 2. Leggi contenuto dal file salvato
+        logger.info(f"[_index_article][{article_id}] Trovato: '{title}', Percorso ricostruito: {content_filepath}")
+
         article_content = None
         if not content_filepath or not os.path.exists(content_filepath):
              logger.error(f"[_index_article][{article_id}] File contenuto non trovato: {content_filepath}")
              return 'failed_file_not_found'
+        
         with open(content_filepath, 'r', encoding='utf-8') as f:
             article_content = f.read()
+        
         if not article_content or not article_content.strip():
              logger.warning(f"[_index_article][{article_id}] File contenuto vuoto. Marco come completato.")
-             # IMPORTANTE: Rimuoviamo il return 'completed' qui. Lo stato verrà impostato
-             # dopo aver tentato l'aggiornamento del DB.
              final_status = 'completed'
-        else: # Se c'è contenuto, procedi con chunking/embedding
+        else:
             logger.info(f"[_index_article][{article_id}] Contenuto letto ({len(article_content)} chars).")
-
-            # 3. Chunking
             chunks = split_text_into_chunks(article_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
             if not chunks:
                  logger.info(f"[_index_article][{article_id}] Nessun chunk generato. Marco come completato.")
                  final_status = 'completed'
             else:
                 logger.info(f"[_index_article][{article_id}] Creati {len(chunks)} chunk.")
-
-                # 4. Embedding
                 embeddings = get_gemini_embeddings(chunks, api_key=llm_api_key, model_name=embedding_model, task_type=TASK_TYPE_DOCUMENT)
                 if not embeddings or len(embeddings) != len(chunks):
                     logger.error(f"[_index_article][{article_id}] Fallimento generazione embedding.")
                     final_status = 'failed_embedding'
                 else:
                     logger.info(f"[_index_article][{article_id}] Embedding generati.")
-
-                    # 5. Salvataggio in ChromaDB
                     logger.info(f"[_index_article][{article_id}] Salvataggio in ChromaDB ({article_collection.name})...")
                     ids = [f"{article_id}_chunk_{i}" for i in range(len(chunks))]
                     metadatas_chroma = [{
                         "article_id": article_id, "article_title": title, "article_url": article_url,
                         "chunk_index": i, "source_type": "article",
-                        **({"user_id": user_id} if app_mode == 'saas' and user_id else {}) # Aggiunge user_id se saas
+                        **({"user_id": user_id} if app_mode == 'saas' and user_id else {})
                     } for i in range(len(chunks))]
                     article_collection.upsert(ids=ids, embeddings=embeddings, metadatas=metadatas_chroma, documents=chunks)
                     logger.info(f"[_index_article][{article_id}] Salvataggio ChromaDB completato.")
-                    final_status = 'completed' # Successo!
-
+                    final_status = 'completed'
     except Exception as e:
         logger.error(f"[_index_article][{article_id}] Errore imprevisto durante indicizzazione: {e}", exc_info=True)
-        # Aggiorniamo final_status solo se non è già 'completed' o 'failed_embedding'
         if final_status not in ['completed', 'failed_embedding']:
              if isinstance(e, FileNotFoundError): final_status = 'failed_file_not_found'
              elif isinstance(e, IOError): final_status = 'failed_reading_file'
              elif 'split_text_into_chunks' in str(e): final_status = 'failed_chunking'
              elif 'upsert' in str(e): final_status = 'failed_chroma_write'
              else: final_status = 'failed_processing_generic'
-
-
-    # Aggiungiamo il calcolo delle statistiche PRIMA dell'aggiornamento dello stato finale
+    
+    # ... (Il resto della funzione con le statistiche e l'aggiornamento del DB rimane invariato)
     if final_status == 'completed':
         try:
             stats = { 'word_count': 0, 'gunning_fog': 0 }
-            # La variabile 'article_content' contiene il testo dell'articolo letto in precedenza
             if 'article_content' in locals() and article_content and article_content.strip():
                 stats['word_count'] = len(article_content.split())
                 stats['gunning_fog'] = textstat.gunning_fog(article_content)
-
-            # Inserisce o aggiorna le statistiche nella tabella cache
             cursor.execute("""
                 INSERT INTO content_stats (content_id, user_id, source_type, word_count, gunning_fog)
                 VALUES (?, ?, ?, ?, ?)
@@ -241,12 +251,8 @@ def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[
             logger.info(f"[_index_article][{article_id}] Statistiche salvate/aggiornate nella cache.")
         except Exception as e_stats:
             logger.error(f"[_index_article][{article_id}] Errore durante il calcolo/salvataggio delle statistiche: {e_stats}")
-            # Non blocchiamo il processo per questo, ma lo registriamo
-
-    # Aggiorna stato DB (NON fa commit)
     try:
         logger.info(f"[_index_article][{article_id}] Aggiornamento stato DB a '{final_status}'...")
-        # Riga corretta:
         cursor.execute("UPDATE articles SET processing_status = ? WHERE article_id = ?", (final_status, article_id))
     except sqlite3.Error as db_update_err:
          logger.error(f"[_index_article][{article_id}] ERRORE CRITICO aggiornamento stato finale DB: {db_update_err}")
@@ -388,13 +394,18 @@ def _process_rss_feed_core(
 
                     if not content: logger.warning(f"[CORE RSS Process] No content '{title}'."); skipped_count+=1; needs_processing = False; continue
 
-                    content_filename = f"{article_id_to_process}.txt"; content_filepath = os.path.join(articles_folder, content_filename)
+                    content_filename = f"{article_id_to_process}.txt"
+                    # Percorso completo per salvare il file
+                    full_content_filepath = os.path.join(articles_folder, content_filename)
+                    # Percorso relativo standardizzato da salvare nel DB
+                    relative_content_filepath = os.path.join(os.path.basename(articles_folder), content_filename)
+
                     try:
-                        with open(content_filepath, 'w', encoding='utf-8') as f_content: f_content.write(content)
+                        with open(full_content_filepath, 'w', encoding='utf-8') as f_content: f_content.write(content)
                         cursor_sqlite.execute("""
                             INSERT INTO articles (article_id, guid, feed_url, article_url, title, published_at, extracted_content_path, user_id, processing_status)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                           (article_id_to_process, guid, initial_feed_url, article_url, title, published_at_iso, content_filepath, user_id, 'pending'))
+                           (article_id_to_process, guid, initial_feed_url, article_url, title, published_at_iso, relative_content_filepath.replace('\\', '/'), user_id, 'pending'))
                         logger.info(f"[CORE RSS Process] Inserito nuovo '{title}'.")
                     except Exception as e_save:
                         logger.error(f"[CORE RSS Process] Errore save/insert '{title}': {e_save}", exc_info=True); skipped_count+=1; needs_processing = False;
@@ -413,7 +424,7 @@ def _process_rss_feed_core(
                 if needs_processing and article_id_to_process:
                     logger.info(f"[CORE RSS Process] Indicizzazione articolo {article_id_to_process} ('{title}')...")
                     # _index_article aggiorna lo stato nel DB ma non fa commit
-                    indexing_status = _index_article(article_id_to_process, conn_sqlite, user_id)
+                    indexing_status = _index_article(article_id_to_process, conn_sqlite, user_id, core_config)
                     if indexing_status == 'completed': saved_ok_count += 1
                     else: failed_count += 1
             # Fine ciclo articoli pagina

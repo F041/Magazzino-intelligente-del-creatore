@@ -410,47 +410,45 @@ function updateUIState() {
 
 // --- FUNZIONE PER GENERARE IDEE DI CONTENUTI (RIFATTORIZZATA) ---
 async function handleGenerateIdeas() {
-    // Se siamo già in un contesto in cui la UI impedisce le chiamate esterne,
-    // rispettiamo comunque lo stato, ma non dipendiamo dallo stato del singolo
-    // pulsante lampadina (ideaGeneratorBtn) perché in modalità "idea" quella
-    // lampadina viene nascosta/disabilitata mentre il pulsante "Altre" è il sendButton.
     if (typeof currentMode !== 'undefined' && currentMode === 'idea' && sendButton && sendButton.disabled) {
-        return; // se il sendButton è disabilitato, non facciamo nulla
+        return; 
     }
 
-    // Non bloccare la generazione semplicemente perché ideaGeneratorBtn è disabilitato.
-    // Questo permette al pulsante "Altre" (sendButton in idea-mode) di funzionare correttamente.
     enableFullUI(false); 
     let thinkingMessage = addMessage("Sto cercando l'ispirazione...", 'bot', null, false, true);
     
     try {
         const response = await fetch('/api/ideas/generate');
-        // Controlliamo anche lo status HTTP
-        if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || `Errore server: ${response.status}`);
-        }
-        const data = await response.json();
+        const data = await response.json(); // Leggiamo la risposta JSON
 
         if (thinkingMessage) thinkingMessage.remove();
 
+        if (!response.ok) {
+            // Se la risposta HTTP non è OK, lanciamo un errore con il messaggio dal server
+            throw new Error(data.error || `Errore server: ${response.status}`);
+        }
+        
+        // Estraiamo le performance dalla risposta, che ci sia un'idea o un errore
+        const performanceMetrics = data.performance_metrics || null;
+        
         const rawHtml = marked.parse(data.ideas || data.ideas_html || '');
         const sanitizedHtml = DOMPurify.sanitize(rawHtml);
         
-        addMessage(sanitizedHtml, 'bot');
+        // Passiamo le metriche alla funzione addMessage
+        addMessage(sanitizedHtml, 'bot', null, false, false, performanceMetrics);
 
-        // Mettiamo la UI in modalità idea (assicurati che l'UI rifletta questo stato)
         currentMode = 'idea';
-        userInput.value = ''; // Pulisci l'input per mostrare lo stato "Altre"
-        userInput.dispatchEvent(new Event('input', { bubbles: true })); // Aggiorna lo stato UI
+        userInput.value = '';
+        userInput.dispatchEvent(new Event('input', { bubbles: true }));
         userInput.focus();
 
     } catch (error) {
         console.error("Errore durante la generazione di idee:", error);
         if (thinkingMessage) thinkingMessage.remove();
-        addMessage(`Si è verificato un errore: ${error.message}`, 'bot', null, true);
+        // Passiamo null per le metriche quando c'è un errore di rete
+        addMessage(`Si è verificato un errore: ${error.message}`, 'bot', null, true, false, null);
     } finally {
-        enableFullUI(true); // Riabilita sempre l'interfaccia
+        enableFullUI(true);
     }
 }
 

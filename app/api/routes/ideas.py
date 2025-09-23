@@ -1,10 +1,13 @@
 import logging
 import sqlite3
 import os
+import time 
+import requests
 import random # Ci servirà per pescare chunk casuali
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
 from flask import Blueprint, jsonify, current_app
+from app.api.routes.search import _get_ollama_completion 
 from flask_login import login_required, current_user
 
 logger = logging.getLogger(__name__)
@@ -54,6 +57,12 @@ def _generate_content_ideas_core(user_id, config):
     Funzione interna che analizza un campione di contenuti ESISTENTI di un utente 
     e usa un LLM per generare nuove idee pertinenti, rispettando le impostazioni utente.
     """
+    # --- INIZIO BLOCCO CRONOMETRI ---
+    import time
+    total_start_time = time.time()
+    performance_metrics = {}
+    # --- FINE BLOCCO CRONOMETRI ---
+
     conn = None
     try:
         # --- RECUPERO DELLE IMPOSTAZIONI AI DELL'UTENTE ---
@@ -76,10 +85,8 @@ def _generate_content_ideas_core(user_id, config):
                     logger.info(f"Trovate impostazioni AI personalizzate per l'utente {user_id}.")
                     llm_provider = user_settings['llm_provider'] or 'google'
                     ollama_base_url = user_settings['ollama_base_url']
-                    # Se l'utente ha la sua chiave, usiamo quella
                     if user_settings['llm_api_key']: 
                         llm_api_key = user_settings['llm_api_key']
-                    # Se l'utente ha specificato i suoi modelli, usiamo quelli
                     if user_settings['llm_model_name']:
                         models_to_try = [m.strip() for m in user_settings['llm_model_name'].split(',') if m.strip()]
             except sqlite3.Error as e:
@@ -87,33 +94,37 @@ def _generate_content_ideas_core(user_id, config):
             finally:
                 if conn_settings: conn_settings.close()
         
-        # Assicurati che models_to_try non sia vuota dopo aver recuperato le impostazioni
         if not models_to_try:
-             # Se la lista dalle impostazioni utente è vuota, usa un fallback generale
-             models_to_try = config.get('RAG_MODELS_LIST', ["gemini-2.5-pro", "gemini-2.5-flash"])
-             if not models_to_try: # Ultimo fallback se anche la config generale è vuota
-                 models_to_try = ["gemini-2.5-flash"]
+             models_to_try = config.get('RAG_MODELS_LIST', ["gemini-1.5-pro-latest"])
+             if not models_to_try:
+                 models_to_try = ["gemini-1.5-pro-latest"]
         # --- FINE RECUPERO IMPOSTAZIONI ---
 
-        # 1. Recupera un campione di chunk di testo rappresentativi
+        # --- FASE 1: RECUPERO CHUNK (con misurazione) ---
+        start_retrieval_time = time.time()
         content_samples = _get_random_chunks_from_collections(user_id, config, sample_size=25)
+        performance_metrics['retrieval_duration_ms'] = round((time.time() - start_retrieval_time) * 1000)
+        performance_metrics['retrieved_chunks_count'] = len(content_samples)
+        logger.info(f"Recuperati {len(content_samples)} chunk per idee in {performance_metrics['retrieval_duration_ms']}ms.")
+
 
         if not content_samples:
+            # Aggiungiamo le performance anche qui
+            performance_metrics['total_duration_ms'] = round((time.time() - total_start_time) * 1000)
             return {
                 "success": True, 
-                "ideas": "Non ho ancora trovato tuoi contenuti da analizzare. Carica qualche video, documento o articolo e poi chiedimi di nuovo delle idee!"
+                "ideas": "Non ho ancora trovato tuoi contenuti da analizzare. Carica qualche video, documento o articolo e poi chiedimi di nuovo delle idee!",
+                "performance_metrics": performance_metrics
             }
 
         # 2. Prepara il prompt per l'LLM con il tuo incipit
         context_for_prompt = "\n\n---\n\n".join(content_samples)
         
-        # La chiave API è già stata determinata sopra (user_specifica o default)
         if llm_provider == 'google' and not llm_api_key:
             raise ValueError("GOOGLE_API_KEY non configurata o mancante per l'utente.")
         
         if llm_provider == 'google':
-            genai.configure(api_key=llm_api_key) # Configura con la chiave specifica
-        # Se è Ollama, la configurazione di genai non serve
+            genai.configure(api_key=llm_api_key)
 
         prompt = f"""
         Fai il content strategist, come ad esempio Riccardo Belleggia: un partner creativo per imprenditori, proprietari e creator.
@@ -143,14 +154,16 @@ def _generate_content_ideas_core(user_id, config):
         last_error = None
         successful_model = "N/D"
 
-        # --- CICLO DI FALLBACK PER LA GENERAZIONE (ORA RISPETTA IL PROVIDER) ---
+        # --- FASE 2: GENERAZIONE LLM (con misurazione) ---
+        start_generation_time = time.time()
+        
         if llm_provider == 'ollama':
             ollama_model = models_to_try[0] if models_to_try else None
             if not ollama_base_url or not ollama_model:
                 raise RuntimeError("Impostazioni Ollama (URL o nome modello) non configurate per l'utente.")
             try:
-                # Chiamata a Ollama (assumendo _get_ollama_completion può essere usato qui)
-                from app.api.routes.search import _get_ollama_completion # Import dinamico per evitare dipendenze circolari
+                # Chiamata a Ollama
+                
                 generated_ideas = _get_ollama_completion(prompt, ollama_base_url, ollama_model)
                 successful_model = ollama_model
                 logger.info(f"Idee generate con successo da Ollama con il modello {ollama_model}.")
@@ -168,7 +181,7 @@ def _generate_content_ideas_core(user_id, config):
                         successful_model = model_name
                         logger.info(f"Idee generate con successo dal modello Google {model_name}.")
                         break
-                    except ValueError: # Bloccato da safety settings
+                    except ValueError:
                         block_reason_obj = getattr(getattr(response, 'prompt_feedback', None), 'block_reason', None)
                         block_reason_name = getattr(block_reason_obj, 'name', 'UNKNOWN_REASON')
                         logger.warning(f"Generazione idee bloccata dal modello Google {model_name} per motivo: {block_reason_name}. Tento con il prossimo.")
@@ -184,18 +197,27 @@ def _generate_content_ideas_core(user_id, config):
                     logger.error(f"Errore inatteso durante la generazione con {model_name}: {e_gen}", exc_info=True)
                     break
 
+        performance_metrics['llm_generation_duration_ms'] = round((time.time() - start_generation_time) * 1000)
+        performance_metrics['llm_model_used'] = successful_model
+        logger.info(f"Generazione LLM per idee completata in {performance_metrics['llm_generation_duration_ms']}ms.")
+
+        # --- AGGIUNTA FINALE DELLE METRICHE ALLA RISPOSTA ---
+        performance_metrics['total_duration_ms'] = round((time.time() - total_start_time) * 1000)
+
         if generated_ideas:
-            return {"success": True, "ideas": generated_ideas, "model_used": successful_model}
+            return {"success": True, "ideas": generated_ideas, "model_used": successful_model, "performance_metrics": performance_metrics}
         else:
             error_message = "Impossibile generare idee dopo aver provato tutti i modelli disponibili."
             if last_error:
                 error_message += f" Errore finale: {last_error}"
-            return {"success": False, "error": error_message}
+            return {"success": False, "error": error_message, "performance_metrics": performance_metrics}
 
 
     except Exception as e:
         logger.error(f"Errore critico in _generate_content_ideas_core per l'utente {user_id}: {e}", exc_info=True)
-        return {"success": False, "error": f"Si è verificato un errore critico: {e}"}
+        # Aggiungiamo le performance anche in caso di errore
+        performance_metrics['total_duration_ms'] = round((time.time() - total_start_time) * 1000)
+        return {"success": False, "error": f"Si è verificato un errore critico: {e}", "performance_metrics": performance_metrics}
     finally:
         if conn:
             conn.close()
