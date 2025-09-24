@@ -16,23 +16,30 @@ def settings_page():
     if request.method == 'POST':
         provider = request.form.get('llm_provider')
         
-        # Unifichiamo la logica per il nome del modello
+         # 1. Gestione del MODELLO DI GENERAZIONE
         combined_models = ""
-        if provider == 'google':
+        if provider == 'google' or provider == 'groq':
             primary_model = request.form.get('llm_model_name_primary', '').strip()
             fallback_model = request.form.get('llm_model_name_fallback', '').strip()
             model_list = [model for model in [primary_model, fallback_model] if model]
             combined_models = ",".join(model_list)
         elif provider == 'ollama':
-            # Per ollama, usiamo un solo campo che viene salvato nella stessa colonna
             combined_models = request.form.get('ollama_model_name', '').strip()
 
+        # 2. Gestione del MODELLO DI EMBEDDING (LA CORREZIONE È QUI)
+        embedding_model_to_save = ""
+        if provider == 'ollama':
+            embedding_model_to_save = request.form.get('ollama_embedding_model')
+        else: # Per Google e Groq, che usano lo stesso campo
+            embedding_model_to_save = request.form.get('llm_embedding_model')
+
+        # 3. Raccolta di tutti i dati da salvare
         settings_to_save = {
             'llm_provider': provider,
             'llm_model_name': combined_models,
-            'llm_embedding_model': request.form.get('llm_embedding_model'),
+            'llm_embedding_model': embedding_model_to_save,
             'llm_api_key': request.form.get('llm_api_key'),
-            'ollama_base_url': request.form.get('ollama_base_url'), # <-- NUOVA RIGA
+            'ollama_base_url': request.form.get('ollama_base_url'),
             'wordpress_url': request.form.get('wordpress_url'),
             'wordpress_username': request.form.get('wordpress_username'),
             'wordpress_api_key': request.form.get('wordpress_api_key')
@@ -42,6 +49,7 @@ def settings_page():
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
+            # La query SQL rimane identica, perché i dati sono già stati preparati correttamente
             cursor.execute("""
                 INSERT INTO user_settings (user_id, llm_provider, llm_model_name, llm_embedding_model, llm_api_key, ollama_base_url, wordpress_url, wordpress_username, wordpress_api_key)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -59,7 +67,7 @@ def settings_page():
                   settings_to_save['llm_model_name'], 
                   settings_to_save['llm_embedding_model'], 
                   settings_to_save['llm_api_key'],
-                  settings_to_save['ollama_base_url'], # <-- NUOVA RIGA
+                  settings_to_save['ollama_base_url'],
                   settings_to_save['wordpress_url'],
                   settings_to_save['wordpress_username'],
                   settings_to_save['wordpress_api_key']))

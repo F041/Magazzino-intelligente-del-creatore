@@ -11,6 +11,10 @@ import time
 import jwt
 import cohere
 import requests
+from groq import Groq
+from app.services.embedding.embedding_service import generate_embeddings
+
+  
 
 try:
     from app.services.embedding.gemini_embedding import get_gemini_embeddings, TASK_TYPE_QUERY
@@ -113,6 +117,25 @@ def _get_ollama_completion(prompt: str, base_url: str, model_name: str) -> str:
         logger.error(f"Errore imprevisto durante la comunicazione con Ollama: {e}", exc_info=True)
         raise
 
+def _get_ollama_embedding(text: str, base_url: str, model_name: str) -> Optional[List[float]]:
+    """Genera un embedding per un singolo testo usando un'API Ollama."""
+    if not base_url.endswith('/'):
+        base_url += '/'
+    api_url = f"{base_url}api/embeddings"
+    payload = {"model": model_name, "prompt": text}
+    logger.info(f"Invio richiesta di embedding a Ollama: URL={api_url}, Modello={model_name}")
+    try:
+        response = requests.post(api_url, json=payload, timeout=60)
+        response.raise_for_status()
+        response_data = response.json()
+        return response_data.get("embedding")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Errore di connessione a Ollama per embedding ({api_url}): {e}")
+        raise RuntimeError(f"Impossibile connettersi a Ollama per l'embedding.")
+    except Exception as e:
+        logger.error(f"Errore imprevisto durante l'embedding con Ollama: {e}", exc_info=True)
+        return None
+
 def build_prompt(query: str, context_chunks: List[Dict], history: Optional[List[Dict]] = None, llm_provider: str = 'google') -> str:
     """
     Costruisce il prompt per l'LLM, scegliendo il template più adatto
@@ -176,6 +199,7 @@ Risposta:"""
     if llm_provider == 'ollama':
         logger.info("Costruzione prompt per provider OLLAMA.")
         return ollama_simple_prompt
+    
     else:
         logger.info("Costruzione prompt per provider default.")
         return google_gemini_prompt
@@ -193,6 +217,15 @@ def handle_search_request(*args, **kwargs):
         performance_metrics = {}
         total_start_time = time.time() # Avviamo il cronometro generale
         query_text_internal = "N/D"
+
+        # Definiamo qui le variabili che ci servono dopo
+        chroma_client = current_app.config.get('CHROMA_CLIENT')
+        base_names = {
+            "VIDEO": current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts'),
+            "DOCUMENT": current_app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content'),
+            "ARTICLE": current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content'),
+            "PAGE": "page_content"
+        }
 
         try:
             # ... (la validazione iniziale della richiesta rimane invariata)
@@ -214,7 +247,7 @@ def handle_search_request(*args, **kwargs):
                     source = 'telegram'
                 elif current_user.is_authenticated:
                     source = 'web_chat'
-                if source != 'unknown':
+                if source not in ['unknown', 'web_chat']:
                     log_conn = None
                     try:
                         db_path_for_log = current_app.config.get('DATABASE_FILE')
@@ -229,6 +262,8 @@ def handle_search_request(*args, **kwargs):
                     finally:
                         if log_conn:
                             log_conn.close()
+                else:
+                    logger.info(f"Domanda da '{source}' non registrata nel log come da impostazione.")
 
             # --- LOGICA DI DEBUG DETTAGLIATA PER n_results ---
             # 1. Valore di default dalla configurazione dell'app
@@ -297,24 +332,29 @@ def handle_search_request(*args, **kwargs):
             
             # --- FASE 1: EMBEDDING (con misurazione) ---
             start_embedding_time = time.time()
-            query_embedding_list = get_gemini_embeddings([query_text_internal], api_key=llm_api_key, model_name=embedding_model, task_type=TASK_TYPE_QUERY)
+
+            # Raccogliamo le impostazioni dell'utente in un dizionario pulito
+            user_settings_for_embedding = {
+                'llm_provider': llm_provider,
+                'llm_embedding_model': embedding_model,
+                'ollama_base_url': ollama_base_url,
+                'llm_api_key': llm_api_key
+            }
+            
+            # Chiamiamo il nostro nuovo servizio centralizzato
+            query_embedding_list = generate_embeddings(
+                texts=[query_text_internal], 
+                user_settings=user_settings_for_embedding, 
+                task_type=TASK_TYPE_QUERY
+            )
+
             performance_metrics['embedding_duration_ms'] = round((time.time() - start_embedding_time) * 1000)
+            
             if not query_embedding_list or not query_embedding_list[0]:
                 raise RuntimeError("Fallimento generazione embedding per la query.")
+            
             query_embedding = query_embedding_list[0]
             logger.info(f"Embedding query generato in {performance_metrics['embedding_duration_ms']}ms.")
-            
-            chroma_client = current_app.config.get('CHROMA_CLIENT')
-            if not chroma_client: raise RuntimeError("Client ChromaDB non inizializzato")
-            
-            base_names = {
-                "VIDEO": current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts'),
-                "DOCUMENT": current_app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content'),
-                "ARTICLE": current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content'),
-                "PAGE": "page_content"
-            }
-
-            logger.info(f"DEBUG VALORE n_results: Il valore usato per la query a ChromaDB e': {n_results}")
 
             # --- FASE 2: RICERCA VETTORIALE (con misurazione) ---
             start_retrieval_time = time.time()
@@ -398,6 +438,34 @@ def handle_search_request(*args, **kwargs):
                     logger.info("Risposta generata con successo da Ollama.")
                 except Exception as e:
                     last_error = e
+            elif llm_provider == 'groq':
+                logger.info("Tentativo di generazione risposta con GROQ.")
+                if not llm_api_key or not models_to_try:
+                    raise RuntimeError("API Key o nome modello di Groq non configurati.")
+                
+                try:
+                    client = Groq(api_key=llm_api_key)
+                    model_name = models_to_try[0] # Groq usa un modello alla volta
+                    chat_completion = client.chat.completions.create(
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "Sei un assistente AI. Rispondi basandoti SOLO sul contesto fornito. Se la risposta non è nel contesto, rispondi esattamente: 'Le informazioni disponibili non contengono una risposta diretta a questa specifica domanda.'"
+                            },
+                            {
+                                "role": "user",
+                                "content": prompt 
+                            }
+                        ],
+                        model=model_name,
+                    )
+                    llm_answer = chat_completion.choices[0].message.content
+                    llm_success = True
+                    successful_model = model_name
+                    logger.info(f"Risposta generata con successo da Groq con il modello {model_name}.")
+                except Exception as e:
+                    last_error = e
+                    logger.error(f"Errore durante la comunicazione con Groq: {e}", exc_info=True)
             else:
                 logger.info("Tentativo di generazione risposta con GOOGLE GEMINI.")
                 if not models_to_try:

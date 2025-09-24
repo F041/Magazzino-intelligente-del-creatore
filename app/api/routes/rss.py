@@ -18,6 +18,8 @@ import textstat
 import copy
 import logging 
 import io
+from app.services.embedding.embedding_service import generate_embeddings
+from app.utils import build_full_config_for_background_process
 
 try:
     from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
@@ -208,7 +210,8 @@ def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[
                  final_status = 'completed'
             else:
                 logger.info(f"[_index_article][{article_id}] Creati {len(chunks)} chunk.")
-                embeddings = get_gemini_embeddings(chunks, api_key=llm_api_key, model_name=embedding_model, task_type=TASK_TYPE_DOCUMENT)
+                # Passiamo l'intero core_config, che contiene già tutte le impostazioni necessarie
+                embeddings = generate_embeddings(chunks, user_settings=core_config, task_type=TASK_TYPE_DOCUMENT)
                 if not embeddings or len(embeddings) != len(chunks):
                     logger.error(f"[_index_article][{article_id}] Fallimento generazione embedding.")
                     final_status = 'failed_embedding'
@@ -477,20 +480,7 @@ def _background_rss_processing(app_context, initial_feed_url: str, user_id: Opti
 
     with app_context: # Esegui nel contesto app
         try:
-            # === COSTRUISCI IL DIZIONARIO core_config QUI ===
-            # Simile a come fatto in scheduler_jobs.py e videos.py
-            core_config_dict = {
-                'APP_MODE': current_app.config.get('APP_MODE', 'single'),
-                'DATABASE_FILE': current_app.config.get('DATABASE_FILE'),
-                'ARTICLES_FOLDER_PATH': current_app.config.get('ARTICLES_FOLDER_PATH'),
-                'GOOGLE_API_KEY': current_app.config.get('GOOGLE_API_KEY'), # Per embedding
-                'GEMINI_EMBEDDING_MODEL': current_app.config.get('GEMINI_EMBEDDING_MODEL'),
-                'DEFAULT_CHUNK_SIZE_WORDS': current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS'),
-                'DEFAULT_CHUNK_OVERLAP_WORDS': current_app.config.get('DEFAULT_CHUNK_OVERLAP_WORDS'),
-                'CHROMA_CLIENT': current_app.config.get('CHROMA_CLIENT'),
-                'ARTICLE_COLLECTION_NAME': current_app.config.get('ARTICLE_COLLECTION_NAME'),
-                # Aggiungi altre chiavi se _process_rss_feed_core o _index_article ne richiedono altre
-            }
+            core_config_dict = build_full_config_for_background_process(user_id)
             # Verifica che i valori essenziali non siano None (opzionale ma buona pratica)
             required_keys_rss = ['DATABASE_FILE', 'ARTICLES_FOLDER_PATH', 'GOOGLE_API_KEY', 'CHROMA_CLIENT']
             missing_keys_rss = [k for k in required_keys_rss if not core_config_dict.get(k)]

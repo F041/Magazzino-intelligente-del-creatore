@@ -11,6 +11,17 @@
     <h1>Stato del sistema</h1>
     <p>Questo è il cruscotto tecnico del tuo Magazzino. Qui puoi monitorare le risorse utilizzate e lo stato dei processi automatici.</p>
 
+    {% if stats_data.version_status %}
+    <div class="stat-card" style="margin-top: 20px;">
+        <div class="metrics-row">
+            <span class="metric-label">Versione software: </span>
+            <span class="metric-value" style="font-size: 1.1rem; color: var(--color-text-main); font-family: monospace;">
+                {{ stats_data.version_status.version | safe }}
+            </span>
+        </div>
+    </div>
+    {% endif %}
+
     {% if stats_data.error %}
         <div class="error-message">{{ stats_data.error }}</div>
     {% else %}

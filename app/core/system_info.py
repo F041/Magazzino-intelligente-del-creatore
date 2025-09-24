@@ -74,6 +74,23 @@ def get_system_stats():
         
         final_stats['ram_status'] = ram_stats
 
+        version_stats = {
+            'version': 'sviluppo locale' # Valore di default
+        }
+        try:
+            # Il percorso del file di versione all'interno del container
+            version_file_path = os.path.join(current_app.config.get('BASE_DIR', '/app'), 'version.txt')
+            if os.path.exists(version_file_path):
+                with open(version_file_path, 'r') as f:
+                    version_hash = f.read().strip()
+                    # Aggiungiamo un link diretto al commit su GitHub per comodità
+                    version_stats['version'] = f'<a href="https://github.com/F041/Magazzino-intelligente-del-creatore/commit/{version_hash}" target="_blank" rel="noopener noreferrer">{version_hash}</a>'
+        except Exception as e:
+            logger.warning(f"Impossibile leggere il file di versione: {e}")
+            version_stats['version'] = 'Sconosciuta' # Errore in lettura
+        
+        final_stats['version_status'] = version_stats
+
   
 
         if os.path.exists(db_path):

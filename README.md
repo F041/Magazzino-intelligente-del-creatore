@@ -470,6 +470,10 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   **Attenzione: File .env non trovato in /app all'interno dei log del container**
     *   vedi sezione "Configura il File d'Ambiente (`.env`)" sopra
 
+*   **Attuale implementazione si basa su SQLite**
+    *   SQLite gestisce le operazioni di scrittura in modo sequenziale (una alla volta). In scenari con un'alta concorrenza - ad esempio, 3 o più utenti che avviano processi di indicizzazione contemporaneamente, o uno scheduler che scrive mentre un utente carica un documento - si potrebbero verificare errori di database is locked.
+    *   PostgreSQL risolve questo problema
+
 
 ## TODO e Prossimi Passi
 

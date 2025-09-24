@@ -57,6 +57,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const options = optionsList.querySelectorAll("div[data-value]");
         const hiddenInput = document.getElementById("llm_provider");
         const googleSettings = document.getElementById("google-settings-group");
+        const groqSettings = document.getElementById("groq-settings-group");
         const ollamaSettings = document.getElementById("ollama-settings-group");
         const resetBtn = document.getElementById("reset-ai-settings-btn");
 
@@ -76,6 +77,10 @@ document.addEventListener("DOMContentLoaded", function () {
           if (googleSettings) {
             googleSettings.classList.toggle("visible", selectedProvider === "google");
             googleSettings.classList.toggle("hidden", selectedProvider !== "google");
+          }
+          if (groqSettings) {
+          groqSettings.classList.toggle("visible", selectedProvider === "groq");
+          groqSettings.classList.toggle("hidden", selectedProvider !== "groq");
           }
           if (ollamaSettings) {
             ollamaSettings.classList.toggle("visible", selectedProvider === "ollama");
@@ -161,40 +166,52 @@ document.addEventListener("DOMContentLoaded", function () {
           }
         }
       }
-      syncBtn.addEventListener("click", async () => {
-        const userConfirmed = await showConfirmModal(
-          "Conferma sincronizzazione",
-          "Assicurati di aver salvato le impostazioni... Vuoi avviare la sincronizzazione?"
-        );
-        if (!userConfirmed) return;
-        syncBtn.disabled = true;
-        syncBtn.innerHTML =
-          '<i class="fas fa-spinner fa-spin"></i> <span>Sincronizzazione...</span>';
-        syncMessageDiv.className = "info-message";
-        syncMessageDiv.textContent = "Avvio operazione...";
-        syncMessageDiv.style.display = "block";
+  syncBtn.addEventListener("click", async () => {
+    const userConfirmed = await showConfirmModal(
+      "Conferma sincronizzazione",
+      "Assicurati di aver salvato le impostazioni. L'operazione potrebbe richiedere alcuni minuti. Vuoi avviare la sincronizzazione?"
+    );
+    if (!userConfirmed) return;
+
+    // --- INIZIO LOGICA MODIFICATA ---
+    
+    // 1. Avvia la richiesta per far partire il processo in background
+    try {
+        const response = await fetch("/api/website/wordpress/sync", {
+            method: "POST"
+        });
+        const data = await response.json();
+        if (!response.ok) { // Se la richiesta di avvio fallisce, mostra l'errore e fermati
+            throw new Error(data.message || "Impossibile avviare il processo di sincronizzazione.");
+        }
+
+        // 2. Se l'avvio è andato a buon fine (202 Accepted), DELEGA tutto al sistema avanzato
+        // La funzione globale window.startAsyncTask è definita in base.html
+        window.startAsyncTask('/api/website/wordpress/progress', {
+            messageDiv: syncMessageDiv,
+            button: syncBtn,
+            buttonOriginalHTML: syncBtnOriginalHTML,
+            onSuccess: () => {
+                // Attendi un istante per far leggere il messaggio finale,
+                // poi ricarica la pagina all'ancora corretta.
+                setTimeout(() => {
+                    window.location.href = window.location.pathname + '#sito-web';
+                    window.location.reload();
+                }, 1500);
+            }
+        });
+
+    } catch (error) {
+        syncMessageDiv.className = "error-message";
+        syncMessageDiv.textContent = `Errore: ${error.message}`;
+        syncBtn.disabled = false;
+        syncBtn.innerHTML = syncBtnOriginalHTML;
         if (typeof window.setAppStatus === "function") {
-          window.setAppStatus("processing");
-        }
-        try {
-          const response = await fetch("/api/website/wordpress/sync", {
-            method: "POST",
-          });
-          const data = await response.json();
-          if (!response.ok)
-            throw new Error(data.message || "Errore del server");
-          if (pollingInterval) clearInterval(pollingInterval);
-          pollingInterval = setInterval(checkWpProgress, 1500);
-        } catch (error) {
-          syncMessageDiv.className = "error-message";
-          syncMessageDiv.textContent = `Errore: ${error.message}`;
-          syncBtn.disabled = false;
-          syncBtn.innerHTML = syncBtnOriginalHTML;
-          if (typeof window.setAppStatus === "function") {
             window.setAppStatus("ready");
-          }
         }
-      });
+    }
+    // --- FINE LOGICA MODIFICATA ---
+  });
     }
 
     // --- LOGICA PER IL TEST DI CONNESSIONE OLLAMA ---

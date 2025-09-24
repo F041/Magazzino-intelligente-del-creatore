@@ -38,7 +38,7 @@ def test_search_api_success(client, app, monkeypatch):
     mock_llm_answer = "Questa è la risposta finale generata dall'LLM."
 
     # Definiamo i path di TUTTE le funzioni e classi che dobbiamo "ingannare"
-    path_get_embeddings = 'app.api.routes.search.get_gemini_embeddings'
+    path_generate_embeddings = 'app.api.routes.search.generate_embeddings'
     path_cohere_client = 'app.api.routes.search.cohere.Client'
     path_genai_model = 'app.api.routes.search.genai.GenerativeModel'
     
@@ -49,7 +49,7 @@ def test_search_api_success(client, app, monkeypatch):
     mock_chroma_client.get_collection.return_value = mock_chroma_collection
 
     # Usiamo un unico blocco 'with' per gestire tutti i nostri "attori"
-    with patch(path_get_embeddings, return_value=[mock_query_embedding]) as mock_embed, \
+    with patch(path_generate_embeddings, return_value=[mock_query_embedding]) as mock_embed, \
          patch(path_cohere_client) as MockCohereClient, \
          patch(path_genai_model) as MockGenerativeModel, \
          patch.dict(app.config, {'CHROMA_CLIENT': mock_chroma_client}):

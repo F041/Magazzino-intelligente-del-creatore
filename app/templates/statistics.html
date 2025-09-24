@@ -105,7 +105,7 @@
 
     {# --- SEZIONE 2: Scheda Log domande --- #}
     <div class="stat-card">
-        <h3><i class="fas fa-question-circle fa-fw"></i> Log Domande ({{ stats_data.query_logs.total_queries if stats_data.query_logs else 0 }})</h3>
+        <h3><i class="fas fa-question-circle fa-fw"></i> Log domande ({{ stats_data.query_logs.total_queries if stats_data.query_logs else 0 }})</h3>
         
         {% if stats_data.query_logs and stats_data.query_logs.total_queries > 0 %}
             
@@ -119,15 +119,12 @@
             <div class="metrics-container" style="margin-top: var(--spacing-xl);">
                 <div class="metric-item">
                     <div class="value">{{ stats_data.query_logs.source_counts.get('telegram', 0) }}</div>
-                    <div class="label">da Telegram</div>
+                    <div class="label">da telegram</div>
                 </div>
-                <div class="metric-item">
-                    <div class="value">{{ stats_data.query_logs.source_counts.get('web_chat', 0) }}</div>
-                    <div class="label">da Chat Web</div>
-                </div>
+
                 <div class="metric-item">
                     <div class="value">{{ stats_data.query_logs.source_counts.get('widget_chat', 0) }}</div>
-                    <div class="label">da Widget</div>
+                    <div class="label">da widget</div>
                 </div>
             </div>
 

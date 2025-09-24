@@ -26,6 +26,7 @@ wheels/
 
 # Credentials and Environment Variables
 .env
+.env.test
 client_secrets.json
 *.pem
 *.key
@@ -69,3 +70,4 @@ test_embed.html
 
 GRAPHICAL_IMPROVEMENT_PLAN.md
 webAppDesignDocument.md
+docker-compose.test.yml

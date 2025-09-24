@@ -14,6 +14,9 @@ from pypdf import PdfReader
 # from markdownify import markdownify as md
 # Opzionale, se estraiamo HTML e vogliamo MD
 from google.api_core import exceptions as google_exceptions
+from app.services.embedding.embedding_service import generate_embeddings
+
+  
 
 try:
     from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
@@ -156,7 +159,8 @@ def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str
                  final_status = 'completed'
              else:
                  logger.info(f"[_index_document][{doc_id}] Creati {len(chunks)} chunk.")
-                 embeddings = get_gemini_embeddings(chunks, api_key=llm_api_key, model_name=embedding_model, task_type=TASK_TYPE_DOCUMENT)
+                 user_settings_for_embedding = {'llm_provider': 'google', 'llm_api_key': llm_api_key, 'llm_embedding_model': embedding_model}
+                 embeddings = generate_embeddings(chunks, user_settings=user_settings_for_embedding, task_type=TASK_TYPE_DOCUMENT)
                  if not embeddings or len(embeddings) != len(chunks):
                      logger.error(f"[_index_document][{doc_id}] Fallimento generazione embedding.")
                      final_status = 'failed_embedding'

@@ -46,7 +46,7 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
     path_youtube_client = 'app.api.routes.videos.YouTubeClient'
     path_transcript_service = 'app.api.routes.videos.TranscriptService.get_transcript'
     path_split_chunks = 'app.api.routes.videos.split_text_into_chunks'
-    path_get_embeddings = 'app.api.routes.videos.get_gemini_embeddings'
+    path_generate_embeddings = 'app.api.routes.videos.generate_embeddings'
     
     mock_valid_credentials = MagicMock()
     mock_valid_credentials.valid = True
@@ -59,7 +59,7 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
          patch(path_youtube_client, MagicMock()), \
          patch(path_transcript_service, return_value=mock_transcript_result), \
          patch(path_split_chunks, return_value=mock_chunks), \
-         patch(path_get_embeddings, return_value=mock_embeddings), \
+         patch(path_generate_embeddings, return_value=mock_embeddings), \
          patch.dict(app.config, {'CHROMA_CLIENT': mock_chroma_client}):
         
         # --- LA CORREZIONE DEFINITIVA E' QUI ---

@@ -9,21 +9,31 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
+# Installa git, che ci serve per scrivere la versione.
+# apt-get update aggiorna la lista dei pacchetti
+# --no-install-recommends installa solo il minimo indispensabile
+# apt-get clean e rm -rf /var/lib/apt/lists/* puliscono per mantenere l'immagine leggera
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copia prima il file requirements.txt, la "ricetta"
 COPY requirements.txt .
 
 # Installa le dipendenze Python direttamente nell'immagine runtime
-
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     echo "Tentativo rimozione dipendenze pesanti post-installazione (versione 2)..." && \
-    # Rimuoviamo onnxruntime, sympy, huggingface, hf-xet, kubernetes, fastapi, uvicorn, typer, rich
-    # MA LASCIAMO opentelemetry e le sue sotto-dipendenze perché sembrano necessarie per l'import di chromadb
     pip uninstall -y onnxruntime sympy huggingface-hub hf-xet kubernetes fastapi uvicorn typer rich && \
     rm -rf /root/.cache/pip
 
 # Copia il resto dell'applicazione
 COPY . .
+
+# Scrive l'hash del commit Git in un file per il versioning.
+# Questo deve stare DOPO "COPY . ." per avere accesso alla cartella .git
+RUN git rev-parse --short HEAD > version.txt
 
 ENV FLASK_RUN_PORT 5000
 ENV FLASK_RUN_HOST 0.0.0.0

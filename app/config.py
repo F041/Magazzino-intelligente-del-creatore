@@ -8,24 +8,26 @@ logger = logging.getLogger(__name__)
 app_dir = os.path.abspath(os.path.dirname(__file__))
 basedir = os.path.dirname(app_dir)
 
-# Proviamo a caricare .env da più percorsi, se presente.
-candidates = [
-    os.path.join(basedir, '.env'),        # /app/.env (root del progetto dentro container)
-    os.path.join(os.getcwd(), '.env'),    # working directory corrente
-    '/app/.env'                           # percorso esplicito comune in container
-]
+# Controlliamo se stiamo girando in un ambiente di test (impostato da pytest o da una var d'ambiente)
+# Gunicorn, con env_file, imposterà FLASK_ENV=development dal nostro .env.test
+# Pytest imposta TESTING=True.
 
-_loaded = False
-for p in candidates:
-    if p and os.path.exists(p):
-        load_dotenv(p)
-        logger.info(f"Caricate variabili d'ambiente da: {p}")
-        _loaded = True
-        break
+# Prima, determiniamo quale file .env caricare.
+# Se esiste un .env.test, diamo a quello la priorità assoluta.
+test_env_path = os.path.join(basedir, '.env.test')
+default_env_path = os.path.join(basedir, '.env')
 
-if not _loaded:
-    # Non falliamo: Docker può aver già iniettato le variabili via env_file o environment.
-    logger.debug(f"File .env non trovato in nessuno dei percorsi: {candidates} — proseguo usando le variabili d'ambiente esistenti.")
+dotenv_path_to_load = None
+if os.path.exists(test_env_path):
+    dotenv_path_to_load = test_env_path
+elif os.path.exists(default_env_path):
+    dotenv_path_to_load = default_env_path
+
+if dotenv_path_to_load:
+    load_dotenv(dotenv_path_to_load)
+    logger.info(f"VARIABILI D'AMBIENTE CARICATE DA: {dotenv_path_to_load}")
+else:
+    logger.warning(f"Nessun file .env o .env.test trovato in {basedir}. L'applicazione si affiderà solo alle variabili d'ambiente di sistema.")
 
 
 class BaseConfig:

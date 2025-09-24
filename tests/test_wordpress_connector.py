@@ -26,7 +26,7 @@ def setup_wordpress_user(client, app, email="wp_user_unique@example.com", passwo
         conn.close()
     return user_id
 
-# Il nostro test principale, ora super-veloce
+# Il nostro test principale
 def test_wordpress_sync_logic(client, app, monkeypatch):
     """
     Testa la logica di sincronizzazione di WordPress, mockando TUTTE le dipendenze lente.
@@ -38,8 +38,17 @@ def test_wordpress_sync_logic(client, app, monkeypatch):
     user_id = setup_wordpress_user(client, app, email=email_per_il_test)
     assert user_id is not None, "La preparazione dell'utente di test è fallita."
 
-    mock_wp_posts = [{'id': 1, 'link': 'https://fakesite.com/post1', 'title': {'rendered': 'Articolo di Test 1'}, 'content': {'rendered': '<p>Contenuto articolo 1</p>'}, 'modified_gmt': '2023-01-01T10:00:00'}]
-    mock_wp_pages = [{'id': 101, 'link': 'https://fakesite.com/pagina1', 'title': {'rendered': 'Pagina di Test 1'}, 'content': {'rendered': '<h1>Contenuto pagina 1</h1>'}, 'modified_gmt': '2023-01-02T11:00:00'}]
+    mock_wp_posts = [{'id': 1, 'link': 'https://fakesite.com/post1', 'title': {'rendered': 'Articolo di Test 1'}, 'content': {'rendered': '<p>Questo è un articolo di test abbastanza lungo da superare la soglia minima di parole. Serve a verificare che la logica di sincronizzazione di WordPress funzioni correttamente, senza essere filtrato come contenuto troppo breve. Il nostro sistema deve poter processare articoli nuovi e aggiornati, e questa frase serve proprio a questo scopo. Ora dovremmo avere più di 50 parole.</p>'}, 'modified_gmt': '2023-01-01T10:00:00'}]    
+    mock_wp_pages = [{
+        'id': 101,
+        'link': 'https://fakesite.com/pagina1',
+        'title': {'rendered': 'Pagina di Test 1'},
+        'content': {
+            'rendered': '<p>Questo è il contenuto della pagina di test, scritto in modo sufficientemente lungo da superare la soglia minima di parole imposta nel codice. Serve a verificare che la pagina venga indicizzata e non venga scartata perché troppo breve. Contiene frasi aggiuntive per raggiungere il numero di parole richiesto e per simulare un vero contenuto di pagina statico. Include anche altre frasi che servono a testare il comportamento del sync.</p>'
+        },
+        'modified_gmt': '2023-01-02T11:00:00'
+    }]
+
 
     mock_wp_client_instance = MagicMock()
     mock_wp_client_instance.get_all_posts.return_value = mock_wp_posts
@@ -68,7 +77,9 @@ def test_wordpress_sync_logic(client, app, monkeypatch):
                 settings = dict(settings_row)
             conn.close()
 
-            _background_wp_sync_core(app.app_context(), user_id, settings)
+            # Creiamo un finto core_config per il test
+            fake_core_config = {'BASE_DIR': app.config.get('BASE_DIR')}
+            _background_wp_sync_core(app.app_context(), user_id, settings, fake_core_config)
 
         # 3. ASSERT
         # Verifichiamo che le funzioni di indicizzazione siano state CHIAMATE

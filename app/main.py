@@ -816,6 +816,16 @@ def create_app(config_object=AppConfig):
         """
         return render_template('widget_standalone.html')
     
+    @app.route('/privacy-policy')
+    def privacy_policy_page():
+        """Renderizza la pagina della Privacy Policy."""
+        return render_template('legal/privacy_policy.html')
+
+    @app.route('/terms-of-service')
+    def terms_of_service_page():
+        """Renderizza la pagina dei Termini di Servizio."""
+        return render_template('legal/terms_of_service.html')
+    
     @app.route('/personalization', methods=['GET', 'POST'])
     @login_required
     def personalization_page():

@@ -17,10 +17,11 @@ from app.main import create_app
 
 def test_init_db_creates_database_file_after_refactor():
     """
-    Verifica che, anche dopo il refactoring, la creazione dell'app
-    chiami correttamente init_db e crei il file del database.
+    Verifica che la creazione dell'app chiami init_db e crei il file del database,
+    e che la pulizia finale funzioni correttamente.
     """
     test_dir = tempfile.mkdtemp()
+    app = None # Definiamo app qui fuori dal try per averla nel finally
     
     try:
         # 1. Configura
@@ -39,12 +40,17 @@ def test_init_db_creates_database_file_after_refactor():
         assert test_dir in db_path 
         assert os.path.exists(db_path)
         
-        # 4. Aggiungi la logica di spegnimento di ChromaDB PRIMA della pulizia
-        chroma_client = app.config.get('CHROMA_CLIENT')
-        if chroma_client and hasattr(chroma_client, '_system') and hasattr(chroma_client._system, 'stop'):
-            chroma_client._system.stop()
-
     finally:
-        # 5. La pulizia ora avviene nel blocco finally, garantendo che venga eseguita
-        #    anche se le asserzioni falliscono, e dopo lo stop di ChromaDB.
-        shutil.rmtree(test_dir)
+        # --- BLOCCO DI PULIZIA MIGLIORATO ---
+        # 4. Spegni ChromaDB PRIMA della pulizia, se l'app è stata creata
+        if app:
+            chroma_client = app.config.get('CHROMA_CLIENT')
+            if chroma_client and hasattr(chroma_client, '_system') and hasattr(chroma_client._system, 'stop'):
+                try:
+                    chroma_client._system.stop()
+                except Exception as e:
+                    print(f"Warning: error stopping chroma during teardown: {e}") # Usiamo print qui perché il logger potrebbe essere già stato smantellato
+
+        # 5. La pulizia ora avviene nel blocco finally
+        if os.path.exists(test_dir):
+            shutil.rmtree(test_dir)

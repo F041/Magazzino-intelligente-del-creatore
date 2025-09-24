@@ -385,6 +385,10 @@
 
                     // RIPRISTINA FAVICON
                     if (typeof window.setAppStatus === 'function') window.setAppStatus('ready');
+                    if (uiElements.onSuccess && typeof uiElements.onSuccess === 'function') {
+                    uiElements.onSuccess();
+                }
+                
                 } else {
                     // processo in corso: aggiorniamo lo stato senza innerHTML
                     clearElement(msgDiv);

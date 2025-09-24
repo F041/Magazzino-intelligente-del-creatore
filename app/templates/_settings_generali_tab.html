@@ -14,36 +14,48 @@
 
                 {# Questo è l'elemento visibile che mostra la selezione corrente #}
                 <div class="select-selected">
-                    {% if settings.get('llm_provider') == 'ollama' %} {# HTML per quando Ollama è selezionato #}
-                    <div class="option-content">
-                        <div class="option-main">
-                            <img
-                                src="https://ollama.com/public/ollama.png"
-                                alt="Ollama logo"
-                            />
-                            <span>Ollama (Locale)</span>
+                    {% if settings.get('llm_provider') == 'ollama' %}
+                        {# --- HTML per OLLAMA --- #}
+                        <div class="option-content">
+                            <div class="option-main">
+                                <img src="https://ollama.com/public/ollama.png" alt="Ollama logo" />
+                                <span>Ollama (Locale)</span>
+                            </div>
+                            <div class="option-badges">
+                                <span class="option-badge badge-cost">-Costi</span>
+                                <span class="option-badge badge-privacy">+Riservatezza</span>
+                                <span class="option-badge badge-difficulty">Difficile</span>
+                            </div>
                         </div>
-                        <div class="option-badges">
-                            <span class="option-badge badge-cost">-Costi</span>
-                            <span class="option-badge badge-privacy">+Riservatezza</span>
-                            <span class="option-badge badge-difficulty">Difficile</span>
+                    {% elif settings.get('llm_provider') == 'groq' %}
+                        {# --- HTML per GROQ --- #}
+                        <div class="option-content">
+                            <div class="option-main">
+                                <img src="https://pbs.twimg.com/profile_images/1758638326237495296/DNUq2D2c_400x400.jpg" alt="Groq logo" style="width: 1.2em; height: 1.2em; border-radius: 50%;">
+                                <span>Groq</span>
+                            </div>
+                            <div class="option-badges">
+                                <span class="option-badge badge-easy" style="background-color: #d4edda; color: #155724;">+Veloce</span>
+                            </div>
                         </div>
-                    </div>
-                    {% else %} {# HTML per quando Google è selezionato (default) #}
-                    <div class="option-content">
-                        <div class="option-main">
-                            <i class="fab fa-google"></i>
-                            <span>Google Gemini</span>
+                    {% else %}
+                        {# --- HTML per GOOGLE (DEFAULT) --- #}
+                        <div class="option-content">
+                            <div class="option-main">
+                                <i class="fab fa-google"></i>
+                                <span>Google Gemini</span>
+                            </div>
+                            <div class="option-badges">
+                                <span class="option-badge badge-easy">Facile</span>
+                            </div>
                         </div>
-                        <div class="option-badges">
-                            <span class="option-badge badge-easy">Facile</span>
-                        </div>
-                    </div>
                     {% endif %}
                 </div>
 
                 {# Questa è la lista delle opzioni, nascosta di default #}
                 <div class="select-items select-hide">
+                    
+                    {# --- Opzione Google --- #}
                     <div data-value="google">
                         <div class="option-content">
                             <div class="option-main">
@@ -55,6 +67,25 @@
                             </div>
                         </div>
                     </div>
+
+                    {# --- Opzione Groq --- #}
+                    <div data-value="groq">
+                        <div class="option-content">
+                            <div class="option-main">
+                                <img
+                                    src="https://groq.com/apple-touch-icon.png"
+                                    alt="Groq logo"
+                                    style="width: 1.2em; height: 1.2em; border-radius: 50%;"
+                                />
+                                <span>Groq</span>
+                            </div>
+                            <div class="option-badges">
+                                <span class="option-badge badge-easy" style="background-color: #d4edda; color: #155724;">+Veloce</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# --- Opzione Ollama --- #}
                     <div data-value="ollama">
                         <div class="option-content">
                             <div class="option-main">
@@ -73,6 +104,7 @@
                             </div>
                         </div>
                     </div>
+                
                 </div>
             </div>
         </div>
@@ -193,6 +225,79 @@
             </div>
         </div>
 
+        {# --- INIZIO BLOCCO IMPOSTAZIONI GROQ --- #}
+        <div id="groq-settings-group" class="hidden">
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="llm_model_name_primary">Modello IA primario (per generazione)</label>
+                    <span class="info-tooltip warning-tooltip">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span class="tooltip-text"><strong>Caldamente consigliati:</strong> modelli SOPRA i 20 miliardi di paramentri <code>20b</code>, es <code>llama-3.3-70b-versatile</code>, <code>openai/gpt-oss-120b</code>, <code>qwen/qwen3-32b</code>. Controlla il sito di Groq per la lista completa.</span>
+                    </span>
+                </div>
+                <input
+                    type="text"
+                    id="groq_model_name_primary"
+                    name="llm_model_name_primary"
+                    value="{{ settings.get('llm_model_name_primary', '') }}"
+                    placeholder="Consigliato: openai/gpt-oss-120b"
+                />
+            </div>
+
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="groq_model_name_fallback">Modello di ripiego (opzionale)</label>
+                    {# --- TOOLTIP AGGIUNTO QUI --- #}
+                    <div class="tooltip-group">
+                        <span class="info-tooltip">
+                            <span class="fa-stack">
+                                <i class="fas fa-circle fa-stack-2x"></i>
+                                <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                            </span>
+                            <span class="tooltip-text">
+                                Se il modello primario fallisce, l'applicazione proverà ad usare questo.
+                            </span>
+                        </span>
+                    </div>
+                </div>
+                
+                <input
+                    type="text"
+                    id="groq_model_name_fallback"
+                    name="llm_model_name_fallback"
+                    value="{{ settings.get('llm_model_name_fallback', '') }}"
+                    placeholder="openai/gpt-oss-20b"
+                />
+            </div>
+
+            <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="groq_api_key">Chiave API di Groq</label>
+                                      <div class="tooltip-group">
+                        <span class="info-tooltip">
+                            <span class="fa-stack">
+                                <i class="fas fa-circle fa-stack-2x"></i>
+                                <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                            </span>
+                            <span class="tooltip-text">
+                                La tua "password" per usare il servizio di Intelligenza Artificiale scelto. Viene salvata in modo sicuro.
+                            </span>
+                        </span>
+                        <a
+                            href="https://youtu.be/4dd4Xof9mS0?t=441"
+                            target="_blank"
+                            class="help-video-link"
+                            title="Guarda come trovare la tua API Key di Groq"
+                        >
+                            <i class="fab fa-youtube"></i>
+                        </a>
+                    </div>
+                </div>
+                <input type="password" id="groq_api_key" name="llm_api_key" value="{{ settings.get('llm_api_key') or '' }}" placeholder="Incolla la tua API Key di Groq (gsk_...)" autocomplete="new-password" readonly>
+            </div>
+        </div>
+        {# --- FINE BLOCCO IMPOSTAZIONI GROQ --- #}
+
         {# --- BLOCCO IMPOSTAZIONI OLLAMA (CON TOOLTIP AGGIUNTIVI) --- #}
         <div
             id="ollama-settings-group"
@@ -272,6 +377,36 @@
                     hai scaricato tramite Powershell digitando
                     <code>ollama ps</code>.</small
                 >
+            </div>
+
+                        <div class="form-group">
+                <div class="label-wrapper">
+                    <label for="ollama_embedding_model">Modello per embedding (linguaggio macchina)</label>
+                    <div class="tooltip-group">
+                        <span class="info-tooltip">
+                            <span class="fa-stack">
+                                <i class="fas fa-circle fa-stack-2x"></i>
+                                <i class="fas fa-info fa-stack-1x fa-inverse"></i>
+                            </span>
+                            <span class="tooltip-text">
+                                Opzionale. Se lasciato vuoto, verrà usato il modello di Google <code>embeddinggemma-300m</code>. Se specificato, assicurati di averlo scaricato con <code>ollama pull nome_modello</code>.
+                            </span>
+                        </span>
+                        <span class="info-tooltip warning-tooltip">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span class="tooltip-text">
+                                <strong>Modelli consigliati:</strong> <code>embeddinggemma-300m</code> (molto leggero).
+                            </span>
+                        </span>
+                    </div>
+                </div>
+            <input
+                    type="text"
+                    id="ollama_embedding_model"
+                    name="ollama_embedding_model"
+                    value="{{ settings.get('llm_embedding_model') or '' }}"
+                    placeholder="Es: nomic-embed-text"
+                />
             </div>
 
             <div style="margin-top: 15px">
