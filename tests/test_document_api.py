@@ -28,23 +28,18 @@ def login_and_get_user_id(client, app, monkeypatch, email):
 
 def create_test_document_direct_db(app, user_id_for_doc, original_filename="doc_to_delete.txt", content="contenuto"):
     doc_id = str(__import__('uuid').uuid4())
-    stored_filename_md = f"{doc_id}.md"
-    upload_folder = app.config['UPLOAD_FOLDER_PATH']
-    filepath_md = os.path.join(upload_folder, stored_filename_md)
-    os.makedirs(upload_folder, exist_ok=True)
-    with open(filepath_md, 'w', encoding='utf-8') as f:
-        f.write(content)
-    filesize = os.path.getsize(filepath_md)
+    # Non creiamo più un file, ma inseriamo direttamente il contenuto
     with app.app_context():
         conn = sqlite3.connect(app.config['DATABASE_FILE'])
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO documents (doc_id, original_filename, stored_filename, filepath, filesize, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (doc_id, original_filename, stored_filename_md, filepath_md, filesize, user_id_for_doc, "completed")
+            "INSERT INTO documents (doc_id, original_filename, content, user_id, processing_status) VALUES (?, ?, ?, ?, ?)",
+            (doc_id, original_filename, content, user_id_for_doc, "completed")
         )
         conn.commit()
         conn.close()
-    return doc_id, filepath_md
+    # Restituiamo l'ID del documento e None per il percorso, che non esiste più
+    return doc_id, None
 
 def test_document_upload_success(client, app, monkeypatch):
     login_and_get_user_id(client, app, monkeypatch, email="docupload@example.com")
@@ -65,8 +60,7 @@ def test_document_upload_success(client, app, monkeypatch):
 
 def test_document_delete_success(client, app, monkeypatch):
     user_id = login_and_get_user_id(client, app, monkeypatch, email="delete_doc_user@example.com")
-    doc_id, md_filepath = create_test_document_direct_db(app, user_id)
-    assert os.path.exists(md_filepath)
+    doc_id, _ = create_test_document_direct_db(app, user_id)
 
     # Mock per la COLLEZIONE ChromaDB
     mock_chroma_collection = MagicMock()
@@ -88,7 +82,6 @@ def test_document_delete_success(client, app, monkeypatch):
     assert response.status_code == 200
     data = response.json
     assert data['success'] is True
-    assert not os.path.exists(md_filepath)
 
     # ORA le verifiche funzioneranno, perché stiamo controllando la collezione
     mock_chroma_collection.get.assert_called_once_with(where={"doc_id": doc_id}, include=[])

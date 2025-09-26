@@ -8,39 +8,26 @@ import os
 import textstat
 import hashlib
 import uuid
-import markdownify as md # ho provato ad importare per preservare link nelle pagine, per favorire i contatti, ma ho fallito
-from bs4 import BeautifulSoup # per estrarre solo il testo pulito dal contenuto HTML fornito da WordPress
+import html
+import markdownify as md
+from bs4 import BeautifulSoup
 from typing import Optional 
 from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
 from app.utils import build_full_config_for_background_process
-
-
-# Importiamo il nostro client WordPress
 from app.services.wordpress.client import WordPressClient
 from .rss import _index_article
 
 logger = logging.getLogger(__name__)
 connectors_bp = Blueprint('connectors', __name__)
 
-# --- STATO GLOBALE e LOCK per il Processo di Sincronizzazione WordPress ---
 wp_sync_status = {
-    'is_processing': False,
-    'total_items': 0,
-    'processed_items': 0,
-    'message': '',
-    'error': None,
-    'new_items': 0,     
-    'updated_items': 0,  
-    'skipped_items': 0, 
-    'deleted_items': 0  
+    'is_processing': False, 'total_items': 0, 'processed_items': 0,
+    'message': '', 'error': None, 'new_items': 0, 'updated_items': 0,
+    'skipped_items': 0, 'deleted_items': 0
 }
 wp_sync_lock = threading.Lock()
 
-
-def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None) -> str:
-    """
-    Esegue l'indicizzazione di una pagina (legge contenuto, chunk, embed, Chroma).
-    """
+def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None, core_config: Optional[dict] = None) -> str:
     app_mode = current_app.config.get('APP_MODE', 'single')
     logger.info(f"[_index_page][{page_id}] Avvio indicizzazione reale (Modalità: {app_mode}, UserID: {user_id})")
 
@@ -48,34 +35,27 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
     cursor = conn.cursor()
 
     try:
-        # Recupera configurazione
-        llm_api_key = current_app.config.get('GOOGLE_API_KEY')
-        embedding_model = current_app.config.get('GEMINI_EMBEDDING_MODEL')
-        chunk_size = current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
-        chunk_overlap = current_app.config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
+        config = core_config or current_app.config
+        llm_api_key = config.get('GOOGLE_API_KEY')
+        embedding_model = config.get('GEMINI_EMBEDDING_MODEL')
+        chunk_size = config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
+        chunk_overlap = config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
         base_page_collection_name = "page_content"
-
-        chroma_client = current_app.config.get('CHROMA_CLIENT')
+        chroma_client = config.get('CHROMA_CLIENT')
         if not chroma_client:
             raise RuntimeError("Client ChromaDB non trovato.")
         
         collection_name = f"{base_page_collection_name}_{user_id}" if app_mode == 'saas' else base_page_collection_name
         page_collection = chroma_client.get_or_create_collection(name=collection_name)
         
-        cursor.execute("SELECT extracted_content_path, title, page_url FROM pages WHERE page_id = ?", (page_id,))
+        cursor.execute("SELECT content, title, page_url FROM pages WHERE page_id = ?", (page_id,))
         page_data = cursor.fetchone()
         if not page_data:
             raise FileNotFoundError(f"Pagina con ID {page_id} non trovata nel DB.")
         
-        relative_path_from_db, title, page_url = page_data[0], page_data[1], page_data[2]
-        # Ricostruiamo il percorso completo
-        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
-        content_filepath = os.path.join(base_dir, relative_path_from_db)
+        page_content, title, page_url = page_data[0], page_data[1], page_data[2]
 
-        with open(content_filepath, 'r', encoding='utf-8') as f:
-            page_content = f.read()
-
-        if not page_content.strip():
+        if not page_content or not page_content.strip():
             final_status = 'completed'
         else:
             chunks = split_text_into_chunks(page_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -103,12 +83,9 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
     if final_status == 'completed':
         try:
             stats = { 'word_count': 0, 'gunning_fog': 0 }
-            # Usiamo la variabile 'page_content' che abbiamo già letto
             if 'page_content' in locals() and page_content and page_content.strip():
                 stats['word_count'] = len(page_content.split())
                 stats['gunning_fog'] = textstat.gunning_fog(page_content)
-
-            # Inserisce o aggiorna le statistiche nella tabella cache
             cursor.execute("""
                 INSERT INTO content_stats (content_id, user_id, source_type, word_count, gunning_fog)
                 VALUES (?, ?, ?, ?, ?)
@@ -121,41 +98,28 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
         except Exception as e_stats:
             logger.error(f"[_index_page][{page_id}] Errore durante il calcolo/salvataggio delle statistiche: {e_stats}")
 
-    
     try:
         cursor.execute("UPDATE pages SET processing_status = ? WHERE page_id = ?", (final_status, page_id))
     except sqlite3.Error as db_err:
         logger.error(f"[_index_page][{page_id}] Errore DB: {db_err}")
         return 'failed_db_update'
-
     return final_status
-
 
 def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None):
     """
-    Elimina completamente una pagina: record DB, file di testo e chunk da ChromaDB.
+    Elimina completamente una pagina: record DB e chunk da ChromaDB.
     """
     app_mode = current_app.config.get('APP_MODE', 'single')
     logger.info(f"[_delete_page][{page_id}] Avvio eliminazione permanente (UserID: {user_id}).")
     cursor = conn.cursor()
 
     try:
-        cursor.execute("SELECT extracted_content_path FROM pages WHERE page_id = ? AND user_id = ?", (page_id, user_id))
-        result = cursor.fetchone()
-        if not result:
-            logger.warning(f"[_delete_page][{page_id}] Pagina non trovata nel DB, impossibile eliminare.")
-            return False
-        
-        relative_path_from_db = result[0]
-        # --- CORREZIONE: Ricostruiamo sempre il percorso completo ---
-        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
-        filepath_to_delete = os.path.join(base_dir, relative_path_from_db)
-
-        # ... (il resto della funzione da "Elimina da ChromaDB" in poi rimane identico)
+        # 1. Elimina da ChromaDB
         try:
             chroma_client = current_app.config.get('CHROMA_CLIENT')
             base_page_collection_name = "page_content"
             collection_name = f"{base_page_collection_name}_{user_id}" if app_mode == 'saas' else base_page_collection_name
+            # Usiamo get_collection. Se non esiste, solleverà un'eccezione che gestiremo.
             page_collection = chroma_client.get_collection(name=collection_name)
             
             chunks_to_delete = page_collection.get(where={"page_id": page_id})
@@ -164,16 +128,14 @@ def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Op
                 page_collection.delete(ids=chunk_ids)
                 logger.info(f"[_delete_page][{page_id}] Eliminati {len(chunk_ids)} chunk da ChromaDB.")
         except Exception as e:
-            logger.error(f"[_delete_page][{page_id}] Errore durante eliminazione da ChromaDB (procedo comunque): {e}")
+            # Se la collezione non esiste o c'è un altro errore, lo registriamo ma procediamo.
+            logger.warning(f"[_delete_page][{page_id}] Errore/avviso durante eliminazione da ChromaDB (procedo comunque): {e}")
 
+        # 2. Elimina dal database SQLite
         cursor.execute("DELETE FROM pages WHERE page_id = ? AND user_id = ?", (page_id, user_id))
         if cursor.rowcount == 0:
             logger.warning(f"[_delete_page][{page_id}] Nessuna riga eliminata dal DB (potrebbe essere già stata cancellata).")
         
-        if filepath_to_delete and os.path.exists(filepath_to_delete):
-            os.remove(filepath_to_delete)
-            logger.info(f"[_delete_page][{page_id}] File fisico {filepath_to_delete} eliminato.")
-
         return True
 
     except Exception as e:
@@ -181,41 +143,20 @@ def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Op
         return False
 
 def _calculate_content_hash(content_text: str) -> str:
-    """Calcola l'hash SHA256 di una stringa di testo."""
     return hashlib.sha256(content_text.encode('utf-8')).hexdigest()
 
 def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_config: dict):
-    """
-    Esegue il lavoro pesante: scarica, confronta (con hash), aggiorna, aggiunge E CANCELLA i contenuti di WordPress.
-    """
     global wp_sync_status, wp_sync_lock
     
     with app_context:
         db_path = current_app.config.get('DATABASE_FILE')
-        
-        # --- NUOVO: Rendi i nomi delle cartelle robusti ---
-        articles_folder_base_name = os.path.basename(current_app.config.get('ARTICLES_FOLDER_PATH'))
-        pages_folder_base_name = 'page_content' # Nome della sottocartella per le pagine
-        
-        base_dir = core_config.get('BASE_DIR', os.getcwd())
-        articles_folder = os.path.join(base_dir, 'data', articles_folder_base_name)
-        pages_folder = os.path.join(base_dir, 'data', pages_folder_base_name)
-        
-        os.makedirs(pages_folder, exist_ok=True)
-        os.makedirs(articles_folder, exist_ok=True) # Assicurati che anche la cartella articoli esista
         conn = None
 
         with wp_sync_lock:
             wp_sync_status.update({
-                'is_processing': True, 
-                'message': 'Connessione a WordPress...', 
-                'error': None, 
-                'total_items': 0, 
-                'processed_items': 0,
-                'new_items': 0,
-                'updated_items': 0,
-                'skipped_items': 0,
-                'deleted_items': 0
+                'is_processing': True, 'message': 'Connessione a WordPress...', 'error': None,
+                'total_items': 0, 'processed_items': 0, 'new_items': 0,
+                'updated_items': 0, 'skipped_items': 0, 'deleted_items': 0
             })
             
         try:
@@ -233,10 +174,10 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            # --- FASE 2: CONFRONTO E PULIZIA CONTENUTI ORFANI ---
+            # --- FASE 2: CONFRONTO E PULIZIA ---
             # Pagine
-            cursor.execute("SELECT page_id, page_url, extracted_content_path FROM pages WHERE user_id = ?", (user_id,))
-            pages_in_db = {row['page_url']: {'page_id': row['page_id'], 'filepath': row['extracted_content_path']} for row in cursor.fetchall()}
+            cursor.execute("SELECT page_id, page_url FROM pages WHERE user_id = ?", (user_id,))
+            pages_in_db = {row['page_url']: {'page_id': row['page_id']} for row in cursor.fetchall()}
             urls_from_wp_pages = {page['link'] for page in pages_from_wp}
             pages_to_delete_urls = set(pages_in_db.keys()) - urls_from_wp_pages
             
@@ -246,25 +187,21 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
                 for url in pages_to_delete_urls:
                     page_data_to_delete = pages_in_db[url]
                     page_id_to_delete = page_data_to_delete['page_id']
-                    
-                    with wp_sync_lock: 
-                        wp_sync_status['message'] = f'Eliminazione pagina obsoleta: {url[:50]}...'
-                    
+                    with wp_sync_lock: wp_sync_status['message'] = f'Eliminazione pagina obsoleta: {url[:50]}...'
                     if _delete_page_permanently(page_id_to_delete, conn, user_id):
                         deleted_pages_count += 1
                 conn.commit()
                 with wp_sync_lock: wp_sync_status['deleted_items'] += deleted_pages_count
                 
-            # Articoli (NOTA: La pulizia degli articoli non è ancora implementata con _delete_article_permanently)
+            # Articoli
             cursor.execute("SELECT article_id, article_url FROM articles WHERE user_id = ?", (user_id,))
             articles_in_db = {row['article_url']: row['article_id'] for row in cursor.fetchall()}
             urls_from_wp_posts = {post['link'] for post in posts_from_wp}
             articles_to_delete_urls = set(articles_in_db.keys()) - urls_from_wp_posts
-            
             if articles_to_delete_urls:
                 logger.warning(f"Trovati {len(articles_to_delete_urls)} articoli da eliminare. Funzione di eliminazione non implementata.")
             
-            # --- FASE 3: AGGIUNTA E AGGIORNAMENTO (LOGICA UNIFICATA E CORRETTA) ---
+            # --- FASE 3: AGGIUNTA E AGGIORNAMENTO ---
             all_items = [('post', item) for item in posts_from_wp] + [('page', item) for item in pages_from_wp]
             total_items_to_process = len(all_items)
             with wp_sync_lock: wp_sync_status['total_items'] = total_items_to_process
@@ -273,19 +210,28 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
 
             for idx, (item_type, item_data) in enumerate(all_items):
                 processed_count = idx + 1
-                title = item_data.get('title', {}).get('rendered', 'Senza Titolo')
+                title = html.unescape(item_data.get('title', {}).get('rendered', 'Senza Titolo'))
                 item_url = item_data.get('link')
                 content_html = item_data.get('content', {}).get('rendered', '')
                 soup = BeautifulSoup(content_html, 'html.parser')
                 content_text = soup.get_text(separator='\n', strip=True)                
-                # Filtra contenuti troppo brevi o vuoti.
-                # Ho messo 50 parole come soglia, puoi cambiarla.
-                if len(content_text.split()) < 50:
+                if len(content_text.split()) < 10:
                     logger.info(f"Saltato {item_type} '{title}' (URL: {item_url}) - contenuto troppo breve o vuoto ({len(content_text.split())} parole).")
                     with wp_sync_lock: wp_sync_status['skipped_items'] += 1
-                    continue # Passa all'item successivo nel ciclo
+                    continue
 
                 current_hash = hashlib.sha256(content_text.encode('utf-8')).hexdigest()
+                
+                # <-- INIZIO LOGICA CORRETTA PER LE DATE -->
+                date_str = None
+                if item_type == 'post':
+                    # Per gli ARTICOLI, usiamo la data di pubblicazione originale
+                    date_str = item_data.get('date_gmt')
+                else: # Per le PAGINE, usiamo la data dell'ultima modifica
+                    date_str = item_data.get('modified_gmt')
+                
+                published_at_iso = f"{date_str}Z" if date_str else None
+                # <-- FINE LOGICA CORRETTA PER LE DATE -->
 
                 with wp_sync_lock:
                     wp_sync_status['message'] = f"Controllo {item_type} ({processed_count}/{total_items_to_process}): {title[:40]}..."
@@ -295,55 +241,36 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
                 id_col = 'article_id' if item_type == 'post' else 'page_id'
                 url_col = 'article_url' if item_type == 'post' else 'page_url'
 
-                cursor.execute(f"SELECT {id_col}, content_hash, extracted_content_path FROM {table_name} WHERE {url_col} = ? AND user_id = ?", (item_url, user_id))
+                cursor.execute(f"SELECT {id_col}, content_hash FROM {table_name} WHERE {url_col} = ? AND user_id = ?", (item_url, user_id))
                 existing = cursor.fetchone()
 
-                if existing: # L'item esiste già nel DB
+                if existing:
                     if existing['content_hash'] != current_hash:
-                        # Contenuto MODIFICATO
                         logger.info(f"{item_type.capitalize()} '{title}' modificato. Aggiornamento.")
                         item_id = existing[id_col]
-                        # Ricostruiamo il percorso completo del file esistente
-                        full_content_path = os.path.join(base_dir, existing['extracted_content_path'])
-                        with open(full_content_path, 'w', encoding='utf-8') as f: f.write(content_text)
-                        
-                        cursor.execute(f"UPDATE {table_name} SET title = ?, published_at = ?, content_hash = ?, processing_status = 'pending' WHERE {id_col} = ?",
-                                       (title, item_data.get('modified_gmt', '') + 'Z', current_hash, item_id))
-                        
-                        # Chiamata all'indicizzazione appropriata
+                        cursor.execute(f"UPDATE {table_name} SET title = ?, published_at = ?, content = ?, content_hash = ?, processing_status = 'pending' WHERE {id_col} = ?",
+                                       (title, published_at_iso, content_text, current_hash, item_id))
                         if item_type == 'post':
                             _index_article(item_id, conn, user_id, core_config)
-                        else: # item_type == 'page'
-                            _index_page(item_id, conn, user_id)
+                        else:
+                            _index_page(item_id, conn, user_id, core_config)
                         updated_items_count += 1
                     else:
-                        # Contenuto INVARIATO
                         skipped_items_count += 1
                 else:
-                    # Item NUOVO
                     logger.info(f"Nuovo {item_type} '{title}'. Creazione.")
                     item_id = str(uuid.uuid4())
-                    
-                    # Costruiamo il percorso relativo e completo per i nuovi file
-                    relative_path_for_db = os.path.join('data', pages_folder_base_name if item_type == 'page' else articles_folder_base_name, f"{item_id}.txt").replace('\\', '/')
-                    full_content_path = os.path.join(base_dir, relative_path_for_db)
-
-                    with open(full_content_path, 'w', encoding='utf-8') as f: f.write(content_text)
-                    
                     if item_type == 'post':
-                        cursor.execute("INSERT INTO articles (article_id, guid, feed_url, article_url, title, published_at, extracted_content_path, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')",
-                                       (item_id, item_data.get('guid', {}).get('rendered', item_url), settings['wordpress_url'], item_url, title, item_data.get('modified_gmt', '') + 'Z', relative_path_for_db, current_hash, user_id))
+                        cursor.execute("INSERT INTO articles (article_id, guid, feed_url, article_url, title, published_at, content, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')",
+                                    (item_id, item_data.get('guid', {}).get('rendered', item_url), settings['wordpress_url'], item_url, title, published_at_iso, content_text, current_hash, user_id))
                         _index_article(item_id, conn, user_id, core_config)
-                    else: # item_type == 'page'
-                        cursor.execute("INSERT INTO pages (page_id, page_url, title, published_at, extracted_content_path, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
-                                       (item_id, item_url, title, item_data.get('modified_gmt', '') + 'Z', relative_path_for_db, current_hash, user_id))
-                        _index_page(item_id, conn, user_id)
+                    else:
+                        cursor.execute("INSERT INTO pages (page_id, page_url, title, published_at, content, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
+                                    (item_id, item_url, title, published_at_iso, content_text, current_hash, user_id))
+                        _index_page(item_id, conn, user_id, core_config)
                     new_items_count += 1
-                
-                # Commit dopo ogni item per resilienza, anche se meno performante (per i test va bene)
-                conn.commit() 
+                conn.commit()
 
-            # Aggiornamento finale dello stato globale
             with wp_sync_lock:
                 wp_sync_status['new_items'] = new_items_count
                 wp_sync_status['updated_items'] = updated_items_count
@@ -361,13 +288,9 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
             if conn:
                 conn.close()
 
-                
 @connectors_bp.route('/wordpress/sync', methods=['POST'])
 @login_required
 def sync_wordpress():
-    """
-    AVVIA la sincronizzazione dei contenuti da un sito WordPress in background.
-    """
     global wp_sync_status, wp_sync_lock
     user_id = current_user.id
     
@@ -375,9 +298,8 @@ def sync_wordpress():
         if wp_sync_status['is_processing']:
             return jsonify({'success': False, 'message': 'Una sincronizzazione WordPress è già in corso.'}), 409
 
-    # Recupera le impostazioni
     db_path = current_app.config.get('DATABASE_FILE')
-    settings_row = None # Rinominiamo la variabile per chiarezza
+    settings_row = None
     conn = None
     try:
         conn = sqlite3.connect(db_path)
@@ -388,15 +310,11 @@ def sync_wordpress():
     finally:
         if conn: conn.close()
     
-    # --- CORREZIONE CHIAVE QUI ---
-    # Convertiamo l'oggetto sqlite3.Row in un vero dizionario
     settings_dict = dict(settings_row) if settings_row else None
     
-    # Ora controlliamo il dizionario, che ha il metodo .values()
     if not settings_dict or not all(settings_dict.values()):
         return jsonify({'success': False, 'message': 'Configurazione WordPress incompleta. Controlla URL, nome utente e Application Password nelle Impostazioni.'}), 400
 
-    # Avvia il thread in background
     core_config_dict = build_full_config_for_background_process(user_id)
     app_context = current_app.app_context()
     background_thread = threading.Thread(
@@ -412,17 +330,9 @@ def sync_wordpress():
 @connectors_bp.route('/wordpress/progress', methods=['GET'])
 @login_required
 def get_wordpress_sync_progress():
-    """
-    Restituisce lo stato attuale del processo di sincronizzazione WordPress
-    in un formato compatibile con il poller asincrono del frontend.
-    """
     global wp_sync_status, wp_sync_lock
     with wp_sync_lock:
-        # Creiamo una copia per non modificare l'originale mentre lo leggiamo
         status_copy = copy.deepcopy(wp_sync_status)
-        
-        # Ci assicuriamo che tutti i campi attesi da startAsyncTask esistano
-        # per evitare errori nel JavaScript.
         response_data = {
             'is_processing': status_copy.get('is_processing', False),
             'message': status_copy.get('message', ''),
@@ -435,9 +345,6 @@ def get_wordpress_sync_progress():
 @connectors_bp.route('/pages/all', methods=['DELETE'])
 @login_required
 def delete_all_user_pages():
-    """
-    Elimina tutte le pagine per l'utente corrente (SAAS mode).
-    """
     app_mode = current_app.config.get('APP_MODE', 'single')
     if app_mode != 'saas':
         return jsonify({'success': False, 'message': 'Operazione permessa solo in modalità SAAS.'}), 403
@@ -451,7 +358,6 @@ def delete_all_user_pages():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        # Prima recupera tutti gli ID delle pagine per poter chiamare la funzione di pulizia
         cursor.execute("SELECT page_id FROM pages WHERE user_id = ?", (user_id,))
         page_ids_to_delete = [row[0] for row in cursor.fetchall()]
         
@@ -462,7 +368,7 @@ def delete_all_user_pages():
             if _delete_page_permanently(page_id, conn, user_id):
                 deleted_count += 1
         
-        conn.commit() # Salva tutte le modifiche fatte da _delete_page_permanently
+        conn.commit()
         
         message = f"Eliminazione completata. Rimosse {deleted_count} pagine."
         logger.info(message)
@@ -479,9 +385,6 @@ def delete_all_user_pages():
 @connectors_bp.route('/pages/<string:page_id>', methods=['DELETE'])
 @login_required
 def delete_single_page(page_id):
-    """
-    Elimina una singola pagina per l'utente corrente (SAAS mode).
-    """
     app_mode = current_app.config.get('APP_MODE', 'single')
     if app_mode != 'saas':
         return jsonify({'success': False, 'message': 'Operazione permessa solo in modalità SAAS.'}), 403
@@ -494,7 +397,6 @@ def delete_single_page(page_id):
         db_path = current_app.config.get('DATABASE_FILE')
         conn = sqlite3.connect(db_path)
         
-        # Usiamo la nostra funzione helper che fa tutto il lavoro sporco
         success = _delete_page_permanently(page_id, conn, user_id)
         
         if success:
@@ -503,7 +405,6 @@ def delete_single_page(page_id):
             logger.info(message)
             return jsonify({'success': True, 'message': message})
         else:
-            # La funzione helper logga già l'errore, qui restituiamo un messaggio generico
             conn.rollback()
             message = "Impossibile eliminare la pagina. Potrebbe non essere stata trovata."
             logger.warning(f"Tentativo di eliminazione fallito per la pagina {page_id} dell'utente {user_id}.")
@@ -537,7 +438,7 @@ def download_all_pages():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        sql_query = "SELECT page_id, title, page_url, extracted_content_path FROM pages WHERE processing_status = 'completed' AND extracted_content_path IS NOT NULL"
+        sql_query = "SELECT page_id, title, page_url, content FROM pages WHERE processing_status = 'completed' AND content IS NOT NULL"
         params = []
         if app_mode == 'saas':
            sql_query += " AND user_id = ?"
@@ -546,11 +447,8 @@ def download_all_pages():
         cursor.execute(sql_query, tuple(params))
 
         for row in cursor.fetchall():
-            content_path = row['extracted_content_path']
-            if content_path and os.path.exists(content_path):
-                with open(content_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
+            content = row['content']
+            if content:
                 all_pages_content.write(f"--- PAGINA START ---\n")
                 all_pages_content.write(f"ID: {row['page_id']}\n")
                 all_pages_content.write(f"Titolo: {row['title']}\n")

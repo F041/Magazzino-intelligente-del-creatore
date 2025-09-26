@@ -1,7 +1,7 @@
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Tuple
 from googleapiclient.errors import HttpError
 import logging
 import re
@@ -84,25 +84,20 @@ class YouTubeClient:
             logger.error(f"Error extracting channel info: {str(e)}")
             raise
 
-    def get_channel_videos(self, channel_id: str, limit: Optional[int] = None) -> List[Video]:
+    def get_channel_videos_and_total_count(self, channel_id: str) -> Tuple[List[Video], int]:
         """
-        Recupera i video di un canale, gestendo la paginazione.
-
-        Args:
-            channel_id: L'ID del canale YouTube.
-            limit: Numero massimo di video da recuperare. Se None, prova a recuperarli tutti.
-
-        Returns:
-            Una lista di oggetti Video.
+        Recupera TUTTI i video di un canale, gestendo la paginazione, e restituisce anche il conteggio totale.
+        OTTIMIZZATO per ridurre il consumo di quota.
         """
         all_videos = []
         next_page_token = None
-        max_results_per_page = 50 # Limite massimo per richiesta search.list
+        max_results_per_page = 50
+        total_results = 0
 
-        logger.info(f"Inizio recupero video per canale {channel_id}. Limite: {'Tutti' if limit is None else limit}")
+        logger.info(f"Inizio recupero video per canale {channel_id}.")
 
         try:
-            while True: # Continua finché ci sono pagine o non raggiungiamo il limite
+            while True:
                 logger.debug(f"Recupero pagina video... Token: {next_page_token}")
                 request = self.youtube.search().list(
                     part='id,snippet',
@@ -110,46 +105,37 @@ class YouTubeClient:
                     maxResults=max_results_per_page,
                     type='video',
                     order='date',
-                    pageToken=next_page_token # Passa il token per la pagina successiva
+                    pageToken=next_page_token
                 )
-
                 response = request.execute()
 
+                # La prima volta che eseguiamo la chiamata, otteniamo il conteggio totale
+                if next_page_token is None:
+                    total_results = response.get('pageInfo', {}).get('totalResults', 0)
+                    logger.info(f"Conteggio totale video dal canale: {total_results}")
+
                 for item in response.get('items', []):
-                    # Controlla se l'item è effettivamente un video (a volte search può restituire altro)
                     if item.get('id', {}).get('kind') == 'youtube#video':
                         video = Video(
                             video_id=item['id']['videoId'],
                             title=item['snippet']['title'],
                             url=f"https://www.youtube.com/watch?v={item['id']['videoId']}",
-                            channel_id=channel_id, # Usiamo l'ID passato, snippet può avere channelTitle
+                            channel_id=channel_id,
                             published_at=item['snippet']['publishedAt'],
                             description=item['snippet']['description']
                         )
                         all_videos.append(video)
-                        # Controlla se abbiamo raggiunto il limite impostato
-                        if limit is not None and len(all_videos) >= limit:
-                            logger.info(f"Raggiunto limite di {limit} video.")
-                            return all_videos # Interrompi e restituisci
 
-                # Passa alla pagina successiva
                 next_page_token = response.get('nextPageToken')
-                logger.info(f"Recuperati finora: {len(all_videos)} video. Prossima pagina token: {'Sì' if next_page_token else 'No'}")
-
-                # Interrompi il loop se non c'è più un nextPageToken
                 if not next_page_token:
-                    logger.info("Nessun altra pagina di risultati.")
                     break
 
-            logger.info(f"Recupero video completato. Totale video trovati: {len(all_videos)}")
-            return all_videos
+            logger.info(f"Recupero video completato. Trovati: {len(all_videos)} video.")
+            return all_videos, total_results
 
         except Exception as e:
             logger.exception(f"Errore durante il recupero dei video del canale {channel_id}: {str(e)}")
-            # Restituisce i video recuperati finora, anche se c'è stato un errore
-            # Potrebbe essere preferibile rilanciare l'eccezione in alcuni casi
-            logger.warning(f"Restituisco {len(all_videos)} video recuperati prima dell'errore.")
-            return all_videos
+            return all_videos, total_results # Restituisce quello che ha trovato finora
 
     def get_video_details(self, video_id: str) -> Video:
         """Recupera i dettagli di un singolo video"""
@@ -185,13 +171,11 @@ class YouTubeClient:
         """
         logger.info(f"[API Ufficiale] Avvio recupero trascrizione per video ID: {video_id}")
         
-        # NUOVO BLOCCO: Logica di tentativi e attesa
         retries = 3
-        delay = 15  # Inizia con 15 secondi di attesa
+        delay = 15
 
         for attempt in range(retries):
             try:
-                # 1. Ottieni la lista delle tracce di sottotitoli disponibili per il video
                 list_request = self.youtube.captions().list(
                     part='snippet',
                     videoId=video_id
@@ -209,7 +193,6 @@ class YouTubeClient:
                     logger.warning(f"[API Ufficiale] Nessuna traccia di sottotitoli trovata per {video_id}.")
                     return {'error': 'NO_TRANSCRIPT_FOUND', 'message': 'Nessuna traccia (manuale o auto) disponibile.'}
 
-                # 2. Cerca una traccia nelle lingue preferite
                 track_to_download = None
                 found_lang = None
                 for lang_code in preferred_languages:
@@ -225,14 +208,12 @@ class YouTubeClient:
                     found_lang = first_lang
                     logger.info(f"[API Ufficiale] Nessuna lingua preferita. Uso fallback: '{found_lang}' (Tipo: {track_to_download['type']}).")
 
-                # 3. Scarica la traccia selezionata
                 download_request = self.youtube.captions().download(
                     id=track_to_download['id'],
                     tfmt='srt'
                 )
                 srt_captions = download_request.execute().decode('utf-8')
                 
-                # 4. Pulisci il testo SRT
                 text_no_seq = re.sub(r'^\d+\s*$', '', srt_captions, flags=re.MULTILINE)
                 text_no_ts = re.sub(r'\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\s*$', '', text_no_seq, flags=re.MULTILINE)
                 text_no_html = re.sub(r'<[^>]+>', '', text_no_ts)
@@ -246,29 +227,25 @@ class YouTubeClient:
                 }
 
             except HttpError as e:
-                # NUOVO BLOCCO: Gestione specifica dell'errore di quota
                 if e.status_code == 403 and 'quotaExceeded' in str(e):
                     logger.warning(f"[API Ufficiale] Quota YouTube superata (tentativo {attempt + 1}/{retries}). Attendo {delay} secondi...")
-                    if attempt < retries - 1: # Se non è l'ultimo tentativo
+                    if attempt < retries - 1:
                         time.sleep(delay)
-                        delay *= 2 # Raddoppia l'attesa per il prossimo tentativo
-                        continue # Passa al prossimo ciclo del for
+                        delay *= 2 
+                        continue
                     else:
                         logger.error(f"[API Ufficiale] Quota superata anche dopo {retries} tentativi. Mi arrendo per questo video.")
                         return {'error': 'QUOTA_EXCEEDED', 'message': f'Quota API di YouTube superata.'}
                 
-                # Altri errori HttpError (es. trascrizioni disabilitate) vengono gestiti come prima
                 error_str = str(e).lower()
                 if 'disabled' in error_str or 'forbidden' in error_str:
                     logger.warning(f"[API Ufficiale] Le trascrizioni sono disabilitate per {video_id}.")
                     return {'error': 'TRANSCRIPTS_DISABLED', 'message': 'Le trascrizioni sono disabilitate per questo video.'}
                 
-                # Se è un HttpError non gestito, lo rilanciamo per farlo vedere nei log
                 raise e
             
             except Exception as e:
                 logger.error(f"[API Ufficiale] Errore imprevisto durante il recupero trascrizione per {video_id}: {e}", exc_info=True)
                 return {'error': 'UNKNOWN_API_ERROR', 'message': f'Errore API YouTube: {str(e)[:150]}...'}
 
-        # Se il ciclo finisce senza successo, restituisce un errore generico
         return {'error': 'MAX_RETRIES_REACHED', 'message': 'Raggiunto numero massimo di tentativi senza successo.'}

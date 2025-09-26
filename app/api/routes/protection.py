@@ -4,7 +4,11 @@ import sqlite3
 import threading
 import shutil
 import copy
-from flask import Blueprint, current_app, send_from_directory, flash, redirect, url_for, request, jsonify
+import zipfile
+import io
+import shutil
+from datetime import datetime 
+from flask import Blueprint, current_app, send_from_directory, flash, redirect, url_for, request, jsonify, send_file
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
@@ -35,39 +39,34 @@ def _background_reindex_all_content(app_context, user_id: str):
     logger.info(f"[REINDEX_ALL] Avvio task in background per utente {user_id}")
     
     with app_context:
+        # Importiamo le funzioni di utilità e di indicizzazione qui dentro
+        from app.utils import build_full_config_for_background_process
+        from app.api.routes.website import _index_page 
+
         db_path = current_app.config.get('DATABASE_FILE')
         conn = None
         try:
             conn = sqlite3.connect(db_path, timeout=15.0)
             cursor = conn.cursor()
 
-            # --- INIZIO MODIFICA MAGGIORE QUI ---
-
-            # PRIMA: Aggiorna lo stato di tutti i contenuti dell'utente a 'failed_reindex'
-            # per segnalare che devono essere tutti riprocessati.
-            # Questo assicura che il sistema li veda come "non indicizzati" dopo il ripristino.
             logger.info(f"[REINDEX_ALL] Aggiorno lo stato di tutti i contenuti a 'failed_reindex' per utente {user_id}...")
-            
             cursor.execute("UPDATE videos SET processing_status = 'failed_reindex' WHERE user_id = ?", (user_id,))
             cursor.execute("UPDATE documents SET processing_status = 'failed_reindex' WHERE user_id = ?", (user_id,))
             cursor.execute("UPDATE articles SET processing_status = 'failed_reindex' WHERE user_id = ?", (user_id,))
             cursor.execute("UPDATE pages SET processing_status = 'failed_reindex' WHERE user_id = ?", (user_id,))
-            conn.commit() # Salviamo subito questi cambiamenti
+            conn.commit()
             logger.info(f"[REINDEX_ALL] Stati dei contenuti aggiornati. Inizio la re-indicizzazione.")
 
-            # 1. Ottieni la lista di TUTTI gli elementi da re-indicizzare
-            # Adesso selezioniamo tutti i video, documenti e articoli per l'utente,
-            # dato che il loro stato è stato appena impostato a 'failed_reindex'.
+            # Creiamo il dizionario di configurazione completo UNA SOLA VOLTA all'inizio
+            core_config_dict = build_full_config_for_background_process(user_id)
+
             cursor.execute("SELECT video_id FROM videos WHERE user_id = ?", (user_id,))
             videos_to_index = [row[0] for row in cursor.fetchall()]
-            
             cursor.execute("SELECT doc_id FROM documents WHERE user_id = ?", (user_id,))
             docs_to_index = [row[0] for row in cursor.fetchall()]
-            
             cursor.execute("SELECT article_id FROM articles WHERE user_id = ?", (user_id,))
             articles_to_index = [row[0] for row in cursor.fetchall()]
-
-            cursor.execute("SELECT page_id FROM pages WHERE user_id = ?", (user_id,)) # Aggiungiamo anche le pagine
+            cursor.execute("SELECT page_id FROM pages WHERE user_id = ?", (user_id,))
             pages_to_index = [row[0] for row in cursor.fetchall()]
 
             total_items = len(videos_to_index) + len(docs_to_index) + len(articles_to_index) + len(pages_to_index)
@@ -77,7 +76,7 @@ def _background_reindex_all_content(app_context, user_id: str):
                 reindex_status['total_items'] = total_items
                 reindex_status['processed_items'] = 0
 
-            # 2. Processa ogni categoria
+            # --- Processo Video ---
             for item_id in videos_to_index:
                 with reindex_status_lock:
                     processed_count += 1
@@ -86,6 +85,7 @@ def _background_reindex_all_content(app_context, user_id: str):
                 _reindex_video_from_db(item_id, conn, user_id)
                 conn.commit()
 
+            # --- Processo Documenti ---
             for item_id in docs_to_index:
                 with reindex_status_lock:
                     processed_count += 1
@@ -94,26 +94,24 @@ def _background_reindex_all_content(app_context, user_id: str):
                 _index_document(item_id, conn, user_id)
                 conn.commit()
 
+            # --- Processo Articoli ---
             for item_id in articles_to_index:
                 with reindex_status_lock:
                     processed_count += 1
                     reindex_status['processed_items'] = processed_count
                     reindex_status['message'] = f"Re-indicizzazione articoli ({processed_count}/{total_items})..."
-                _index_article(item_id, conn, user_id)
+                _index_article(item_id, conn, user_id, core_config_dict)
                 conn.commit()
 
-            for item_id in pages_to_index: # Aggiungiamo il loop per le pagine
+            # --- Processo Pagine ---
+            for item_id in pages_to_index:
                 with reindex_status_lock:
                     processed_count += 1
                     reindex_status['processed_items'] = processed_count
                     reindex_status['message'] = f"Re-indicizzazione pagine ({processed_count}/{total_items})..."
-                # Assumiamo che esista una funzione _index_page come _index_article
-                from app.api.routes.website import _index_page # Importa qui o all'inizio del file
-                _index_page(item_id, conn, user_id)
+                _index_page(item_id, conn, user_id, core_config_dict)
                 conn.commit()
             
-            # --- FINE MODIFICA MAGGIORE ---
-
             with reindex_status_lock:
                 reindex_status['message'] = "Re-indicizzazione completata con successo!"
         
@@ -131,17 +129,21 @@ def _background_reindex_all_content(app_context, user_id: str):
 @protection_bp.route('/download/database')
 @login_required
 def download_database_backup():
-    # ... (questa funzione rimane identica a prima) ...
+    """
+    Invia il file del database SQLite per il download (contiene tutto il testo).
+    """
     try:
         db_path = current_app.config.get('DATABASE_FILE')
-        if not db_path:
-            raise ValueError("Percorso del database non configurato.")
+        if not db_path or not os.path.exists(db_path):
+            raise ValueError("Percorso del database non configurato o file non trovato.")
 
         db_directory = os.path.dirname(db_path)
         db_filename = os.path.basename(db_path)
         
+        # Generazione di un nome file unico e sicuro
         safe_user_id = "".join(c for c in current_user.id if c.isalnum() or c in ('-', '_')).rstrip()
-        download_filename = f"magazzino_backup_{safe_user_id}_{db_filename}"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        download_filename = f"magazzino_backup_{safe_user_id}_{timestamp}_{db_filename}"
 
         logger.info(f"Utente {current_user.id} ha richiesto il download del backup del database. Nome file: {download_filename}")
 
@@ -162,7 +164,7 @@ def download_database_backup():
 @login_required
 def restore_database_backup():
     """
-    Riceve un file .db, sostituisce quello corrente e avvia la re-indicizzazione.
+    Riceve un file .db, sostituisce quello corrente, elimina ChromaDB e avvia la re-indicizzazione.
     """
     global reindex_status, reindex_status_lock
 
@@ -185,25 +187,22 @@ def restore_database_backup():
         file.save(temp_filename)
         
         # 2. Sostituisci il database corrente con il backup
-        #    (shutil.move è più sicuro di os.rename attraverso diversi filesystem)
         shutil.move(temp_filename, db_path)
         logger.info(f"Database ripristinato con successo da backup per l'utente {current_user.id}")
 
-        # --- INIZIO MODIFICA: ELIMINAZIONE CARTELLA CHROMADB ---
+        # 3. Elimina la cartella ChromaDB (necessario perché i chunk non sono nel DB)
         chroma_persist_path = current_app.config.get('CHROMA_PERSIST_PATH')
         if chroma_persist_path and os.path.exists(chroma_persist_path):
             try:
-                # Importiamo shutil qui per essere sicuri che sia disponibile
                 shutil.rmtree(chroma_persist_path)
                 logger.info(f"Directory ChromaDB eliminata con successo: {chroma_persist_path}")
             except OSError as e:
                 logger.error(f"Errore eliminando la directory ChromaDB {chroma_persist_path}: {e}")
-                # Non blocchiamo il ripristino per questo, ma segnaliamo l'errore
+                # Non blocchiamo, ma è un avviso importante
         else:
-            logger.warning(f"Percorso ChromaDB '{chroma_persist_path}' non trovato o non esistente. Nessuna directory da eliminare.")
-        # --- FINE MODIFICA ---
+            logger.warning(f"Percorso ChromaDB '{chroma_persist_path}' non trovato. Nessuna directory da eliminare.")
 
-        # 3. Avvia il task di re-indicizzazione in background
+        # 4. Avvia il task di re-indicizzazione in background
         with reindex_status_lock:
             reindex_status.update({
                 'is_processing': True,
@@ -227,8 +226,6 @@ def restore_database_backup():
         logger.error(f"Errore critico durante il ripristino del database: {e}", exc_info=True)
         return jsonify({'success': False, 'message': f'Errore: {e}'}), 500
 
-
-
 @protection_bp.route('/reindex-progress')
 @login_required
 def get_reindex_progress():
@@ -238,3 +235,86 @@ def get_reindex_progress():
     global reindex_status, reindex_status_lock
     with reindex_status_lock:
         return jsonify(copy.deepcopy(reindex_status))
+    
+@protection_bp.route('/download/full')
+@login_required
+def download_full_backup():
+    """
+    Crea un file ZIP in memoria contenente il database SQLite e l'intera
+    cartella di ChromaDB, e lo invia per il download.
+    """
+    try:
+        db_path = current_app.config.get('DATABASE_FILE')
+        chroma_path = current_app.config.get('CHROMA_PERSIST_PATH')
+
+        if not os.path.exists(db_path) or not os.path.exists(chroma_path):
+            flash('Errore: File di database o cartella ChromaDB non trovati.', 'error')
+            return redirect(url_for('settings.settings_page', _anchor='protezione'))
+
+        # Creiamo un file ZIP in memoria per non scrivere su disco
+        memory_file = io.BytesIO()
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # 1. Aggiungi il database SQLite
+            db_filename = os.path.basename(db_path)
+            zf.write(db_path, arcname=db_filename)
+            
+            # 2. Aggiungi l'intera cartella ChromaDB
+            chroma_parent_folder = os.path.dirname(chroma_path)
+            for root, _, files in os.walk(chroma_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # Creiamo un percorso relativo per mantenere la struttura nel ZIP
+                    archive_name = os.path.relpath(file_path, chroma_parent_folder)
+                    zf.write(file_path, arcname=archive_name)
+
+        memory_file.seek(0)
+        
+        safe_user_id = "".join(c for c in current_user.id if c.isalnum() or c in ('-', '_')).rstrip()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        download_filename = f"magazzino_backup_completo_{safe_user_id}_{timestamp}.zip"
+
+        logger.info(f"Utente {current_user.id} ha richiesto il download del backup completo. Nome file: {download_filename}")
+
+        return send_file(
+            memory_file,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=download_filename
+        )
+
+    except Exception as e:
+        logger.error(f"Errore durante la creazione del backup completo: {e}", exc_info=True)
+        flash('Si è verificato un errore imprevisto durante la creazione del backup.', 'error')
+        return redirect(url_for('settings.settings_page', _anchor='protezione'))
+
+
+@protection_bp.route('/restore/full', methods=['POST'])
+@login_required
+def restore_full_backup():
+    """
+    Riceve un file ZIP di backup. Salva il file come 'pending_restore.zip'
+    e istruisce l'utente a riavviare l'applicazione.
+    """
+    if 'backup_file' not in request.files:
+        return jsonify({'success': False, 'message': 'Nessun file fornito.'}), 400
+
+    file = request.files['backup_file']
+    if file.filename == '' or not file.filename.endswith('.zip'):
+        return jsonify({'success': False, 'message': 'File non valido. Seleziona un file .zip.'}), 400
+
+    try:
+        # Salviamo il file in una posizione nota, in attesa del riavvio.
+        data_dir = os.path.dirname(current_app.config.get('DATABASE_FILE'))
+        pending_restore_path = os.path.join(data_dir, 'pending_restore.zip')
+        
+        file.save(pending_restore_path)
+        logger.info(f"Backup completo ricevuto dall'utente {current_user.id}. In attesa di riavvio.")
+
+        return jsonify({
+            'success': True,
+            'message': "File di backup caricato! Per completare il ripristino, è necessario riavviare l'applicazione."
+        }), 202 # 202 Accepted: la richiesta è stata accettata, ma l'azione non è ancora completa.
+
+    except Exception as e:
+        logger.error(f"Errore critico durante il salvataggio del backup per il ripristino: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': f'Errore: {e}'}), 500

@@ -6,9 +6,12 @@ import logging
 import sqlite3
 from datetime import datetime
 import uuid
+import zipfile
+import shutil
 import atexit
 from .models.user import User
 from .utils import generate_api_key
+from .utils import generate_api_key, format_datetime_filter
 from .core.setup import init_db, setup_chroma_directory, load_credentials, save_credentials
 from .core.system_info import get_system_stats
 
@@ -71,21 +74,81 @@ def shutdown_scheduler(scheduler_instance):
         except Exception as e:
             logger.error(f"Errore durante lo spegnimento dello scheduler: {e}")
 
-# --- Filtro Jinja  ---
-def format_datetime_filter(value, format='%d %B %Y'):
-    if value:
-        try:
-            dt_object = datetime.fromisoformat(value.replace('Z', '+00:00'))
-            return dt_object.strftime(format)
-        except (ValueError, TypeError): return value
-    return value
-
 
 # --- Factory Function per l'App Flask ---
 def create_app(config_object=AppConfig):
     """Crea e configura l'istanza dell'app Flask."""
     app = Flask(__name__)
     app.config.from_object(config_object) # Carica config Flask prima
+
+        # --- INIZIO: BLOCCO DI RIPRISTINO BACKUP ALL'AVVIO ---
+    try:
+        data_dir = os.path.dirname(app.config.get('DATABASE_FILE'))
+        pending_restore_path = os.path.join(data_dir, 'pending_restore.zip')
+
+        if os.path.exists(pending_restore_path):
+            logger.warning("!!! RILEVATO BACKUP COMPLETO IN ATTESA DI RIPRISTINO !!!")
+            
+            db_path_target = app.config.get('DATABASE_FILE')
+            chroma_path_target = app.config.get('CHROMA_PERSIST_PATH')
+            
+            # 1. Spegnere i servizi esistenti (se fossero attivi in qualche modo)
+            # (Questa parte è più una precauzione, dato che siamo all'avvio)
+            if 'CHROMA_CLIENT' in app.config and app.config['CHROMA_CLIENT']:
+                try:
+                    app.config['CHROMA_CLIENT']._system.stop()
+                    logger.info("Sistema ChromaDB esistente fermato prima del ripristino.")
+                except Exception:
+                    pass
+
+            # 2. Cancellare i dati attuali
+            logger.info("Cancellazione dei dati correnti (SQLite e ChromaDB)...")
+            if os.path.exists(db_path_target):
+                os.remove(db_path_target)
+            if os.path.exists(chroma_path_target):
+                shutil.rmtree(chroma_path_target)
+            
+            # 3. Estrarre il backup
+            logger.info(f"Estrazione del backup '{pending_restore_path}'...")
+            # Usiamo una cartella temporanea per estrarre il contenuto
+            temp_extract_dir = os.path.join(data_dir, 'temp_restore_extract')
+            os.makedirs(temp_extract_dir, exist_ok=True)
+            
+            with zipfile.ZipFile(pending_restore_path, 'r') as zf:
+                zf.extractall(temp_extract_dir)
+
+            # Ora spostiamo i file estratti dalla sottocartella 'data_for_tests' (se esiste)
+            # alla loro posizione corretta.
+            extracted_data_folder = os.path.join(temp_extract_dir, 'data_for_tests')
+            if os.path.isdir(extracted_data_folder):
+                # Sposta ogni file/cartella da extracted_data_folder a data_dir
+                for item_name in os.listdir(extracted_data_folder):
+                    source_item = os.path.join(extracted_data_folder, item_name)
+                    dest_item = os.path.join(data_dir, item_name)
+                    shutil.move(source_item, dest_item)
+                # Pulisce la cartella temporanea
+                shutil.rmtree(temp_extract_dir)
+            else:
+                 # Se la struttura è piatta, sposta direttamente
+                 for item_name in os.listdir(temp_extract_dir):
+                     shutil.move(os.path.join(temp_extract_dir, item_name), data_dir)
+                 os.rmdir(temp_extract_dir)
+            
+            # 4. Rimuovere il file di backup per non rieseguire al prossimo avvio
+            os.remove(pending_restore_path)
+            
+            logger.warning("!!! RIPRISTINO DA BACKUP COMPLETATO. L'APPLICAZIONE SI RIAVVIERA' CON I NUOVI DATI. !!!")
+            # In un ambiente Docker, il container si riavvierà automaticamente.
+            # In un ambiente locale, l'utente dovrà riavviare manualmente lo script.
+            # Potremmo forzare l'uscita per sicurezza.
+            # sys.exit(0) # Opzionale: forza l'uscita per un riavvio pulito
+            
+    except Exception as e:
+        logger.error(f"ERRORE CRITICO DURANTE IL PROCESSO DI RIPRISTINO DA BACKUP: {e}", exc_info=True)
+        # Se il ripristino fallisce, è più sicuro fermare l'avvio
+        # per evitare di partire con uno stato inconsistente.
+        sys.exit(1)
+# --- FINE: BLOCCO DI RIPRISTINO BACKUP ALL'AVVIO ---
 
     # Configura ProxyFix per fidarsi degli header inviati da UN proxy.
     # Cloudflare Tunnel agisce come un proxy.
@@ -98,27 +161,6 @@ def create_app(config_object=AppConfig):
     app.wsgi_app = ProxyFix(
         app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1
     )
-
-    # --- Setup Directory Dati Aggiuntive ---
-    try:
-        upload_dir = app.config.get('UPLOAD_FOLDER_PATH')
-        articles_dir = app.config.get('ARTICLES_FOLDER_PATH')
-
-        if upload_dir:
-            os.makedirs(upload_dir, exist_ok=True)
-            logger.info(f"Directory Upload '{upload_dir}' verificata/creata.")
-        else:
-            logger.warning("Percorso UPLOAD_FOLDER_PATH non configurato.")
-
-        if articles_dir:
-            os.makedirs(articles_dir, exist_ok=True)
-            logger.info(f"Directory Articoli '{articles_dir}' verificata/creata.")
-        else:
-            logger.warning("Percorso ARTICLES_FOLDER_PATH non configurato.")
-    except OSError as e_mkdir:
-        logger.error(f"Errore creando directory upload/articoli: {e_mkdir}")
-        # Potrebbe essere un errore fatale a seconda di quanto sono critiche queste dir all'avvio
-
 
 
     # --- Configura Logging di Flask ---
@@ -350,11 +392,7 @@ def create_app(config_object=AppConfig):
     CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
     logger.info("Configurazione CORS applicata a tutta l'applicazione.")
 
-    # Registra Filtro Jinja
     app.jinja_env.filters['format_date'] = format_datetime_filter
-
-    # --- Definizione Routes ---
-   
 
     @app.route('/')
     def index():
@@ -669,26 +707,12 @@ def create_app(config_object=AppConfig):
                 all_rows = cursor.fetchall()
                 conn.close() # Chiudiamo subito la connessione al DB
 
-                # 2. Ora cicliamo sui dati in memoria per leggere i file
+                # 2. Ora cicliamo sui dati in memoria per generare l'anteprima
                 for row in all_rows:
                     article_dict = dict(row)
-                    preview_text = None
-                    
-                    # Usiamo il percorso relativo che abbiamo salvato
-                    relative_path = article_dict.get('extracted_content_path')
-                    if relative_path:
-                        # Ricostruiamo il percorso completo
-                        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
-                        full_content_path = os.path.join(base_dir, relative_path)
-
-                        if os.path.exists(full_content_path):
-                            try:
-                                with open(full_content_path, 'r', encoding='utf-8') as f:
-                                    preview_text = f.read(200)
-                            except Exception as e:
-                                logger.warning(f"Impossibile leggere il file di anteprima {full_content_path}: {e}")
-                    
-                    article_dict['content_preview'] = preview_text
+                    content = article_dict.get('content', '')
+                    # Crea un'anteprima prendendo i primi 200 caratteri
+                    article_dict['content_preview'] = (content[:200] if content else '')
                     articles_from_db.append(article_dict)
 
                 logger.info(f"/my-articles: Recuperati e processati {len(articles_from_db)} articoli.")
@@ -731,21 +755,9 @@ def create_app(config_object=AppConfig):
 
                 for row in all_rows:
                     page_dict = dict(row)
-                    preview_text = None
-                    
-                    relative_path = page_dict.get('extracted_content_path')
-                    if relative_path:
-                        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
-                        full_content_path = os.path.join(base_dir, relative_path)
-                        
-                        if os.path.exists(full_content_path):
-                            try:
-                                with open(full_content_path, 'r', encoding='utf-8') as f:
-                                    preview_text = f.read(200)
-                            except Exception as e:
-                                logger.warning(f"Impossibile leggere il file di anteprima {full_content_path}: {e}")
-                    
-                    page_dict['content_preview'] = preview_text
+                    content = page_dict.get('content', '')
+                    # Crea un'anteprima prendendo i primi 200 caratteri
+                    page_dict['content_preview'] = (content[:200] if content else '')
                     pages_from_db.append(page_dict)
                 
                 logger.info(f"/my-pages: Recuperate e processate {len(pages_from_db)} pagine.")

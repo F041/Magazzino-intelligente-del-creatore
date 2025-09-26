@@ -178,26 +178,14 @@ def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[
     
     # Logica Indicizzazione (invariata, ma ora usa percorsi relativi)
     try:
-        cursor.execute("SELECT extracted_content_path, title, article_url FROM articles WHERE article_id = ?", (article_id,))
+        cursor.execute("SELECT content, title, article_url FROM articles WHERE article_id = ?", (article_id,))
         article_data = cursor.fetchone()
         if not article_data: 
             logger.error(f"[_index_article][{article_id}] Record non trovato nel DB.")
             return 'failed_article_not_found'
         
-        relative_path_from_db, title, article_url = article_data
-        # --- MODIFICA 4: Usa core_config per ricostruire il percorso ---
-        base_dir = core_config.get('BASE_DIR', os.getcwd())
-        content_filepath = os.path.join(base_dir, relative_path_from_db)
-
-        logger.info(f"[_index_article][{article_id}] Trovato: '{title}', Percorso ricostruito: {content_filepath}")
-
-        article_content = None
-        if not content_filepath or not os.path.exists(content_filepath):
-             logger.error(f"[_index_article][{article_id}] File contenuto non trovato: {content_filepath}")
-             return 'failed_file_not_found'
-        
-        with open(content_filepath, 'r', encoding='utf-8') as f:
-            article_content = f.read()
+        article_content, title, article_url = article_data[0], article_data[1], article_data[2]
+        logger.info(f"[_index_article][{article_id}] Trovato articolo '{title}' nel DB.")
         
         if not article_content or not article_content.strip():
              logger.warning(f"[_index_article][{article_id}] File contenuto vuoto. Marco come completato.")
@@ -397,18 +385,12 @@ def _process_rss_feed_core(
 
                     if not content: logger.warning(f"[CORE RSS Process] No content '{title}'."); skipped_count+=1; needs_processing = False; continue
 
-                    content_filename = f"{article_id_to_process}.txt"
-                    # Percorso completo per salvare il file
-                    full_content_filepath = os.path.join(articles_folder, content_filename)
-                    # Percorso relativo standardizzato da salvare nel DB
-                    relative_content_filepath = os.path.join(os.path.basename(articles_folder), content_filename)
-
                     try:
-                        with open(full_content_filepath, 'w', encoding='utf-8') as f_content: f_content.write(content)
+                        # Ora inseriamo il contenuto direttamente
                         cursor_sqlite.execute("""
-                            INSERT INTO articles (article_id, guid, feed_url, article_url, title, published_at, extracted_content_path, user_id, processing_status)
+                            INSERT INTO articles (article_id, guid, feed_url, article_url, title, published_at, content, user_id, processing_status)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                           (article_id_to_process, guid, initial_feed_url, article_url, title, published_at_iso, relative_content_filepath.replace('\\', '/'), user_id, 'pending'))
+                           (article_id_to_process, guid, initial_feed_url, article_url, title, published_at_iso, content, user_id, 'pending'))
                         logger.info(f"[CORE RSS Process] Inserito nuovo '{title}'.")
                     except Exception as e_save:
                         logger.error(f"[CORE RSS Process] Errore save/insert '{title}': {e_save}", exc_info=True); skipped_count+=1; needs_processing = False;
@@ -706,8 +688,6 @@ def download_all_articles():
         headers={"Content-Disposition": f"attachment;filename={output_filename}"}
     )
 
-
-# --- NUOVA ROUTE: Elimina Tutti gli Articoli Utente ---
 @rss_bp.route('/all', methods=['DELETE'])
 @login_required
 def delete_all_user_articles():
@@ -729,90 +709,47 @@ def delete_all_user_articles():
 
     user_article_collection_name = f"{base_article_collection_name}_{current_user_id}"
     conn_sqlite = None
-    files_to_delete = []
     sqlite_rows_affected = 0
     sqlite_rows_after_delete = -1
     chroma_deleted = False
     chroma_error = None
-    files_deleted_count = 0
-    file_delete_errors = []
 
     try:
-        # --- 1. Recupera percorsi file PRIMA di eliminare da DB ---
-        logger.info(f"[{current_user_id}] Recupero percorsi file articoli da eliminare...")
+        # 1. Elimina da SQLite
         conn_sqlite = sqlite3.connect(db_path)
         cursor_sqlite = conn_sqlite.cursor()
-        cursor_sqlite.execute("SELECT article_id, extracted_content_path FROM articles WHERE user_id = ?", (current_user_id,))
-        articles_data = cursor_sqlite.fetchall()
-        files_to_delete = [row[1] for row in articles_data if row[1]] # Lista dei percorsi validi
-        logger.info(f"[{current_user_id}] Trovati {len(files_to_delete)} file .txt associati agli articoli.")
-
-        # --- 2. Elimina da SQLite ---
-        logger.info(f"[{current_user_id}] ESECUZIONE DELETE FROM articles WHERE user_id = ?...")
         cursor_sqlite.execute("DELETE FROM articles WHERE user_id = ?", (current_user_id,))
         sqlite_rows_affected = cursor_sqlite.rowcount
         conn_sqlite.commit()
-        logger.info(f"[{current_user_id}] COMMIT SQLite eseguito. Righe affette: {sqlite_rows_affected}.")
+        
         # Verifica opzionale
         cursor_sqlite.execute("SELECT COUNT(*) FROM articles WHERE user_id = ?", (current_user_id,))
         sqlite_rows_after_delete = cursor_sqlite.fetchone()[0]
-        if sqlite_rows_after_delete != 0: logger.error(f"!!! VERIFICA DELETE SQLITE FALLITA: {sqlite_rows_after_delete} righe rimaste!")
 
     except sqlite3.Error as e_sql:
         logger.error(f"[{current_user_id}] Errore SQLite durante eliminazione articoli: {e_sql}", exc_info=True)
         if conn_sqlite: conn_sqlite.rollback()
-        # Non chiudere la connessione qui, lo fa il finally
-        # Restituisci errore immediato perché l'operazione critica è fallita
         return jsonify({'success': False, 'error_code': 'DB_DELETE_FAILED', 'message': f'Errore DB durante eliminazione: {e_sql}'}), 500
     finally:
-         # Chiudi connessione DB *dopo* aver tentato il delete/commit/rollback
-         if conn_sqlite: conn_sqlite.close(); logger.debug(f"[{current_user_id}] Connessione SQLite chiusa per delete all.")
+         if conn_sqlite: conn_sqlite.close()
 
-    # --- 3. Elimina Collezione ChromaDB ---
+    # 2. Elimina Collezione ChromaDB
     logger.info(f"[{current_user_id}] Tentativo eliminazione collezione ChromaDB: '{user_article_collection_name}'...")
     try:
-        # Verifica se esiste prima di tentare delete (opzionale ma evita eccezioni inutili)
-        # collections = chroma_client.list_collections()
-        # collection_names = [c.name for c in collections]
-        # if user_article_collection_name in collection_names:
         chroma_client.delete_collection(name=user_article_collection_name)
-        logger.info(f"[{current_user_id}] Comando delete_collection per '{user_article_collection_name}' inviato (potrebbe non esistere).")
-        chroma_deleted = True # Segna come tentato/riuscito (delete non dà errore se non esiste)
-        # else:
-        #     logger.info(f"[{current_user_id}] Collezione Chroma '{user_article_collection_name}' non trovata, nessuna eliminazione necessaria.")
-        #     chroma_deleted = True # Consideriamo successo perché non c'era
+        logger.info(f"[{current_user_id}] Comando delete_collection per '{user_article_collection_name}' inviato.")
+        chroma_deleted = True
     except Exception as e_chroma:
-        logger.error(f"[{current_user_id}] Errore durante eliminazione collezione ChromaDB '{user_article_collection_name}': {e_chroma}", exc_info=True)
+        logger.warning(f"[{current_user_id}] Errore/avviso durante eliminazione collezione ChromaDB '{user_article_collection_name}': {e_chroma}")
         chroma_deleted = False
         chroma_error = str(e_chroma)
 
-    # --- 4. Elimina File Fisici ---
-    logger.info(f"[{current_user_id}] Tentativo eliminazione di {len(files_to_delete)} file .txt...")
-    for file_path in files_to_delete:
-        try:
-            if file_path and os.path.exists(file_path):
-                os.remove(file_path)
-                files_deleted_count += 1
-            elif file_path:
-                 logger.warning(f"[{current_user_id}] File non trovato durante eliminazione: {file_path}")
-                 file_delete_errors.append(f"{os.path.basename(file_path)}: Not Found")
-            # else: Non dovrebbe accadere se abbiamo filtrato prima
-        except OSError as e_os:
-            logger.error(f"[{current_user_id}] Errore eliminazione file {file_path}: {e_os}")
-            file_delete_errors.append(f"{os.path.basename(file_path)}: {e_os.strerror}")
-        except Exception as e_file_gen:
-             logger.error(f"[{current_user_id}] Errore generico eliminazione file {file_path}: {e_file_gen}")
-             file_delete_errors.append(f"{os.path.basename(file_path)}: Unexpected Error")
-    logger.info(f"[{current_user_id}] Eliminazione file completata. File eliminati: {files_deleted_count}/{len(files_to_delete)}. Errori: {len(file_delete_errors)}.")
-
-    # --- 5. Risposta Finale ---
-    final_success = (sqlite_rows_after_delete == 0 and not file_delete_errors) # Successo se DB pulito e nessun errore file
+    # 3. Risposta Finale
+    final_success = (sqlite_rows_after_delete == 0)
     message = (f"Eliminazione articoli utente {current_user_id}: "
-               f"SQLite({sqlite_rows_affected} righe affette inizialmente, {sqlite_rows_after_delete} rimaste dopo verifica). "
-               f"Chroma({('Tentata' if chroma_deleted else 'Fallita')}). "
-               f"File({files_deleted_count}/{len(files_to_delete)} eliminati).")
-    if file_delete_errors: message += f" Errori file: {len(file_delete_errors)}."
-    if chroma_error: message += f" Errore Chroma: {chroma_error}."
+               f"SQLite({sqlite_rows_affected} righe rimosse, {sqlite_rows_after_delete} rimaste dopo verifica). "
+               f"Chroma({('Tentata' if chroma_deleted else 'Fallita')}).")
+    if chroma_error: message += f" Dettaglio Chroma: {chroma_error}"
 
     return jsonify({
         'success': final_success,
@@ -822,8 +759,5 @@ def delete_all_user_articles():
             'sqlite_rows_verified': sqlite_rows_after_delete,
             'chroma_deleted_attempted': chroma_deleted,
             'chroma_error': chroma_error,
-            'files_found': len(files_to_delete),
-            'files_deleted': files_deleted_count,
-            'file_errors': file_delete_errors
         }
-    }), 200 if final_success else 500 # 200 se tutto OK, 500 se DB o file hanno avuto problemi
+    }), 200 if final_success else 500

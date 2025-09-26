@@ -3,7 +3,7 @@ import string
 import sqlite3
 import logging
 from flask import current_app
-
+from datetime import datetime 
 import secrets
 import string
 
@@ -61,3 +61,24 @@ def build_full_config_for_background_process(user_id: str) -> dict:
     full_config.update(user_settings)
     
     return full_config
+
+def format_datetime_filter(value, format='%d %b %Y'):
+    """
+    Filtro Jinja per formattare stringhe di data in formato ISO (con o senza 'Z').
+    Restituisce la stringa formattata o il valore originale in caso di errore.
+    """
+    # Se il valore non è una stringa o è troppo corto per essere una data valida, lo restituiamo subito.
+    if not isinstance(value, str) or len(value) <= 1:
+        return value
+
+    try:
+        if value.endswith('Z'):
+            dt_object = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        else:
+            dt_object = datetime.fromisoformat(value)
+        
+        return dt_object.strftime(format)
+            
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Filtro format_date: Impossibile analizzare il valore '{value}'. Errore: {e}")
+        return value

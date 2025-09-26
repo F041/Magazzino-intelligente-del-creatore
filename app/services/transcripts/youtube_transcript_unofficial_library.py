@@ -1,0 +1,81 @@
+# FILE: app/services/transcripts/youtube_transcript_unofficial_library.py
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+import logging
+from typing import Optional, Dict
+
+logger = logging.getLogger(__name__)
+
+class UnofficialTranscriptService:
+    """
+    Servizio per recuperare trascrizioni utilizzando la libreria non ufficiale
+    youtube_transcript_api. Questo metodo non consuma quote dell'API di YouTube.
+    """
+    
+    @staticmethod
+    def get_transcript(video_id: str, preferred_languages: list = ['it', 'en']) -> Optional[Dict[str, str]]:
+        """
+        Tenta di recuperare la trascrizione per un dato video_id.
+        Cerca prima nelle lingue preferite, poi tenta un fallback su qualsiasi lingua disponibile.
+        """
+        logger.info(f"[Unofficial Lib] Avvio recupero trascrizione per video ID: {video_id}")
+        
+        try:
+            # 1. Ottieni la lista delle trascrizioni disponibili
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            # 2. Cerca la trascrizione nelle lingue preferite
+            transcript_to_fetch = None
+            found_lang_code = None
+            
+            for lang_code in preferred_languages:
+                try:
+                    transcript_to_fetch = transcript_list.find_transcript([lang_code])
+                    found_lang_code = lang_code
+                    logger.info(f"[Unofficial Lib] Trovata trascrizione preferita in '{lang_code}' per {video_id}.")
+                    break
+                except NoTranscriptFound:
+                    continue # Continua a cercare nella prossima lingua preferita
+            
+            # 3. Se non trovata, prova un fallback su qualsiasi lingua generabile automaticamente
+            if not transcript_to_fetch:
+                try:
+                    transcript_to_fetch = transcript_list.find_generated_transcript(preferred_languages)
+                    found_lang_code = transcript_to_fetch.language_code
+                    logger.info(f"[Unofficial Lib] Trovata trascrizione generata automaticamente in '{found_lang_code}' per {video_id}.")
+                except NoTranscriptFound:
+                     # Come ultima spiaggia, prendi la prima trascrizione disponibile
+                    logger.warning(f"[Unofficial Lib] Nessuna trascrizione preferita o generata trovata. Tento fallback sulla prima disponibile.")
+                    first_transcript = next(iter(transcript_list), None)
+                    if first_transcript:
+                        transcript_to_fetch = first_transcript
+                        found_lang_code = first_transcript.language_code
+
+            if not transcript_to_fetch:
+                # Questo caso è raro se la lista non è vuota, ma per sicurezza
+                raise NoTranscriptFound(video_id)
+
+            # 4. Scarica e formatta il testo
+            transcript_pieces = transcript_to_fetch.fetch()
+            full_transcript_text = " ".join(piece['text'] for piece in transcript_pieces)
+            
+            # Determina il tipo di trascrizione
+            caption_type = 'manual' if not transcript_to_fetch.is_generated else 'auto'
+            
+            logger.info(f"[Unofficial Lib] Trascrizione recuperata con successo per {video_id} (Lingua: {found_lang_code}, Tipo: {caption_type}).")
+            
+            return {
+                'text': full_transcript_text,
+                'language': found_lang_code,
+                'type': caption_type
+            }
+
+        except TranscriptsDisabled:
+            logger.warning(f"[Unofficial Lib] Le trascrizioni sono disabilitate per il video {video_id}.")
+            return {'error': 'TRANSCRIPTS_DISABLED', 'message': 'Le trascrizioni sono disabilitate per questo video.'}
+        except NoTranscriptFound:
+            logger.warning(f"[Unofficial Lib] Nessuna trascrizione trovata per il video {video_id}.")
+            return {'error': 'NO_TRANSCRIPT_FOUND', 'message': 'Nessuna trascrizione disponibile per questo video.'}
+        except Exception as e:
+            logger.error(f"[Unofficial Lib] Errore imprevisto durante il recupero della trascrizione per {video_id}: {e}", exc_info=True)
+            return {'error': 'UNKNOWN_ERROR', 'message': f'Errore imprevisto: {e}'}

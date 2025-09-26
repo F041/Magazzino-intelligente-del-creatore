@@ -133,20 +133,14 @@ def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str
 
     # Logica Indicizzazione
     try:
-        cursor.execute("SELECT filepath, original_filename FROM documents WHERE doc_id = ?", (doc_id,))
+        cursor.execute("SELECT content, original_filename FROM documents WHERE doc_id = ?", (doc_id,))
         doc_data = cursor.fetchone()
-        if not doc_data: logger.error(f"[_index_document][{doc_id}] Record non trovato nel DB."); return 'failed_doc_not_found'
+        if not doc_data: 
+            logger.error(f"[_index_document][{doc_id}] Record non trovato nel DB.")
+            return 'failed_doc_not_found'
         
-        relative_path_from_db, original_filename = doc_data
-        # Ricostruiamo il percorso completo partendo dalla base del progetto
-        base_dir = current_app.config.get('BASE_DIR', os.getcwd())
-        md_filepath = os.path.join(base_dir, relative_path_from_db)
-
-        logger.info(f"[_index_document][{doc_id}] Trovato: {original_filename}, Percorso ricostruito: {md_filepath}")
-
-        markdown_content = None
-        if not md_filepath or not os.path.exists(md_filepath): logger.error(f"[_index_document][{doc_id}] File Markdown non trovato: {md_filepath}"); return 'failed_file_not_found'
-        with open(md_filepath, 'r', encoding='utf-8') as f: markdown_content = f.read()
+        markdown_content, original_filename = doc_data[0], doc_data[1]
+        logger.info(f"[_index_document][{doc_id}] Trovato documento '{original_filename}' nel DB.")
 
         if not markdown_content or not markdown_content.strip():
              logger.warning(f"[_index_document][{doc_id}] File Markdown vuoto. Marco come completato.")
@@ -293,18 +287,17 @@ def upload_documents():
                         md_filesize = os.path.getsize(full_md_filepath)
                         logger.info(f"File '{original_filename}' salvato come MD: {stored_md_filename}")
 
-                        # INSERT SQLite (con user_id)
+                        # INSERT SQLite (con user_id e contenuto)
                         sql_insert_doc = """
                             INSERT INTO documents (
-                                doc_id, original_filename, stored_filename, filepath,
+                                doc_id, original_filename, content,
                                 filesize, mimetype, user_id, processing_status
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?)
                         """
                         values_to_insert = (
                             doc_id,
                             original_filename,
-                            stored_md_filename,
-                            relative_md_filepath.replace('\\', '/'), # SALVIAMO IL PERCORSO RELATIVO
+                            extracted_text, # Inseriamo il testo estratto
                             md_filesize,
                             original_mimetype,
                             current_user_id,
@@ -398,161 +391,82 @@ def upload_documents():
 @login_required
 def delete_document(doc_id):
     """
-    Elimina un documento specifico (file .md, record DB E CHUNKS CHROMA).
-    Adattato per modalità single/saas.
+    Elimina un documento specifico (record DB E CHUNKS CHROMA).
+    Adattato per modalità single/saas e senza file fisici.
     """
     app_mode = current_app.config.get('APP_MODE', 'single')
     logger.info(f"Richiesta DELETE ricevuta per doc_id: {doc_id} (Modalità: {app_mode})")
 
-    # --- OTTIENI USER ID REALE ---
-    current_user_id = None
-    if app_mode == 'saas':
-        if not current_user.is_authenticated: return jsonify({'success': False, 'error_code': 'AUTH_REQUIRED'}), 401
-        current_user_id = current_user.id
-        logger.info(f"[{doc_id}] Tentativo eliminazione per utente '{current_user_id}'")
-    # --- FINE OTTIENI USER ID REALE ---
+    current_user_id = current_user.id
+    logger.info(f"[{doc_id}] Tentativo eliminazione per utente '{current_user_id}'")
 
-    # --- Configurazione DB e Nomi Collezioni ---
     db_path = current_app.config.get('DATABASE_FILE')
-    base_doc_collection_name = current_app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content') # Nome base
+    base_doc_collection_name = current_app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content')
     if not db_path or not base_doc_collection_name:
         logger.error("Configurazione DATABASE_FILE o DOCUMENT_COLLECTION_NAME mancante per delete_document.")
-        return jsonify({'success': False, 'error_code': 'SERVER_CONFIG_ERROR', 'message': 'Errore configurazione database o nome collezione server.'}), 500
+        return jsonify({'success': False, 'error_code': 'SERVER_CONFIG_ERROR', 'message': 'Errore configurazione server.'}), 500
 
     conn = None
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        # --- 1. Trova il record del documento e il percorso del file (con filtro user_id se SAAS) ---
-        sql_select = "SELECT filepath FROM documents WHERE doc_id = ?"
-        params_select = [doc_id]
-        if app_mode == 'saas':
-            sql_select += " AND user_id = ?"
-            params_select.append(current_user_id)
-        cursor.execute(sql_select, tuple(params_select))
+        # --- CONTROLLO ESISTENZA E APPARTENENZA (CORRETTO) ---
+        sql_select = "SELECT doc_id FROM documents WHERE doc_id = ? AND user_id = ?"
+        params_select = (doc_id, current_user_id)
+        cursor.execute(sql_select, params_select)
         result = cursor.fetchone()
 
         if result is None:
-            conn.close() # Chiudi connessione prima di restituire
-            message = f"Documento {doc_id} non trovato" + (f" per l'utente {current_user_id}" if app_mode == 'saas' else "") + "."
+            conn.close()
+            message = f"Documento {doc_id} non trovato per l'utente {current_user_id}."
             logger.warning(message)
             return jsonify({'success': False, 'error_code': 'DOCUMENT_NOT_FOUND', 'message': message}), 404
 
-        filepath_to_delete = result[0]
-        logger.info(f"[{doc_id}] Trovato documento appartenente all'utente (o in modalità single). Percorso file: {filepath_to_delete}")
+        logger.info(f"[{doc_id}] Trovato documento appartenente all'utente. Procedo con l'eliminazione.")
+        # --- FINE CONTROLLO ---
 
-        # --- 2. Elimina da ChromaDB ---
-        logger.info(f"[{doc_id}] Tentativo eliminazione chunk da ChromaDB...")
-        doc_collection = None
-        collection_name_for_log = "N/A"
-        chroma_delete_success = False # Flag per tracciare successo eliminazione Chroma
-
+        # Elimina da ChromaDB (logica invariata)
+        chroma_delete_success = False
         try:
-            # Ottieni la collezione corretta
-            if app_mode == 'single':
-                doc_collection = current_app.config.get('CHROMA_DOC_COLLECTION')
-                if doc_collection: collection_name_for_log = doc_collection.name
-            elif app_mode == 'saas':
-                 if current_user_id: # Già verificato sopra, ma doppia sicurezza
-                    chroma_client = current_app.config.get('CHROMA_CLIENT')
-                    if chroma_client:
-                        user_doc_collection_name = f"{base_doc_collection_name}_{current_user_id}"
-                        collection_name_for_log = user_doc_collection_name
-                        # Usiamo get_collection qui, non create. Se non esiste, non c'è nulla da eliminare.
-                        try:
-                           doc_collection = chroma_client.get_collection(name=user_doc_collection_name)
-                           logger.info(f"[{doc_id}] Trovata collezione ChromaDB '{collection_name_for_log}' per l'eliminazione.")
-                        except Exception as e_get_coll:
-                           # Se la collezione non esiste, va bene, significa che non ci sono chunk da eliminare.
-                           logger.info(f"[{doc_id}] Collezione ChromaDB '{collection_name_for_log}' non trovata. Nessun chunk da eliminare. ({e_get_coll})")
-                           chroma_delete_success = True # Consideriamo successo perché non c'era nulla da fare
-                    else: logger.error(f"[{doc_id}] Chroma Client non disponibile in config.")
-                 else: logger.error(f"[{doc_id}] User ID mancante per determinare collezione SAAS.")
-
-            # Se abbiamo ottenuto una collezione valida, prova a eliminare i chunk
-            if doc_collection:
-                logger.debug(f"[{doc_id}] Cerco chunk da eliminare nella collezione '{collection_name_for_log}' con where={{'doc_id': '{doc_id}'}}")
-                # Trova gli ID dei chunk da eliminare
-                chunks_to_delete = doc_collection.get(where={"doc_id": doc_id}, include=[]) # include=[] per prendere solo gli ID
-                chunk_ids_to_delete = chunks_to_delete.get('ids', [])
-
-                if chunk_ids_to_delete:
-                    logger.info(f"[{doc_id}] Trovati {len(chunk_ids_to_delete)} chunk da eliminare da ChromaDB: {chunk_ids_to_delete}")
-                    doc_collection.delete(ids=chunk_ids_to_delete)
-                    logger.info(f"[{doc_id}] Eliminazione chunk da ChromaDB completata.")
-                    chroma_delete_success = True
-                else:
-                    logger.info(f"[{doc_id}] Nessun chunk trovato in ChromaDB per doc_id {doc_id}. Nessuna eliminazione necessaria.")
-                    chroma_delete_success = True # Successo perché non c'era nulla da fare
-
+            chroma_client = current_app.config.get('CHROMA_CLIENT')
+            if chroma_client:
+                user_doc_collection_name = f"{base_doc_collection_name}_{current_user_id}"
+                try:
+                   doc_collection = chroma_client.get_collection(name=user_doc_collection_name)
+                   chunks_to_delete = doc_collection.get(where={"doc_id": doc_id}, include=[])
+                   chunk_ids_to_delete = chunks_to_delete.get('ids', [])
+                   if chunk_ids_to_delete:
+                       doc_collection.delete(ids=chunk_ids_to_delete)
+                   chroma_delete_success = True
+                except Exception:
+                   chroma_delete_success = True # Se la collezione non esiste, è comunque un successo
         except Exception as e_chroma:
-            # Logga l'errore ma NON bloccare l'eliminazione da SQLite/file system
             logger.error(f"[{doc_id}] ERRORE durante l'eliminazione da ChromaDB: {e_chroma}", exc_info=True)
-            chroma_delete_success = False # Segna che Chroma ha fallito
 
-        # --- 3. Elimina il record dal database SQLite (Logica quasi invariata) ---
-        if not chroma_delete_success:
-            logger.warning(f"[{doc_id}] Procedo con eliminazione da SQLite nonostante fallimento/salto eliminazione ChromaDB.")
-
-        sql_delete = "DELETE FROM documents WHERE doc_id = ?"
-        params_delete = [doc_id]
-        if app_mode == 'saas':
-            sql_delete += " AND user_id = ?"
-            params_delete.append(current_user_id)
-        cursor.execute(sql_delete, tuple(params_delete))
-
+        # Elimina da SQLite
+        sql_delete = "DELETE FROM documents WHERE doc_id = ? AND user_id = ?"
+        cursor.execute(sql_delete, (doc_id, current_user_id))
+        
         if cursor.rowcount == 0:
-             # Questo non dovrebbe accadere se il SELECT iniziale ha funzionato
              conn.rollback(); conn.close()
-             logger.error(f"[{doc_id}] Eliminazione da SQLite fallita (rowcount 0) dopo SELECT riuscito.")
-             return jsonify({'success': False, 'error_code': 'DB_DELETE_FAILED', 'message': 'Errore DB durante eliminazione (record scomparso?).'}), 500
-        logger.info(f"[{doc_id}] Record DB eliminato con successo.")
-
-        # --- 4. Elimina il file fisico dal filesystem (Logica invariata) ---
-        try:
-            if filepath_to_delete and os.path.exists(filepath_to_delete):
-                os.remove(filepath_to_delete)
-                logger.info(f"[{doc_id}] File fisico {filepath_to_delete} eliminato con successo.")
-            elif filepath_to_delete:
-                logger.warning(f"[{doc_id}] Record DB eliminato, ma file fisico {filepath_to_delete} non trovato.")
-            else:
-                 logger.warning(f"[{doc_id}] Record DB eliminato, ma percorso file non presente.")
-        except OSError as e_os:
-            logger.error(f"[{doc_id}] Errore eliminazione file fisico {filepath_to_delete} dopo eliminazione DB: {e_os}")
-            # Il record DB è già stato eliminato (o pronto per commit). Committiamo e segnaliamo errore parziale.
-            conn.commit()
-            conn.close()
-            return jsonify({
-                'success': False, # Fallimento parziale
-                'error_code': 'FILE_DELETE_FAILED_POST_DB',
-                'message': f'Record DB e potenzialmente ChromaDB eliminati, ma errore eliminazione file fisico: {e_os}. Richiede intervento manuale sul file.',
-                'doc_id': doc_id,
-                'chroma_delete_success': chroma_delete_success # Aggiungi info su Chroma
-            }), 500
-
-        # --- 5. Se tutto è andato bene (DB + File + Chroma OK o non necessario), commit e risposta OK ---
+             return jsonify({'success': False, 'error_code': 'DB_DELETE_FAILED', 'message': 'Errore DB durante eliminazione.'}), 500
+        
         conn.commit()
         conn.close()
-        final_message = f"Documento {doc_id} eliminato con successo (DB e file fisico)."
-        if chroma_delete_success:
-            final_message += " Pulizia ChromaDB completata o non necessaria."
-        else:
-            final_message += " ATTENZIONE: Si è verificato un errore durante la pulizia da ChromaDB."
-        logger.info(final_message)
+
+        final_message = f"Documento {doc_id} eliminato con successo dal database."
+        if not chroma_delete_success:
+            final_message += " ATTENZIONE: Errore durante pulizia ChromaDB."
+            
         return jsonify({
-            'success': True, # L'operazione principale (DB+file) è andata bene
+            'success': True,
             'message': final_message,
             'doc_id': doc_id,
             'chroma_delete_success': chroma_delete_success
             }), 200
 
-    except sqlite3.Error as e_sql:
-        logger.error(f"Errore SQLite durante eliminazione {doc_id}: {e_sql}", exc_info=True)
-        if conn: conn.rollback(); conn.close()
-        return jsonify({'success': False, 'error_code': 'DB_OPERATION_ERROR', 'message': f'Errore database durante eliminazione: {e_sql}'}), 500
     except Exception as e_outer:
          logger.error(f"Errore generico imprevisto durante eliminazione doc {doc_id}: {e_outer}", exc_info=True)
          if conn: conn.rollback(); conn.close()
-         return jsonify({'success': False, 'error_code': 'UNEXPECTED_DELETE_ERROR', 'message': f'Errore server imprevisto durante eliminazione: {e_outer}'}), 500
-    # Il finally non serve più qui perché chiudiamo la connessione in tutti i rami finali
+         return jsonify({'success': False, 'error_code': 'UNEXPECTED_DELETE_ERROR', 'message': f'Errore server imprevisto.'}), 500

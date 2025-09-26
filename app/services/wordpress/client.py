@@ -47,7 +47,7 @@ class WordPressClient:
             params = {
                 'page': page,
                 'per_page': 100,
-                '_fields': 'id,link,title,content,modified_gmt,type'
+                '_fields': 'id,link,title,content,date_gmt,modified_gmt,type'
             }
             
             logger.info(f"Recupero dati dall'endpoint '{endpoint}', pagina {page}/{total_pages}...")

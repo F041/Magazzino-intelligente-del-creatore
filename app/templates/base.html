@@ -93,24 +93,29 @@
             ><span>I tuoi documenti</span></a
           >
         </li>
-        {% endif %} {% if content_counts.has_articles %}
+        {% endif %} 
+        
+        {# Blocco Articoli #}
+        {% if content_counts.has_articles %}
         <li class="{{ 'active' if request.endpoint == 'my_articles' else '' }}">
           <a href="{{ url_for('my_articles') }}"
             ><i class="fas fa-newspaper fa-fw"></i
             ><span>I tuoi articoli</span></a
           >
         </li>
-         
+        {% endif %}
+        
+        {# Blocco Pagine (ora indipendente) #}
         {% if content_counts.has_pages %}
         <li class="{{ 'active' if request.endpoint == 'my_pages' else '' }}">
           <a href="{{ url_for('my_pages') }}"
-            ><i class="fas fa-window-maximize"></i
-            ><span>Le tue pagine</span></a
+            ><i class="fas fa-window-maximize"></i> <!-- Tolto fa-fw che non serve qui -->
+            <span>Le tue pagine</span></a
           >
         </li>
         {% endif %}
      
-        {% endif %} {% if content_counts.has_videos or
+        {% if content_counts.has_videos or
         content_counts.has_documents or content_counts.has_articles %}
         <li
           class="{{ 'active' if request.endpoint == 'automations_page' else '' }}"

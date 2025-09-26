@@ -4,37 +4,47 @@
             <span><i class="fas fa-shield-alt"></i> Backup e ripristino</span>
         </h2>
         <p>
-            Questa sezione ti permette di creare e ripristinare un backup "leggero" del tuo Magazzino: una copia di riserva per situazioni critiche.
-            Viene salvato solo il database principale (<code>.db</code>), che contiene tutte le informazioni essenziali sui tuoi contenuti e le tue impostazioni.
-        </p>
-        <p>
-            <strong>Nota importante:</strong> Il database vettoriale (ChromaDB), che è molto pesante, viene escluso.
-            Quando ripristini un backup, il sistema dovrà <strong>re-indicizzare tutti i tuoi contenuti</strong> per ricostruirlo.
-            Questa operazione potrebbe richiedere tempo e consumare crediti delle API (se usi Gemini).
+            Questa sezione ti permette di creare e ripristinare un backup del tuo Magazzino per situazioni critiche.
         </p>
         
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border-light);">
-            <h4 style="margin-bottom: 15px;">1. Crea un backup</h4>
+        <!-- SEZIONE BACKUP COMPLETO -->
+        <div style="margin-top: 30px; padding: 20px; border: 1px solid var(--color-primary); border-radius: var(--border-radius-md); background-color: color-mix(in srgb, var(--color-primary) 5%, transparent);">
+            <h4 style="margin-bottom: 15px; font-size: 1.2rem;"><i class="fas fa-archive"></i> Backup completo (consigliato)</h4>
             <p>
-                Clicca qui per scaricare una copia del tuo database principale. Conserva questo file in un luogo sicuro.
+                Crea un backup <strong>completo</strong> che include sia il database principale che il pesante database vettoriale (ChromaDB).
+                <strong>Ripristinando questo backup non dovrai re-indicizzare i contenuti.</strong>
             </p>
-            <a href="{{ url_for('protection.download_database_backup') }}" class="action-btn success-btn">
-                <i class="fas fa-download"></i> Scarica backup database (.db)
-            </a>
-        </div>
-
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border-light);">
-            <h4 style="margin-bottom: 15px;">2. Ripristina da un backup</h4>
-            <p>
-                Carica un file di backup <code>.db</code> per ripristinare il tuo Magazzino a uno stato precedente.
-                <strong>ATTENZIONE:</strong> Questa azione sovrascriverà irreversibilmente i dati attuali.
-            </p>
-            <button id="restore-backup-btn" class="action-btn">
-                <i class="fas fa-upload"></i> Carica e ripristina database
+            <button id="download-full-backup-btn" class="action-btn success-btn" data-url="{{ url_for('protection.download_full_backup') }}">
+                <i class="fas fa-download"></i>
+                <span>Scarica backup completo (.zip)</span>
             </button>
-            <input type="file" id="backup-file-input" accept=".db" style="display: none;">
-
-            <!-- Contenitore per mostrare lo stato del ripristino -->
+            <div style="margin-top: 20px;">
+                <button id="restore-full-backup-btn" class="action-btn">
+                    <i class="fas fa-upload"></i> Ripristina da backup completo
+                </button>
+                <input type="file" id="full-backup-file-input" accept=".zip" style="display: none;">
+            </div>
+            <!-- Contenitore per lo stato del ripristino completo -->
+            <div id="restore-full-status" style="margin-top: 20px; display: none;"></div>
+        </div>
+        
+        <!-- SEZIONE BACKUP LEGGERO -->
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--color-border-light);">
+            <h4 style="margin-bottom: 15px;"><i class="fas fa-database"></i> Backup leggero (solo database)</h4>
+            <p>
+                Crea un backup del solo database principale (<code>.db</code>).
+                <strong>ATTENZIONE:</strong> Ripristinando questo backup, il sistema dovrà <strong>re-indicizzare tutti i contenuti</strong> per ricostruire il database vettoriale.
+            </p>
+            <a href="{{ url_for('protection.download_database_backup') }}" class="action-btn secondary" style="background-color: var(--color-text-light);">
+                <i class="fas fa-download"></i> Scarica solo .db
+            </a>
+            <div style="margin-top: 20px;">
+                <button id="restore-backup-btn" class="action-btn secondary" style="background-color: var(--color-text-light);">
+                    <i class="fas fa-upload"></i> Ripristina da solo .db
+                </button>
+                <input type="file" id="backup-file-input" accept=".db" style="display: none;">
+            </div>
+            <!-- Contenitore per lo stato del ripristino leggero -->
             <div id="restore-status" style="margin-top: 20px; display: none;"></div>
         </div>
 

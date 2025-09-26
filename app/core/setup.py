@@ -148,7 +148,7 @@ def init_db(config):
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS documents (
                 doc_id TEXT PRIMARY KEY, original_filename TEXT NOT NULL,
-                stored_filename TEXT NOT NULL UNIQUE, filepath TEXT NOT NULL,
+                content TEXT, -- Qui andrà il testo estratto
                 filesize INTEGER, mimetype TEXT,
                 processing_status TEXT DEFAULT 'pending',
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -167,9 +167,9 @@ def init_db(config):
         # 1. Crea la tabella SE NON ESISTE
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS articles (
-                article_id TEXT PRIMARY KEY, guid TEXT UNIQUE, feed_url TEXT,
-                article_url TEXT NOT NULL UNIQUE, title TEXT NOT NULL, published_at TEXT,
-                extracted_content_path TEXT, content_hash TEXT,
+                article_id TEXT PRIMARY KEY, guid TEXT, feed_url TEXT,
+                article_url TEXT NOT NULL, title TEXT NOT NULL, published_at TEXT,
+                content TEXT, content_hash TEXT,
                 processing_status TEXT DEFAULT 'pending',
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )''')
@@ -187,10 +187,10 @@ def init_db(config):
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS pages (
                 page_id TEXT PRIMARY KEY,
-                page_url TEXT NOT NULL UNIQUE,
+                page_url TEXT NOT NULL,
                 title TEXT NOT NULL,
                 published_at TEXT,
-                extracted_content_path TEXT,
+                content TEXT,
                 content_hash TEXT,
                 processing_status TEXT DEFAULT 'pending',
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

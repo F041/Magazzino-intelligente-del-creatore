@@ -352,10 +352,10 @@ document.addEventListener("DOMContentLoaded", function () {
         });
 
         fileInput.addEventListener('change', async (event) => {
-            event.preventDefault(); // <--- ESSENZIALE: Blocca la submission del form anche qui, per sicurezza
+            event.preventDefault(); 
             const file = event.target.files[0];
             if (!file) {
-                fileInput.value = ''; // Resetta l'input se l'utente annulla il dialogo
+                fileInput.value = ''; 
                 return;
             }
 
@@ -394,8 +394,16 @@ document.addEventListener("DOMContentLoaded", function () {
                     window.startAsyncTask('/api/protection/reindex-progress', {
                         messageDiv: restoreStatusDiv,
                         button: restoreBtn,
-                        buttonOriginalHTML: '<i class="fas fa-upload"></i> Carica e Ripristina Database'
+                        buttonOriginalHTML: '<i class="fas fa-upload"></i> Carica e Ripristina Database',
+                        onSuccess: () => {
+                            // Quando il processo in background finisce con successo, ricarica la pagina.
+                            setTimeout(() => {
+                                window.location.href = window.location.pathname + '#protezione';
+                                window.location.reload();
+                            }, 1500); // Attendi 1.5 secondi per far leggere il messaggio finale
+                        }
                     });
+
                 } else {
                      restoreStatusDiv.className = 'success-message';
                      restoreStatusDiv.textContent = data.message;
@@ -445,6 +453,97 @@ document.addEventListener("DOMContentLoaded", function () {
             type === "success" ? "success-message" : "error-message";
         messageDiv.textContent = message;
         messageDiv.style.marginBottom = "15px";
+    }
+        // --- LOGICA PER IL RIPRISTINO COMPLETO DA BACKUP (.zip) ---
+    const restoreFullBtn = document.getElementById('restore-full-backup-btn');
+    const fileInputFull = document.getElementById('full-backup-file-input');
+    const restoreFullStatusDiv = document.getElementById('restore-full-status');
+
+    if (restoreFullBtn && fileInputFull && restoreFullStatusDiv) {
+        restoreFullBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            fileInputFull.click();
+        });
+
+        fileInputFull.addEventListener('change', async (event) => {
+            event.preventDefault();
+            const file = event.target.files[0];
+            if (!file) {
+                fileInputFull.value = '';
+                return;
+            }
+
+            const confirmed = await showConfirmModal(
+                "Conferma Ripristino COMPLETO",
+                `Stai per caricare il file "${file.name}". Tutti i dati attuali verranno SOVRASCRITTI. L'applicazione dovrà essere riavviata per completare il processo. Sei assolutamente sicuro?`
+            );
+            
+            if (!confirmed) {
+                fileInputFull.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('backup_file', file);
+            
+            restoreFullBtn.disabled = true;
+            restoreFullStatusDiv.className = 'info-message';
+            restoreFullStatusDiv.textContent = 'Caricamento del file di backup completo in corso...';
+            restoreFullStatusDiv.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/protection/restore/full', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Errore del server durante il caricamento.');
+                }
+
+                if (response.status === 202) {
+                    restoreFullStatusDiv.className = 'success-message';
+                    restoreFullStatusDiv.innerHTML = `<strong>${data.message}</strong><br>Se usi Docker, il container si riavvierà automaticamente tra poco. Altrimenti, riavvia manualmente il server.`;
+                    showNotification('File caricato! Riavvia l\'applicazione per completare.', 'success');
+                } else {
+                     restoreFullStatusDiv.className = 'success-message';
+                     restoreFullStatusDiv.textContent = data.message;
+                     restoreFullBtn.disabled = false;
+                }
+
+            } catch (error) {
+                restoreFullStatusDiv.className = 'error-message';
+                restoreFullStatusDiv.textContent = `Errore: ${error.message}`;
+                restoreFullBtn.disabled = false;
+            } finally {
+                fileInputFull.value = '';
+            }
+        });
+    }
+        const downloadFullBtn = document.getElementById('download-full-backup-btn');
+    if (downloadFullBtn) {
+        downloadFullBtn.addEventListener('click', function() {
+            const button = this;
+            const originalHTML = button.innerHTML;
+            const downloadUrl = button.dataset.url;
+
+            if (!downloadUrl) return;
+
+            // 1. Disabilita il pulsante e mostra lo spinner
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Preparazione...</span>';
+
+            // 2. Avvia il download
+            window.location.href = downloadUrl;
+
+            // 3. Ripristina il pulsante dopo un breve ritardo.
+            // Il browser gestirà il download, noi dobbiamo solo ripristinare l'UI.
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = originalHTML;
+            }, 4000); // 4 secondi sono sufficienti perché il download parta
+        });
     }
 
 });
