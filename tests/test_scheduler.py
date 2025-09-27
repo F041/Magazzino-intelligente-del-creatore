@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 import sqlite3
 from flask import current_app
 
@@ -53,49 +53,60 @@ def register_test_user_for_scheduler(app, monkeypatch, email="scheduler_user@exa
     assert user_id is not None
     return user_id
 
-
 def test_scheduler_job_calls_processing_functions(app, monkeypatch):
     """
-    Testa che il job dello scheduler recuperi correttamente i dati dal DB
-    e chiami le funzioni di processing per YouTube e RSS.
+    Testa che il job dello scheduler recuperi i dati e chiami le funzioni corrette.
     """
-    # 1. ARRANGE (Prepara l'ambiente)
-    
-    # Crea un utente di test e dei dati da monitorare nel database
+    # 1. ARRANGE
     user_id = register_test_user_for_scheduler(app, monkeypatch)
     setup_test_monitoring_data(app, user_id)
 
-    # Definiamo i path delle funzioni che vogliamo "spiare" (mockare)
-    # Questi sono i nuovi path corretti dopo il nostro refactoring
+    # Path delle funzioni che vogliamo spiare
     path_youtube_processor = 'app.scheduler_jobs._process_youtube_channel_core'
     path_rss_processor = 'app.scheduler_jobs._process_rss_feed_core'
+    
+    # --- LA CORREZIONE DEFINITIVA ---
+    # Puntiamo direttamente alla CLASSE ORIGINALE nella sua "fabbrica".
+    # Qualsiasi parte del codice che la importerà, riceverà la nostra versione finta.
+    path_youtube_client_class = 'app.services.youtube.client.YouTubeClient'
 
-    # Usiamo 'patch' per sostituire temporaneamente le vere funzioni con delle "spie"
+    # Dati finti che il nostro finto client restituirà
+    mock_video_list = [MagicMock()]
+
+    # Usiamo 'patch' per sostituire TUTTE le dipendenze esterne
     with patch(path_youtube_processor, return_value={'success': True}) as mock_youtube_func, \
-         patch(path_rss_processor, return_value=True) as mock_rss_func:
+         patch(path_rss_processor, return_value=True) as mock_rss_func, \
+         patch(path_youtube_client_class) as MockYouTubeClient:
+
+        # Configuriamo la nostra "spia":
+        mock_yt_instance = MockYouTubeClient.return_value
+        mock_yt_instance.get_channel_videos_and_total_count.return_value = (mock_video_list, 1)
         
-        # Importiamo la funzione del job che vogliamo testare
+        # Importiamo la funzione del job
         from app.scheduler_jobs import check_monitored_sources_job
         
-        # 2. ACT (Esegui l'azione)
-        
-        # Eseguiamo la funzione del job all'interno del contesto dell'app,
-        # così può accedere a `current_app.config` etc.
+        # 2. ACT
         with app.app_context():
             check_monitored_sources_job()
 
-        # 3. ASSERT (Verifica i risultati)
+        # 3. ASSERT
         
-        # Verifichiamo che la nostra spia per YouTube sia stata chiamata una volta
+        # Verifichiamo che il metodo del nostro client finto sia stato chiamato
+        mock_yt_instance.get_channel_videos_and_total_count.assert_called_once_with('UC-test-channel')
+        
+        # Ora queste verifiche, che prima fallivano, funzioneranno
         mock_youtube_func.assert_called_once()
-        # Verifichiamo che la nostra spia per RSS sia stata chiamata una volta
         mock_rss_func.assert_called_once()
         
-        # Possiamo anche controllare con quali "ingredienti" sono state chiamate
-        youtube_call_args = mock_youtube_func.call_args[0]
-        assert youtube_call_args[0] == 'UC-test-channel' # L'ID del canale
-        assert youtube_call_args[1] == user_id           # L'ID dell'utente
+        mock_youtube_func.assert_called_once_with(
+            channel_id='UC-test-channel',
+            user_id=user_id,
+            core_config=ANY,
+            videos_from_yt_models=mock_video_list,
+            status_dict={},
+            use_official_api_only=True
+        )
 
         rss_call_args = mock_rss_func.call_args[0]
-        assert rss_call_args[0] == 'http://test.com/feed' # L'URL del feed
-        assert rss_call_args[1] == user_id                # L'ID dell'utente
+        assert rss_call_args[0] == 'http://test.com/feed'
+        assert rss_call_args[1] == user_id

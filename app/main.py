@@ -7,6 +7,8 @@ import sqlite3
 from datetime import datetime
 import uuid
 import zipfile
+import time
+import sys 
 import shutil
 import atexit
 from .models.user import User
@@ -75,80 +77,51 @@ def shutdown_scheduler(scheduler_instance):
             logger.error(f"Errore durante lo spegnimento dello scheduler: {e}")
 
 
-# --- Factory Function per l'App Flask ---
-def create_app(config_object=AppConfig):
-    """Crea e configura l'istanza dell'app Flask."""
-    app = Flask(__name__)
-    app.config.from_object(config_object) # Carica config Flask prima
-
-        # --- INIZIO: BLOCCO DI RIPRISTINO BACKUP ALL'AVVIO ---
+def _handle_startup_restore(config):
+    """
+    Controlla la presenza di un backup in attesa e lo ripristina.
+    Questa funzione viene chiamata all'avvio dell'applicazione.
+    """
     try:
-        data_dir = os.path.dirname(app.config.get('DATABASE_FILE'))
+        data_dir = os.path.dirname(config.get('DATABASE_FILE'))
         pending_restore_path = os.path.join(data_dir, 'pending_restore.zip')
 
         if os.path.exists(pending_restore_path):
             logger.warning("!!! RILEVATO BACKUP COMPLETO IN ATTESA DI RIPRISTINO !!!")
             
-            db_path_target = app.config.get('DATABASE_FILE')
-            chroma_path_target = app.config.get('CHROMA_PERSIST_PATH')
+            db_path_target = config.get('DATABASE_FILE')
+            chroma_path_target = config.get('CHROMA_PERSIST_PATH')
             
-            # 1. Spegnere i servizi esistenti (se fossero attivi in qualche modo)
-            # (Questa parte è più una precauzione, dato che siamo all'avvio)
-            if 'CHROMA_CLIENT' in app.config and app.config['CHROMA_CLIENT']:
-                try:
-                    app.config['CHROMA_CLIENT']._system.stop()
-                    logger.info("Sistema ChromaDB esistente fermato prima del ripristino.")
-                except Exception:
-                    pass
-
-            # 2. Cancellare i dati attuali
+            # Un piccolo ritardo per dare tempo al sistema di rilasciare i file
+            time.sleep(1) 
+            
             logger.info("Cancellazione dei dati correnti (SQLite e ChromaDB)...")
             if os.path.exists(db_path_target):
                 os.remove(db_path_target)
             if os.path.exists(chroma_path_target):
                 shutil.rmtree(chroma_path_target)
             
-            # 3. Estrarre il backup
             logger.info(f"Estrazione del backup '{pending_restore_path}'...")
-            # Usiamo una cartella temporanea per estrarre il contenuto
-            temp_extract_dir = os.path.join(data_dir, 'temp_restore_extract')
-            os.makedirs(temp_extract_dir, exist_ok=True)
-            
             with zipfile.ZipFile(pending_restore_path, 'r') as zf:
-                zf.extractall(temp_extract_dir)
-
-            # Ora spostiamo i file estratti dalla sottocartella 'data_for_tests' (se esiste)
-            # alla loro posizione corretta.
-            extracted_data_folder = os.path.join(temp_extract_dir, 'data_for_tests')
-            if os.path.isdir(extracted_data_folder):
-                # Sposta ogni file/cartella da extracted_data_folder a data_dir
-                for item_name in os.listdir(extracted_data_folder):
-                    source_item = os.path.join(extracted_data_folder, item_name)
-                    dest_item = os.path.join(data_dir, item_name)
-                    shutil.move(source_item, dest_item)
-                # Pulisce la cartella temporanea
-                shutil.rmtree(temp_extract_dir)
-            else:
-                 # Se la struttura è piatta, sposta direttamente
-                 for item_name in os.listdir(temp_extract_dir):
-                     shutil.move(os.path.join(temp_extract_dir, item_name), data_dir)
-                 os.rmdir(temp_extract_dir)
+                zf.extractall(data_dir)
             
-            # 4. Rimuovere il file di backup per non rieseguire al prossimo avvio
             os.remove(pending_restore_path)
             
-            logger.warning("!!! RIPRISTINO DA BACKUP COMPLETATO. L'APPLICAZIONE SI RIAVVIERA' CON I NUOVI DATI. !!!")
-            # In un ambiente Docker, il container si riavvierà automaticamente.
-            # In un ambiente locale, l'utente dovrà riavviare manualmente lo script.
-            # Potremmo forzare l'uscita per sicurezza.
-            # sys.exit(0) # Opzionale: forza l'uscita per un riavvio pulito
-            
+            logger.warning("!!! RIPRISTINO ESEGUITO. L'APPLICAZIONE VERRA' TERMINATA PER COMPLETARE IL CICLO DI RIAVVIO. !!!")
+            sys.exit(0)
+                
     except Exception as e:
-        logger.error(f"ERRORE CRITICO DURANTE IL PROCESSO DI RIPRISTINO DA BACKUP: {e}", exc_info=True)
-        # Se il ripristino fallisce, è più sicuro fermare l'avvio
-        # per evitare di partire con uno stato inconsistente.
+        logger.error(f"ERRORE CRITICO DURANTE IL PROCESSO DI RIPRISTINO: {e}", exc_info=True)
         sys.exit(1)
-# --- FINE: BLOCCO DI RIPRISTINO BACKUP ALL'AVVIO ---
+
+# --- Factory Function per l'App Flask ---
+def create_app(config_object=AppConfig):
+    """Crea e configura l'istanza dell'app Flask."""
+    app = Flask(__name__)
+    app.config.from_object(config_object) # Carica config Flask prima
+
+
+    _handle_startup_restore(app.config)
 
     # Configura ProxyFix per fidarsi degli header inviati da UN proxy.
     # Cloudflare Tunnel agisce come un proxy.
@@ -1063,6 +1036,12 @@ if __name__ == '__main__':
 
         logger.info(f"Avvio Flask DEV server http://{host}:{port} | Debug={use_debug}, Reloader={use_reloader}")
         # Esegui l'app usando l'istanza locale
-        app_instance.run(host=host, port=port, debug=use_debug, use_reloader=use_reloader)
+        # Aggiungiamo 'exclude_patterns' per impedire al reloader di scattare per i file .zip
+        extra_files = []
+        exclude_patterns = ['**/pending_restore.zip']
+
+        logger.info(f"Avvio Flask DEV server http://{host}:{port} | Debug={use_debug}, Reloader={use_reloader}")
+        # Esegui l'app usando l'istanza locale, con l'opzione per ignorare i file
+        app_instance.run(host=host, port=port, debug=use_debug, use_reloader=use_reloader, exclude_patterns=exclude_patterns)
     else:
         logger.critical("Impossibile avviare: la factory create_app non ha restituito un'istanza Flask valida.")

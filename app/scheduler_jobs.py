@@ -53,7 +53,21 @@ def check_monitored_sources_job():
                     # --- MODIFICA CHIAVE: Costruisci la config completa per QUESTO utente ---
                     full_user_config = build_full_config_for_background_process(user_id)
                     
-                    result_data = _process_youtube_channel_core(channel_id, user_id, full_user_config)
+                    # Lo scheduler deve prima recuperare la lista dei video
+                    from app.services.youtube.client import YouTubeClient
+                    token_path = full_user_config.get('TOKEN_PATH')
+                    youtube_client = YouTubeClient(token_file=token_path)
+                    videos_list, _ = youtube_client.get_channel_videos_and_total_count(channel_id)
+
+                    # Ora chiama il core con la lista dei video e il nuovo parametro
+                    result_data = _process_youtube_channel_core(
+                        channel_id=channel_id, 
+                        user_id=user_id, 
+                        core_config=full_user_config,
+                        videos_from_yt_models=videos_list,
+                        status_dict={}, # Lo status_dict non serve allo scheduler
+                        use_official_api_only=True 
+                    )
                     
                     if result_data.get("success", False):
                         channel_ids_processed.append(monitor_id)

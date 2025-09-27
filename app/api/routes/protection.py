@@ -3,12 +3,13 @@ import os
 import sqlite3
 import threading
 import shutil
+import uuid
 import copy
 import zipfile
 import io
 import shutil
 from datetime import datetime 
-from flask import Blueprint, current_app, send_from_directory, flash, redirect, url_for, request, jsonify, send_file
+from flask import Blueprint, current_app, send_from_directory, flash, redirect, url_for, request, jsonify, send_file, make_response
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
@@ -275,12 +276,21 @@ def download_full_backup():
 
         logger.info(f"Utente {current_user.id} ha richiesto il download del backup completo. Nome file: {download_filename}")
 
-        return send_file(
+        # Crea la risposta del file
+        response = make_response(send_file(
             memory_file,
             mimetype='application/zip',
             as_attachment=True,
             download_name=download_filename
-        )
+        ))
+
+        # Controlla se il frontend ha inviato un token di download
+        download_token = request.args.get('downloadToken')
+        if download_token:
+            # Imposta un cookie con lo stesso nome del token
+            response.set_cookie(download_token, 'true', path='/', max_age=20) # Scade dopo 20 sec
+
+        return response
 
     except Exception as e:
         logger.error(f"Errore durante la creazione del backup completo: {e}", exc_info=True)
@@ -292,8 +302,8 @@ def download_full_backup():
 @login_required
 def restore_full_backup():
     """
-    Riceve un file ZIP di backup. Salva il file come 'pending_restore.zip'
-    e istruisce l'utente a riavviare l'applicazione.
+    Riceve un file ZIP di backup e lo salva come 'pending_restore.zip'.
+    Il reloader del server di sviluppo o Docker gestirà il riavvio.
     """
     if 'backup_file' not in request.files:
         return jsonify({'success': False, 'message': 'Nessun file fornito.'}), 400
@@ -303,18 +313,38 @@ def restore_full_backup():
         return jsonify({'success': False, 'message': 'File non valido. Seleziona un file .zip.'}), 400
 
     try:
-        # Salviamo il file in una posizione nota, in attesa del riavvio.
         data_dir = os.path.dirname(current_app.config.get('DATABASE_FILE'))
         pending_restore_path = os.path.join(data_dir, 'pending_restore.zip')
         
         file.save(pending_restore_path)
-        logger.info(f"Backup completo ricevuto dall'utente {current_user.id}. In attesa di riavvio.")
+        logger.info(f"Backup completo ricevuto da {current_user.id}. Il riavvio automatico verra' attivato.")
 
         return jsonify({
             'success': True,
-            'message': "File di backup caricato! Per completare il ripristino, è necessario riavviare l'applicazione."
-        }), 202 # 202 Accepted: la richiesta è stata accettata, ma l'azione non è ancora completa.
+            'message': "File di backup caricato! L'applicazione si riavvierà automaticamente per applicare le modifiche. Attendi qualche istante e ricarica la pagina."
+        }), 200
 
     except Exception as e:
-        logger.error(f"Errore critico durante il salvataggio del backup per il ripristino: {e}", exc_info=True)
+        logger.error(f"Errore durante il salvataggio del backup: {e}", exc_info=True)
         return jsonify({'success': False, 'message': f'Errore: {e}'}), 500
+    
+@protection_bp.route('/restart', methods=['POST'])
+@login_required
+def restart_application():
+    """
+    Spegne in modo pulito il server per forzare un riavvio (gestito da Docker/Gunicorn).
+    """
+    logger.warning(f"RICHIESTA DI RIAVVIO RICEVUTA DALL'UTENTE {current_user.id}. ARRESTO IN CORSO...")
+    
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        # Questo accade quando si usa un server di produzione come Gunicorn.
+        # In quel caso, il riavvio è gestito da Docker/supervisor.
+        # Possiamo semplicemente uscire dal processo.
+        logger.info("Server non Werkzeug. Uscita dal processo per forzare il riavvio da parte del gestore (es. Docker).")
+        import os, signal
+        os.kill(os.getpid(), signal.SIGTERM)
+        return jsonify({'success': True, 'message': 'Comando di arresto inviato.'})
+
+    func()
+    return jsonify({'success': True, 'message': 'Server in fase di arresto. Verrà riavviato a breve.'})

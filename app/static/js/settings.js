@@ -1,4 +1,13 @@
 document.addEventListener("DOMContentLoaded", function () {
+    function checkCookie(name) {
+      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+      if (match) {
+          // Una volta trovato, cancelliamo il cookie per i download futuri
+          document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
+          return true;
+      }
+      return false;
+    }
     // --- SELEZIONE DEL FORM PRINCIPALE ---
     const settingsMainForm = document.getElementById("settings-main-form"); // <--- NUOVA RIGA
     if (!settingsMainForm) { // Controllo per robustezza
@@ -454,7 +463,7 @@ document.addEventListener("DOMContentLoaded", function () {
         messageDiv.textContent = message;
         messageDiv.style.marginBottom = "15px";
     }
-        // --- LOGICA PER IL RIPRISTINO COMPLETO DA BACKUP (.zip) ---
+    // --- LOGICA PER IL RIPRISTINO COMPLETO (APPROCCIO CON RIAVVIO AUTOMATICO) ---
     const restoreFullBtn = document.getElementById('restore-full-backup-btn');
     const fileInputFull = document.getElementById('full-backup-file-input');
     const restoreFullStatusDiv = document.getElementById('restore-full-status');
@@ -468,82 +477,99 @@ document.addEventListener("DOMContentLoaded", function () {
         fileInputFull.addEventListener('change', async (event) => {
             event.preventDefault();
             const file = event.target.files[0];
-            if (!file) {
-                fileInputFull.value = '';
-                return;
-            }
+            if (!file) return;
 
             const confirmed = await showConfirmModal(
-                "Conferma Ripristino COMPLETO",
-                `Stai per caricare il file "${file.name}". Tutti i dati attuali verranno SOVRASCRITTI. L'applicazione dovrà essere riavviata per completare il processo. Sei assolutamente sicuro?`
+                "Conferma Caricamento Backup",
+                `Stai per caricare il file "${file.name}". Dopo il caricamento, dovrai riavviare l'applicazione per completare il ripristino. I dati attuali verranno sovrascritti.`
             );
-            
-            if (!confirmed) {
-                fileInputFull.value = '';
-                return;
-            }
+            if (!confirmed) { fileInputFull.value = ''; return; }
 
             const formData = new FormData();
             formData.append('backup_file', file);
             
             restoreFullBtn.disabled = true;
             restoreFullStatusDiv.className = 'info-message';
-            restoreFullStatusDiv.textContent = 'Caricamento del file di backup completo in corso...';
+            restoreFullStatusDiv.textContent = 'Caricamento del file di backup in corso...';
             restoreFullStatusDiv.style.display = 'block';
 
             try {
                 const response = await fetch('/api/protection/restore/full', {
-                    method: 'POST',
-                    body: formData
+                    method: 'POST', body: formData
                 });
-
                 const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Errore del server durante il caricamento.');
-                }
+                if (!response.ok) throw new Error(data.message);
 
-                if (response.status === 202) {
-                    restoreFullStatusDiv.className = 'success-message';
-                    restoreFullStatusDiv.innerHTML = `<strong>${data.message}</strong><br>Se usi Docker, il container si riavvierà automaticamente tra poco. Altrimenti, riavvia manualmente il server.`;
-                    showNotification('File caricato! Riavvia l\'applicazione per completare.', 'success');
-                } else {
-                     restoreFullStatusDiv.className = 'success-message';
-                     restoreFullStatusDiv.textContent = data.message;
-                     restoreFullBtn.disabled = false;
-                }
+                // File caricato con successo! Ora mostriamo il pulsante di riavvio.
+                restoreFullStatusDiv.className = 'success-message';
+                restoreFullStatusDiv.innerHTML = `
+                    <p><strong>${data.message}</strong></p>
+                    <button id="restart-now-btn" class="action-btn delete-btn">
+                        <i class="fas fa-power-off"></i> Riavvia e completa ripristino
+                    </button>
+                `;
+                
+                document.getElementById('restart-now-btn').addEventListener('click', async () => {
+                    const restartBtn = document.getElementById('restart-now-btn');
+                    restartBtn.disabled = true;
+                    restartBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Riavvio in corso...';
+                    
+                    try {
+                        await fetch('/api/protection/restart', { method: 'POST' });
+                        restoreFullStatusDiv.innerHTML += '<p>Comando di riavvio inviato. L\'applicazione si sta riavviando. <strong>Attendi circa 30 secondi, poi ricarica questa pagina manualmente.</strong></p>';
+                    } catch(e) {
+                         // L'errore di rete qui è NORMALE, perché il server si spegne
+                        restoreFullStatusDiv.innerHTML += '<p>Il server si è spento. <strong>Attendi circa 30 secondi, poi ricarica questa pagina manualmente.</strong></p>';
+                    }
+                });
 
             } catch (error) {
                 restoreFullStatusDiv.className = 'error-message';
                 restoreFullStatusDiv.textContent = `Errore: ${error.message}`;
-                restoreFullBtn.disabled = false;
+                restoreFullBtn.disabled = false; // Riabilita solo in caso di errore
             } finally {
+                // Svuotiamo l'input del file in ogni caso,
+                // ma NON ripristiniamo il pulsante se il caricamento ha avuto successo.
                 fileInputFull.value = '';
             }
         });
     }
         const downloadFullBtn = document.getElementById('download-full-backup-btn');
-    if (downloadFullBtn) {
-        downloadFullBtn.addEventListener('click', function() {
-            const button = this;
-            const originalHTML = button.innerHTML;
-            const downloadUrl = button.dataset.url;
+if (downloadFullBtn) {
+    downloadFullBtn.addEventListener('click', function() {
+        const button = this;
+        const originalHTML = button.innerHTML;
+        const downloadUrl = button.dataset.url;
+        const downloadToken = `dl-${Date.now()}`; // Token unico per questo download
 
-            if (!downloadUrl) return;
+        if (!downloadUrl) return;
 
-            // 1. Disabilita il pulsante e mostra lo spinner
-            button.disabled = true;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Preparazione...</span>';
+        // 1. Disabilita il pulsante e mostra lo spinner
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Preparazione...</span>';
 
-            // 2. Avvia il download
-            window.location.href = downloadUrl;
+        // 2. Aggiungi il token all'URL e avvia il download
+        const urlWithToken = `${downloadUrl}?downloadToken=${downloadToken}`;
+        window.location.href = urlWithToken;
 
-            // 3. Ripristina il pulsante dopo un breve ritardo.
-            // Il browser gestirà il download, noi dobbiamo solo ripristinare l'UI.
-            setTimeout(() => {
+        // 3. Avvia il polling per controllare il cookie
+        const checkInterval = setInterval(() => {
+            if (checkCookie(downloadToken)) {
+                clearInterval(checkInterval);
                 button.disabled = false;
                 button.innerHTML = originalHTML;
-            }, 4000); // 4 secondi sono sufficienti perché il download parta
-        });
-    }
+            }
+        }, 500); // Controlla ogni mezzo secondo
+
+        // Sicurezza: ripristina comunque il pulsante dopo un timeout lungo
+        setTimeout(() => {
+            if (button.disabled) {
+                clearInterval(checkInterval);
+                button.disabled = false;
+                button.innerHTML = originalHTML;
+            }
+        }, 30000); // 30 secondi
+    });
+}
 
 });
