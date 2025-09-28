@@ -165,7 +165,8 @@ def download_database_backup():
 @login_required
 def restore_database_backup():
     """
-    Riceve un file .db, sostituisce quello corrente, elimina ChromaDB e avvia la re-indicizzazione.
+    Riceve un file .db, SOSTITUISCE quello corrente, ELIMINA e RE-INIZIALIZZA
+    ChromaDB a caldo, e avvia la re-indicizzazione.
     """
     global reindex_status, reindex_status_lock
 
@@ -182,28 +183,40 @@ def restore_database_backup():
 
     try:
         db_path = current_app.config.get('DATABASE_FILE')
+        chroma_path = current_app.config.get('CHROMA_PERSIST_PATH')
         
-        # 1. Salva il file caricato temporaneamente
+        # --- 1. SPEGNIMENTO CONTROLLATO DI CHROMADB ---
+        logger.warning("Spegnimento del client ChromaDB per il ripristino...")
+        chroma_client = current_app.config.get('CHROMA_CLIENT')
+        if chroma_client and hasattr(chroma_client, '_system') and hasattr(chroma_client._system, 'stop'):
+            chroma_client._system.stop()
+        logger.info("Client ChromaDB spento.")
+
+        # --- 2. SOSTITUZIONE DEI FILE ---
+        # Salva il file caricato temporaneamente
         temp_filename = os.path.join(os.path.dirname(db_path), secure_filename(f"temp_restore_{file.filename}"))
         file.save(temp_filename)
         
-        # 2. Sostituisci il database corrente con il backup
+        # Sostituisci il database corrente con il backup
         shutil.move(temp_filename, db_path)
-        logger.info(f"Database ripristinato con successo da backup per l'utente {current_user.id}")
+        logger.info(f"Database SQLite ripristinato con successo da backup per l'utente {current_user.id}")
 
-        # 3. Elimina la cartella ChromaDB (necessario perché i chunk non sono nel DB)
-        chroma_persist_path = current_app.config.get('CHROMA_PERSIST_PATH')
-        if chroma_persist_path and os.path.exists(chroma_persist_path):
-            try:
-                shutil.rmtree(chroma_persist_path)
-                logger.info(f"Directory ChromaDB eliminata con successo: {chroma_persist_path}")
-            except OSError as e:
-                logger.error(f"Errore eliminando la directory ChromaDB {chroma_persist_path}: {e}")
-                # Non blocchiamo, ma è un avviso importante
-        else:
-            logger.warning(f"Percorso ChromaDB '{chroma_persist_path}' non trovato. Nessuna directory da eliminare.")
+        # Elimina la vecchia cartella ChromaDB
+        if chroma_path and os.path.exists(chroma_path):
+            shutil.rmtree(chroma_path)
+            logger.info(f"Vecchia directory ChromaDB eliminata con successo: {chroma_path}")
+        
+        # --- 3. RE-INIZIALIZZAZIONE DI CHROMADB ---
+        logger.warning("Re-inizializzazione del client ChromaDB a caldo...")
+        import chromadb
+        # Ricrea la cartella e un nuovo client pulito
+        os.makedirs(chroma_path, exist_ok=True)
+        new_chroma_client = chromadb.PersistentClient(path=chroma_path)
+        # Sostituisci il vecchio client "rotto" nella configurazione dell'app con quello nuovo
+        current_app.config['CHROMA_CLIENT'] = new_chroma_client
+        logger.info("Nuovo client ChromaDB inizializzato e caricato nella configurazione.")
 
-        # 4. Avvia il task di re-indicizzazione in background
+        # --- 4. AVVIO RE-INDICIZZAZIONE (ORA FUNZIONERA') ---
         with reindex_status_lock:
             reindex_status.update({
                 'is_processing': True,

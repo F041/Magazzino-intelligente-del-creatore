@@ -125,7 +125,7 @@
         if (!videoId || !statusCell) return;
 
         btn.disabled = true;
-        btn.innerHTML = "...";
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         statusCell.innerHTML = `<span class="status-badge status-processing">processing</span>`;
 
         const response = await fetch(`/api/videos/${videoId}/reprocess`, {

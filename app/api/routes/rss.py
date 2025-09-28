@@ -65,7 +65,7 @@ def get_full_article_content(article_url):
         return None
     try:
         headers = {'User-Agent': 'MagazzinoDelCreatoreBot/1.0'} # Buona pratica
-        response = requests.get(article_url, headers=headers, timeout=10) # Timeout
+        response = requests.get(article_url, headers=headers, timeout=15) # Timeout
         response.raise_for_status() # Solleva eccezione per errori HTTP
 
         # Usa BeautifulSoup per trovare il contenuto principale (euristica)

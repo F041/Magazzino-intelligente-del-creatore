@@ -262,7 +262,7 @@ def upload_documents():
 
         for file in uploaded_files:
             doc_id = None; md_filepath = None
-            original_filename = file.filename if file else 'N/A'
+            original_filename = secure_filename(file.filename) if file and file.filename else 'N/A'
 
             if file and file.filename and allowed_file(original_filename):
                 extracted_text = extract_text_from_file(file, original_filename)
