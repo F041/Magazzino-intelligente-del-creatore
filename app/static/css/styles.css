@@ -227,14 +227,14 @@ a:hover {
 }
 
 .sidebar-menu li {
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs); /* Per farci stare integrazioni, da sm */
 }
 
 .sidebar-menu a {
     display: flex;
     align-items: center;
     gap: var(--spacing-md);
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg); /* padding: var(--spacing-md) cambiare a sm se in futuro serviranno altre pagine */
     text-decoration: none;
     color: #ced4da;
     font-weight: var(--font-weight-medium);

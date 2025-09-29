@@ -937,6 +937,13 @@ def create_app(config_object=AppConfig):
         
         # Passa i dati al template per la visualizzazione
         return render_template('system_status.html', stats_data=system_stats_data)
+    
+    @app.route('/integrations')
+    @login_required
+    def integrations_page():
+        """Renderizza la pagina per la gestione delle integrazioni."""
+        logger.info(f"Accesso alla pagina /integrations da utente {current_user.id}")
+        return render_template('integrations.html')
 
     @app.context_processor
     def inject_global_data():
