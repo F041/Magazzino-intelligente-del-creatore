@@ -3,6 +3,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 import logging
 from typing import Optional, Dict
+import xml.etree.ElementTree as ET
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,17 @@ class UnofficialTranscriptService:
         except NoTranscriptFound:
             logger.warning(f"[Unofficial Lib] Nessuna trascrizione trovata per il video {video_id}.")
             return {'error': 'NO_TRANSCRIPT_FOUND', 'message': 'Nessuna trascrizione disponibile per questo video.'}
+        except (TranscriptsDisabled, NoTranscriptFound) as e:
+            # Questa parte rimane uguale
+            message = f"Le trascrizioni sono disabilitate per il video {video_id}." if isinstance(e, TranscriptsDisabled) else f"Nessuna trascrizione trovata per il video {video_id}."
+            error_code = 'TRANSCRIPTS_DISABLED' if isinstance(e, TranscriptsDisabled) else 'NO_TRANSCRIPT_FOUND'
+            logger.warning(f"[Unofficial Lib] {message}")
+            return {'error': error_code, 'message': message}
+        except ET.ParseError as e_xml: # <-- NUOVO BLOCCO
+            # Gestiamo specificamente l'errore di parsing
+            logger.warning(f"[Unofficial Lib] Errore parsing XML per {video_id} (probabile risposta vuota da YouTube): {e_xml}")
+            return {'error': 'XML_PARSE_ERROR', 'message': 'YouTube ha restituito una risposta vuota o malformattata.'}
         except Exception as e:
+            # La gestione generica rimane per altri errori
             logger.error(f"[Unofficial Lib] Errore imprevisto durante il recupero della trascrizione per {video_id}: {e}", exc_info=True)
             return {'error': 'UNKNOWN_ERROR', 'message': f'Errore imprevisto: {e}'}

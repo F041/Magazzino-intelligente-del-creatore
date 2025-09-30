@@ -286,7 +286,26 @@ def init_db(config):
                 rag_temperature REAL, 
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )''')
+                # --- Aggiunta colonne per Integrazioni ---
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN gnews_api_key TEXT")
+            logger.info("Colonna 'gnews_api_key' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'gnews_api_key' già presente in 'user_settings'.")
+
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN gnews_enabled BOOLEAN DEFAULT FALSE")
+            logger.info("Colonna 'gnews_enabled' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'gnews_enabled' già presente in 'user_settings'.")
+
+        try:
+            cursor.execute("ALTER TABLE user_settings ADD COLUMN wikipedia_enabled BOOLEAN DEFAULT FALSE")
+            logger.info("Colonna 'wikipedia_enabled' aggiunta a 'user_settings'.")
+        except sqlite3.OperationalError:
+            logger.debug("Colonna 'wikipedia_enabled' già presente in 'user_settings'.")
         logger.info("Tabella 'user_settings' verificata/creata.")
+
 
 
         # --- Tabella per Statistiche Pre-Calcolate (Caching) ---

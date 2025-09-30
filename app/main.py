@@ -938,12 +938,60 @@ def create_app(config_object=AppConfig):
         # Passa i dati al template per la visualizzazione
         return render_template('system_status.html', stats_data=system_stats_data)
     
-    @app.route('/integrations')
+    @app.route('/integrations', methods=['GET', 'POST'])
     @login_required
     def integrations_page():
-        """Renderizza la pagina per la gestione delle integrazioni."""
-        logger.info(f"Accesso alla pagina /integrations da utente {current_user.id}")
-        return render_template('integrations.html')
+        """Renderizza la pagina per la gestione delle integrazioni e ne salva le impostazioni."""
+        user_id = current_user.id
+        db_path = current_app.config.get('DATABASE_FILE')
+        conn = None
+
+        if request.method == 'POST':
+            try:
+                gnews_key = request.form.get('gnews_api_key')
+                # I checkbox non inviano nulla se non sono spuntati, quindi controlliamo la presenza di 'on'
+                gnews_enabled = True if request.form.get('gnews_enabled') == 'on' else False
+                wikipedia_enabled = True if request.form.get('wikipedia_enabled') == 'on' else False
+                
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                # Usiamo una query che aggiorna la riga esistente o la crea se non c'è.
+                cursor.execute("""
+                    INSERT INTO user_settings (user_id, gnews_api_key, gnews_enabled, wikipedia_enabled)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        gnews_api_key = excluded.gnews_api_key,
+                        gnews_enabled = excluded.gnews_enabled,
+                        wikipedia_enabled = excluded.wikipedia_enabled
+                """, (user_id, gnews_key, gnews_enabled, wikipedia_enabled))
+                conn.commit()
+                flash('Impostazioni delle integrazioni salvate con successo!', 'success')
+                logger.info(f"Impostazioni integrazioni salvate per l'utente {user_id}.")
+            except sqlite3.Error as e:
+                if conn: conn.rollback()
+                flash('Errore durante il salvataggio nel database.', 'error')
+                logger.error(f"Errore DB salvando impostazioni integrazioni per {user_id}: {e}")
+            finally:
+                if conn: conn.close()
+            return redirect(url_for('integrations_page'))
+
+        # Logica per il metodo GET (mostrare la pagina)
+        user_settings = {}
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            # Selezioniamo solo le colonne che ci servono per questa pagina
+            cursor.execute("SELECT gnews_api_key, gnews_enabled, wikipedia_enabled FROM user_settings WHERE user_id = ?", (user_id,))
+            settings_row = cursor.fetchone()
+            if settings_row:
+                user_settings = dict(settings_row)
+        except sqlite3.Error as e:
+            logger.error(f"Errore DB caricando impostazioni integrazioni per {user_id}: {e}")
+        finally:
+            if conn: conn.close()
+            
+        return render_template('integrations.html', settings=user_settings)
 
     @app.context_processor
     def inject_global_data():

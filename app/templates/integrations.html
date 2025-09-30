@@ -2,16 +2,121 @@
 
 {% block title %}Integrazioni - Magazzino del Creatore{% endblock %}
 
+{% block head_styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+    <style>
+        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--color-primary); }
+        input:checked + .slider:before { transform: translateX(26px); }
+    </style>
+{% endblock %}
+
 {% block content %}
     <h1>Integrazioni</h1>
-    <p>Connetti il tuo Magazzino a servizi esterni per espandere le sue capacità e accedere a informazioni in tempo reale.</p>
+    <p>Connetti il tuo Magazzino a servizi esterni per espandere le sue capacità e accedere a informazioni in tempo reale durante la chat.</p>
 
-    <div style="margin-top: 30px;">
-        <p>Prossimamente qui potrai configurare le integrazioni con Wikipedia, GNews e altri servizi.</p>
-    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="{{ 'success-message' if category == 'success' else 'error-message' }}" style="margin-top: 20px;">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('integrations_page') }}" class="settings-form">
+        
+        <!-- Sezione Wikipedia -->
+        <div class="form-section" style="margin-top: 30px;">
+            <h2><i class="fab fa-wikipedia-w" style="margin-right: 12px;"></i> Wikipedia</h2>
+            <p>Attiva questa integrazione per permettere all'assistente di cercare definizioni e informazioni enciclopediche direttamente da Wikipedia.</p>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 20px;">
+                <span>Stato: <strong id="wiki-status">...</strong></span>
+                <label class="switch">
+                    <input type="checkbox" id="wiki-toggle" name="wikipedia_enabled" {% if settings.get('wikipedia_enabled') %}checked{% endif %}>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Sezione GNews -->
+        <div class="form-section" style="margin-top: 30px;">
+            <h2><i class="fas fa-newspaper" style="margin-right: 12px;"></i> GNews</h2>
+            <p>Permetti all'assistente di cercare le notizie più recenti. Richiede una chiave API gratuita.</p>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="gnews-api-key">Chiave API di GNews</label>
+                <input type="password" id="gnews-api-key" name="gnews_api_key" placeholder="Incolla la tua chiave API qui" value="{{ settings.get('gnews_api_key', '') }}">
+                <small>Ottieni una chiave gratuita da <a href="https://gnews.io/" target="_blank" rel="noopener noreferrer">GNews.io</a>.</small>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 20px;">
+                <span>Stato: <strong id="gnews-status">...</strong></span>
+                <label class="switch">
+                    <input type="checkbox" id="gnews-toggle" name="gnews_enabled" {% if settings.get('gnews_enabled') %}checked{% endif %}>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="action-btn">Salva impostazioni integrazioni</button>
+        </div>
+
+    </form>
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
-    {# Qui potremo aggiungere JavaScript specifico per questa pagina in futuro #}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const gnewsApiKeyInput = document.getElementById('gnews-api-key');
+            const gnewsToggle = document.getElementById('gnews-toggle');
+            const gnewsStatus = document.getElementById('gnews-status');
+            const wikiToggle = document.getElementById('wiki-toggle');
+            const wikiStatus = document.getElementById('wiki-status');
+
+            function updateGnewsStatus() {
+                const hasKey = gnewsApiKeyInput.value.trim() !== '';
+                gnewsToggle.disabled = !hasKey;
+                
+                if (!hasKey) {
+                    gnewsToggle.checked = false;
+                }
+                
+                if (gnewsToggle.checked && hasKey) {
+                    gnewsStatus.textContent = 'Attivato';
+                    gnewsStatus.style.color = 'var(--color-success)';
+                } else {
+                    gnewsStatus.textContent = 'Disattivato';
+                    gnewsStatus.style.color = 'var(--color-text-light)';
+                }
+            }
+
+            function updateWikiStatus() {
+                if (wikiToggle.checked) {
+                    wikiStatus.textContent = 'Attivato';
+                    wikiStatus.style.color = 'var(--color-success)';
+                } else {
+                    wikiStatus.textContent = 'Disattivato';
+                    wikiStatus.style.color = 'var(--color-text-light)';
+                }
+            }
+
+            if (gnewsApiKeyInput && gnewsToggle && gnewsStatus) {
+                gnewsApiKeyInput.addEventListener('input', updateGnewsStatus);
+                gnewsToggle.addEventListener('change', updateGnewsStatus);
+                updateGnewsStatus(); // Chiamata iniziale al caricamento della pagina
+            }
+
+            if (wikiToggle && wikiStatus) {
+                wikiToggle.addEventListener('change', updateWikiStatus);
+                updateWikiStatus(); // Chiamata iniziale
+            }
+        });
+    </script>
 {% endblock %}

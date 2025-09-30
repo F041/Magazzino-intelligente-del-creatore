@@ -2,9 +2,8 @@
 import logging
 import sqlite3
 import traceback
-from flask import current_app
+# RIMOSSO: from flask import current_app
 from app.utils import build_full_config_for_background_process
-
 
 # Importa solo le funzioni CORE, non più create_app o AppConfig
 try:
@@ -26,9 +25,14 @@ def check_monitored_sources_job():
     """
     logger.info("SCHEDULER JOB: Inizio esecuzione...")
     
+    # --- MODIFICA CHIAVE: Importiamo e creiamo l'app QUI DENTRO ---
+    from app.main import create_app
+    app = create_app()
+    # --- FINE MODIFICA ---
+
     # Usiamo un contesto app per accedere a current_app in modo sicuro
-    with current_app.app_context():
-        db_path = current_app.config.get('DATABASE_FILE')
+    with app.app_context():
+        db_path = app.config.get('DATABASE_FILE') # <-- MODIFICA: Usiamo app.config
         if not db_path:
             logger.error("SCHEDULER JOB: Percorso del database non configurato. Interruzione.")
             return
