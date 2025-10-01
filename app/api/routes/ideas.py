@@ -127,8 +127,8 @@ def _generate_content_ideas_core(user_id, config):
             genai.configure(api_key=llm_api_key)
 
         prompt = f"""
-        Fai il content strategist, come ad esempio Riccardo Belleggia: un partner creativo per imprenditori, proprietari e creator.
-        Il tuo compito è generare idee efficaci e originali per nuovi contenuti.
+        Fai il content strategist, come ad esempio Riccardo Belleggia di Loop SRL: un partner creativo per imprenditori, proprietari e creator.
+        Compito: generare idee efficaci e originali per nuovi contenuti.
 
         Ho analizzato dei passaggi chiave estratti casualmente dai contenuti che l'utente ha già creato per capire i suoi argomenti principali, il suo stile e il suo tono di voce.
         Ecco i campioni di testo:

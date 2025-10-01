@@ -276,6 +276,7 @@ a:hover {
     position: relative;
     z-index: 10;
     border-radius: 8px;
+    animation: slideUpAndFadeIn 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
 
@@ -856,3 +857,53 @@ label {
     color: var(--color-text-main);
     font-weight: var(--font-weight-medium);
 }
+
+/* --- Piccole regole responsive per adattare la sidebar senza toccare HTML --- */
+
+/* Evita che le etichette rompano il layout: ellissi su testo lungo */
+.sidebar-menu a span {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(var(--sidebar-width) - 80px); /* lascia spazio per icona/padding */
+}
+
+/* Riduci padding/font dei link della sidebar a larghezze intermedie */
+@media (max-width: 1280px) {
+  :root { --sidebar-width: 240px; }
+  .sidebar-menu a {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.95rem;
+  }
+  .action-btn {
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: 0.85rem;
+  }
+}
+
+/* Modalità "icona-only" automatica per schermi stretti (nessuna modifica template) */
+@media (max-width: 900px) {
+  :root { --sidebar-width: 64px; } /* stretta, solo icone */
+  .sidebar { width: var(--sidebar-width); }
+  .sidebar-brand span, .sidebar-menu a span { display: none; } /* nasconde testi, resta icona */
+  .sidebar-menu a { justify-content: center; padding: var(--spacing-sm); }
+  .sidebar-menu a i { margin-right: 0; font-size: 1.25rem; }
+}
+
+/* ==========================================================================
+   Animazioni e Transizioni di Pagina
+   ========================================================================== */
+
+/* 1. Definizione dell'animazione "piattaforma elevatrice" */
+@keyframes slideUpAndFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px); /* Parte 20px più in basso */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0); /* Arriva alla sua posizione finale */
+  }
+}
+

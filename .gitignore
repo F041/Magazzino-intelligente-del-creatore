@@ -71,3 +71,4 @@ test_embed.html
 GRAPHICAL_IMPROVEMENT_PLAN.md
 webAppDesignDocument.md
 docker-compose.test.yml
+export_project_by_folder.py

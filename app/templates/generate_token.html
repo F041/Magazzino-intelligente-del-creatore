@@ -61,20 +61,20 @@
     <div class="form-section">
         <form id="generate-token-form">
             <div class="form-group">
-                <label for="user_identifier">Identificativo Utente</label>
+                <label for="user_identifier">Identificativo utente</label>
                 <input type="text" id="user_identifier" name="user_id" placeholder="Es: mario.rossi@azienda.com o 'NuovoAssuntoMarketing'" required>
                 <small style="color: #6c757d;">Questo serve solo a te per riconoscere chi sta usando il link.</small>
             </div>
             <div class="form-group">
-                <label for="token_expiry">Durata Validità Link</label>
+                <label for="token_expiry">Durata validità link</label>
                 <select id="token_expiry" name="expires_in">
-                    <option value="3600">1 Ora</option>
-                    <option value="28800">8 Ore (Giornata Lavorativa)</option>
-                    <option value="86400" selected>1 Giorno</option>
-                    <option value="604800">7 Giorni</option>
+                    <option value="3600">1 ora</option>
+                    <option value="28800">8 ore (giornata lavorativa)</option>
+                    <option value="86400" selected>1 giorno</option>
+                    <option value="604800">7 giorni</option>
                 </select>
             </div>
-            <button type="submit" class="action-btn">Genera Link di Accesso</button>
+            <button type="submit" class="action-btn">Genera link di accesso</button>
         </form>
     </div>
 
@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert(`Errore: ${error.message}`);
         } finally {
             submitButton.disabled = false;
-            submitButton.textContent = 'Genera Link di Accesso';
+            submitButton.textContent = 'Genera link di accesso';
         }
     });
 

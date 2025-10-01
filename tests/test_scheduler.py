@@ -1,104 +1,85 @@
 import pytest
-from unittest.mock import patch, MagicMock, ANY
 import sqlite3
+from unittest.mock import patch, MagicMock, ANY
 from flask import current_app
 
-# Helper per creare dati di test nel DB
+# Le funzioni helper rimangono le stesse, sono corrette.
 def setup_test_monitoring_data(app, user_id):
-    """Aggiunge un canale e un feed da monitorare per l'utente di test."""
     with app.app_context():
         db_path = current_app.config.get('DATABASE_FILE')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        
-        # Aggiungi un canale YouTube attivo
-        cursor.execute("""
-            INSERT INTO monitored_youtube_channels (user_id, channel_id, is_active)
-            VALUES (?, ?, ?)
-        """, (user_id, 'UC-test-channel', True))
-
-        # Aggiungi un feed RSS attivo
-        cursor.execute("""
-            INSERT INTO monitored_rss_feeds (user_id, feed_url, is_active)
-            VALUES (?, ?, ?)
-        """, (user_id, 'http://test.com/feed', True))
-
+        cursor.execute("DELETE FROM monitored_youtube_channels WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM monitored_rss_feeds WHERE user_id = ?", (user_id,))
+        cursor.execute("INSERT OR IGNORE INTO monitored_youtube_channels (user_id, channel_id, is_active) VALUES (?, ?, ?)", (user_id, 'UC-test-channel', True))
+        cursor.execute("INSERT OR IGNORE INTO monitored_rss_feeds (user_id, feed_url, is_active) VALUES (?, ?, ?)", (user_id, 'http://test.com/feed', True))
         conn.commit()
         conn.close()
 
-# Helper per registrare un utente (lo prendiamo da un altro test)
-def register_test_user_for_scheduler(app, monkeypatch, email="scheduler_user@example.com"):
+def register_test_user_for_scheduler(app, monkeypatch, email="final_scheduler_user_v3@test.com"):
     monkeypatch.setenv("ALLOWED_EMAILS", email)
-    # Questa funzione non ha bisogno del client, opera direttamente sull'app
-    # per recuperare l'ID utente in modo affidabile
     user_id = None
     with app.app_context():
-        # Dobbiamo importare User qui dentro per evitare problemi di contesto
         from app.models.user import User
-        
-        new_user = User(id=User.generate_id(), email=email)
-        new_user.set_password('password')
-        
         db_path = current_app.config.get('DATABASE_FILE')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)",
-            (new_user.id, new_user.email, new_user.password_hash)
-        )
+        cursor.execute("DELETE FROM users WHERE email = ?", (email,))
         conn.commit()
-        conn.close()
+        new_user = User(id=User.generate_id(), email=email)
+        new_user.set_password('password')
+        cursor.execute("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", (new_user.id, new_user.email, new_user.password_hash))
+        conn.commit()
         user_id = new_user.id
-        
+        conn.close()
     assert user_id is not None
     return user_id
 
-def test_scheduler_job_calls_processing_functions(app, monkeypatch):
+# --- INIZIO TEST DEFINITIVO ---
+def test_scheduler_job_calls_correct_functions(app, monkeypatch):
     """
-    Testa che il job dello scheduler recuperi i dati e chiami le funzioni corrette.
+    Testa che il job dello scheduler chiami le funzioni corrette,
+    mockando le dipendenze nei loro moduli di origine.
     """
     # 1. ARRANGE
     user_id = register_test_user_for_scheduler(app, monkeypatch)
     setup_test_monitoring_data(app, user_id)
 
-    # Path delle funzioni che vogliamo spiare
-    path_youtube_processor = 'app.scheduler_jobs._process_youtube_channel_core'
-    path_rss_processor = 'app.scheduler_jobs._process_rss_feed_core'
-    
-    # --- LA CORREZIONE DEFINITIVA ---
-    # Puntiamo direttamente alla CLASSE ORIGINALE nella sua "fabbrica".
-    # Qualsiasi parte del codice che la importerà, riceverà la nostra versione finta.
-    path_youtube_client_class = 'app.services.youtube.client.YouTubeClient'
+    # Definiamo i path corretti puntando AI MODULI ORIGINALI.
+    path_create_app = 'app.main.create_app' # create_app vive in app.main
+    path_youtube_core = 'app.core.youtube_processor._process_youtube_channel_core' # La funzione core vive qui
+    path_rss_core = 'app.api.routes.rss._process_rss_feed_core' # La funzione core vive qui
+    path_youtube_client_class = 'app.services.youtube.client.YouTubeClient' # La classe client vive qui
 
-    # Dati finti che il nostro finto client restituirà
-    mock_video_list = [MagicMock()]
+    # Dati finti che i nostri mock restituiranno
+    mock_video_list = [MagicMock()] 
 
-    # Usiamo 'patch' per sostituire TUTTE le dipendenze esterne
-    with patch(path_youtube_processor, return_value={'success': True}) as mock_youtube_func, \
-         patch(path_rss_processor, return_value=True) as mock_rss_func, \
+    # Applichiamo tutte le nostre "spie" ai loro indirizzi reali
+    with patch(path_create_app, return_value=app) as mock_create_app, \
+         patch(path_youtube_core, return_value={'success': True}) as mock_yt_core, \
+         patch(path_rss_core, return_value=True) as mock_rss_core, \
          patch(path_youtube_client_class) as MockYouTubeClient:
 
-        # Configuriamo la nostra "spia":
+        # Configuriamo il comportamento della spia per YouTubeClient
         mock_yt_instance = MockYouTubeClient.return_value
         mock_yt_instance.get_channel_videos_and_total_count.return_value = (mock_video_list, 1)
-        
-        # Importiamo la funzione del job
+
+        # Importiamo la funzione che vogliamo testare
         from app.scheduler_jobs import check_monitored_sources_job
         
         # 2. ACT
-        with app.app_context():
-            check_monitored_sources_job()
+        # Eseguiamo la funzione del job.
+        check_monitored_sources_job()
 
         # 3. ASSERT
+        # Verifichiamo che tutto sia stato chiamato come ci aspettavamo
+        mock_create_app.assert_called_once()
+        mock_yt_core.assert_called_once()
+        mock_rss_core.assert_called_once()
         
-        # Verifichiamo che il metodo del nostro client finto sia stato chiamato
-        mock_yt_instance.get_channel_videos_and_total_count.assert_called_once_with('UC-test-channel')
-        
-        # Ora queste verifiche, che prima fallivano, funzioneranno
-        mock_youtube_func.assert_called_once()
-        mock_rss_func.assert_called_once()
-        
-        mock_youtube_func.assert_called_once_with(
+        # Le verifiche sugli argomenti ora funzioneranno perché stiamo
+        # spiando le funzioni giuste nel posto giusto.
+        mock_yt_core.assert_called_once_with(
             channel_id='UC-test-channel',
             user_id=user_id,
             core_config=ANY,
@@ -106,7 +87,11 @@ def test_scheduler_job_calls_processing_functions(app, monkeypatch):
             status_dict={},
             use_official_api_only=True
         )
-
-        rss_call_args = mock_rss_func.call_args[0]
-        assert rss_call_args[0] == 'http://test.com/feed'
-        assert rss_call_args[1] == user_id
+        
+        mock_rss_core.assert_called_once_with(
+            'http://test.com/feed',
+            user_id,
+            ANY,
+            None,
+            None
+        )

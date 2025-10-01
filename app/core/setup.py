@@ -286,7 +286,7 @@ def init_db(config):
                 rag_temperature REAL, 
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )''')
-                # --- Aggiunta colonne per Integrazioni ---
+        # --- Aggiunta colonne per Integrazioni ---
         try:
             cursor.execute("ALTER TABLE user_settings ADD COLUMN gnews_api_key TEXT")
             logger.info("Colonna 'gnews_api_key' aggiunta a 'user_settings'.")

@@ -1,9 +1,9 @@
 # FILE: app/services/transcripts/youtube_transcript_unofficial_library.py
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
-import logging
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound 
 from typing import Optional, Dict
 import xml.etree.ElementTree as ET
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class UnofficialTranscriptService:
                 'language': found_lang_code,
                 'type': caption_type
             }
-
+        
         except TranscriptsDisabled:
             logger.warning(f"[Unofficial Lib] Le trascrizioni sono disabilitate per il video {video_id}.")
             return {'error': 'TRANSCRIPTS_DISABLED', 'message': 'Le trascrizioni sono disabilitate per questo video.'}
@@ -88,6 +88,12 @@ class UnofficialTranscriptService:
             logger.warning(f"[Unofficial Lib] Errore parsing XML per {video_id} (probabile risposta vuota da YouTube): {e_xml}")
             return {'error': 'XML_PARSE_ERROR', 'message': 'YouTube ha restituito una risposta vuota o malformattata.'}
         except Exception as e:
-            # La gestione generica rimane per altri errori
+            # Ispezioniamo il testo dell'errore per vedere se è un blocco IP (HTTP 429)
+            error_text = str(e).lower()
+            if 'http error 429' in error_text:
+                logger.error(f"[Unofficial Lib] RILEVATO BLOCCO IP (HTTP 429) per il video {video_id}. Dettagli: {e}")
+                return {'error': 'IP_BLOCKED', 'message': 'YouTube ha temporaneamente bloccato l\'indirizzo IP del server. È necessario usare l\'API ufficiale.'}
+            
+            # Se non è un errore 429, lo gestiamo come un errore generico
             logger.error(f"[Unofficial Lib] Errore imprevisto durante il recupero della trascrizione per {video_id}: {e}", exc_info=True)
             return {'error': 'UNKNOWN_ERROR', 'message': f'Errore imprevisto: {e}'}

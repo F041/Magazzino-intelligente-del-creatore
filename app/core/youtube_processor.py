@@ -108,6 +108,11 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                         
                         # Se il primo tentativo fallisce per QUALSIASI motivo, proviamo con quello ufficiale
                         if not transcript_result or transcript_result.get('error'):
+                            if transcript_result and transcript_result.get('error') == 'IP_BLOCKED':
+                                logger.error(f"[CORE YT Process] [{video_id}] BLOCCO IP RILEVATO. Aggiorno lo stato UI e procedo con API ufficiale.")
+                                # Aggiorniamo il messaggio per l'utente!
+                                with status_lock_ui:
+                                    status_dict['message'] = f"⚠️ Blocco IP da YouTube! Uso l'API ufficiale (più lenta)... Video {index}/{to_process_count}"
                             logger.warning(f"[CORE YT Process] [{video_id}] Metodo non ufficiale fallito. Fallback su API ufficiale...")
                             transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
 

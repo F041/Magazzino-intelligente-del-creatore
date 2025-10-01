@@ -49,8 +49,7 @@
           --font-sans: '{{ personalization_settings.brand_font.split(',')[0] }}', {{ personalization_settings.brand_font.split(',')[1] or 'sans-serif' }};
       }
     </style>
-    {% endif %} {# --- FINE BLOCCO FONT DINAMICO --- #} {% block head_styles
-    %}{% endblock %}
+    {% endif %} {% block head_styles %}{% endblock %}
   </head>
   <body>
     <div class="sidebar sidebar‑metal">
@@ -145,13 +144,15 @@
           >
         </li>
 
-        <li class="{{ 'active' if request.endpoint == 'integrations_page' else '' }}">
+        {# --- BLOCCO INTEGRAZIONI (TEMPORANEAMENTE NASCOSTO) ---
+        <li
+          class="{{ 'active' if request.endpoint == 'integrations_page' else '' }}"
+        >
           <a href="{{ url_for('integrations_page') }}">
             <i class="fas fa-puzzle-piece fa-fw"></i><span>Integrazioni</span>
           </a>
         </li>
-
-        {% endif %}
+        --- FINE BLOCCO INTEGRAZIONI --- #} {% endif %}
       </ul>
       <!-- Footer della Sidebar (fisso) -->
       <div class="sidebar-footer">
