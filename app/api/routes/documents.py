@@ -15,8 +15,10 @@ from pypdf import PdfReader
 # Opzionale, se estraiamo HTML e vogliamo MD
 from google.api_core import exceptions as google_exceptions
 from app.services.embedding.embedding_service import generate_embeddings
+from app.services.chunking.agentic_chunker import chunk_text_agentically
+from app.utils import build_full_config_for_background_process
 
-  
+logger = logging.getLogger(__name__)  
 
 try:
     from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
@@ -27,7 +29,7 @@ except ImportError:
     get_gemini_embeddings = None
     TASK_TYPE_DOCUMENT = "retrieval_document" # Definisci comunque la costante
 
-logger = logging.getLogger(__name__)
+
 documents_bp = Blueprint('documents', __name__)
 
 def allowed_file(filename):
@@ -85,51 +87,68 @@ def extract_text_from_file(file_storage, original_filename):
         logger.error(f"Errore durante estrazione testo da {filename}: {e}", exc_info=True)
         return None # Fallimento estrazione
 
-def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None) -> str:
+def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str], core_config: dict) -> str:
     """
     Esegue l'indicizzazione di un documento (lettura MD, chunk, embed, Chroma).
     Gestisce modalità 'single' e 'saas'.
     NON fa commit; si aspetta che il chiamante gestisca la transazione.
     Restituisce lo stato finale ('completed' o 'failed_...').
     """
-    app_mode = current_app.config.get('APP_MODE', 'single')
+    app_mode = core_config.get('APP_MODE', 'single')
     logger.info(f"[_index_document][{doc_id}] Avvio indicizzazione (Modalità: {app_mode}, UserID: {user_id if user_id else 'N/A'})")
 
     final_status = 'failed_indexing_init'
     cursor = conn.cursor()
 
     # Recupera Configurazione Essenziale
-    llm_api_key = current_app.config.get('GOOGLE_API_KEY')
-    embedding_model = current_app.config.get('GEMINI_EMBEDDING_MODEL')
-    chunk_size = current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
-    chunk_overlap = current_app.config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
-    base_doc_collection_name = current_app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content')
+    embedding_model = core_config.get('GEMINI_EMBEDDING_MODEL')
+    chunk_size = core_config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
+    chunk_overlap = core_config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
+    base_doc_collection_name = core_config.get('DOCUMENT_COLLECTION_NAME', 'document_content')
+    use_agentic_chunking = str(core_config.get('USE_AGENTIC_CHUNKING', 'False')).lower() == 'true'
+
 
     # Ottieni Collezione ChromaDB
     doc_collection = None
     collection_name_for_log = "N/A"
+    
+    chroma_client = core_config.get('CHROMA_CLIENT')
+    if not chroma_client: 
+        logger.error(f"[_index_document][{doc_id}] Chroma Client non trovato in core_config!")
+        return 'failed_config_client_missing'
 
     if app_mode == 'single':
-        doc_collection = current_app.config.get('CHROMA_DOC_COLLECTION')
-        if doc_collection: collection_name_for_log = doc_collection.name
-        else: logger.error(f"[_index_document][{doc_id}] Modalità SINGLE: Collezione documenti non trovata!"); return 'failed_config_collection_missing'
+        try:
+            doc_collection = chroma_client.get_or_create_collection(name=base_doc_collection_name)
+            if doc_collection: collection_name_for_log = doc_collection.name
+        except Exception as e:
+             logger.error(f"[_index_document][{doc_id}] Modalità SINGLE: Errore get/create collezione: {e}")
+             return 'failed_config_collection_missing'
     elif app_mode == 'saas':
-        if not user_id: logger.error(f"[_index_document][{doc_id}] Modalità SAAS: User ID mancante!"); return 'failed_user_id_missing'
-        chroma_client = current_app.config.get('CHROMA_CLIENT')
-        if not chroma_client: logger.error(f"[_index_document][{doc_id}] Modalità SAAS: Chroma Client non trovato!"); return 'failed_config_client_missing'
+        if not user_id: 
+            logger.error(f"[_index_document][{doc_id}] Modalità SAAS: User ID mancante!")
+            return 'failed_user_id_missing'
+        
         user_doc_collection_name = f"{base_doc_collection_name}_{user_id}"
         collection_name_for_log = user_doc_collection_name
         try:
-            logger.info(f"[_index_document][{doc_id}] Modalità SAAS: Ottenimento/Creazione collezione '{user_doc_collection_name}'...")
             doc_collection = chroma_client.get_or_create_collection(name=user_doc_collection_name)
-        except Exception as e_saas_coll: logger.error(f"[_index_document][{doc_id}] Modalità SAAS: Errore get/create collezione '{user_doc_collection_name}': {e_saas_coll}"); return 'failed_chroma_collection_saas'
-    else: logger.error(f"[_index_document][{doc_id}] Modalità APP non valida: {app_mode}"); return 'failed_invalid_mode'
+        except Exception as e_saas_coll: 
+            logger.error(f"[_index_document][{doc_id}] Modalità SAAS: Errore get/create collezione '{user_doc_collection_name}': {e_saas_coll}")
+            return 'failed_chroma_collection_saas'
+    else: 
+        logger.error(f"[_index_document][{doc_id}] Modalità APP non valida: {app_mode}")
+        return 'failed_invalid_mode'
 
-    if not doc_collection: logger.error(f"[_index_document][{doc_id}] Fallimento ottenimento collezione ChromaDB (Nome tentato: {collection_name_for_log})."); return 'failed_chroma_collection_generic'
+    if not doc_collection: 
+        logger.error(f"[_index_document][{doc_id}] Fallimento ottenimento collezione ChromaDB (Nome tentato: {collection_name_for_log}).")
+        return 'failed_chroma_collection_generic'
+    
     logger.info(f"[_index_document][{doc_id}] Collezione Chroma '{collection_name_for_log}' pronta.")
 
-    if not llm_api_key or not embedding_model: logger.error(f"[_index_document][{doc_id}] Configurazione Embedding mancante."); return 'failed_config_embedding'
-    if not split_text_into_chunks or not get_gemini_embeddings: logger.error(f"[_index_document][{doc_id}] Funzioni chunk/embed non disponibili."); return 'failed_server_setup'
+    if not embedding_model: logger.error(f"[_index_document][{doc_id}] Configurazione Embedding mancante."); return 'failed_config_embedding'
+    if not split_text_into_chunks: logger.error(f"[_index_document][{doc_id}] Funzione chunking base non disponibile."); return 'failed_server_setup'
+
 
     # Logica Indicizzazione
     try:
@@ -147,14 +166,30 @@ def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str
              final_status = 'completed'
         else:
              logger.info(f"[_index_document][{doc_id}] Contenuto letto ({len(markdown_content)} chars).")
-             chunks = split_text_into_chunks(markdown_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+             
+             chunks = []
+             if use_agentic_chunking:
+                logger.info(f"[_index_document][{doc_id}] Tentativo di CHUNKING INTELLIGENTE (Agentic)...")
+                # Passiamo l'INTERO dizionario core_config, che contiene TUTTO.
+                chunks = chunk_text_agentically(
+                    markdown_content, 
+                    llm_provider=core_config.get('llm_provider', 'google'), 
+                    settings=core_config
+                )
+                
+                if not chunks:
+                    logger.warning(f"[_index_document][{doc_id}] CHUNKING INTELLIGENTE fallito o ha restituito 0 chunk. Ritorno al metodo classico.")
+                    chunks = split_text_into_chunks(markdown_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+             else:
+                logger.info(f"[_index_document][{doc_id}] Esecuzione CHUNKING CLASSICO (basato su dimensione).")
+                chunks = split_text_into_chunks(markdown_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
              if not chunks:
                  logger.info(f"[_index_document][{doc_id}] Nessun chunk generato. Marco come completato.")
                  final_status = 'completed'
              else:
                  logger.info(f"[_index_document][{doc_id}] Creati {len(chunks)} chunk.")
-                 user_settings_for_embedding = {'llm_provider': 'google', 'llm_api_key': llm_api_key, 'llm_embedding_model': embedding_model}
-                 embeddings = generate_embeddings(chunks, user_settings=user_settings_for_embedding, task_type=TASK_TYPE_DOCUMENT)
+                 embeddings = generate_embeddings(chunks, user_settings=core_config, task_type=TASK_TYPE_DOCUMENT)
                  if not embeddings or len(embeddings) != len(chunks):
                      logger.error(f"[_index_document][{doc_id}] Fallimento generazione embedding.")
                      final_status = 'failed_embedding'
@@ -225,14 +260,10 @@ def upload_documents():
     app_mode = current_app.config.get('APP_MODE', 'single')
     logger.info(f"Richiesta upload documenti (Modalità: {app_mode})")
 
-    # Gestione User ID (Temporaneo per SAAS)
-    current_user_id = None
+    current_user_id = current_user.id if app_mode == 'saas' and current_user.is_authenticated else None
     if app_mode == 'saas':
-        if not current_user.is_authenticated: return jsonify(...), 401 # Già gestito da @login_required ma doppia sicurezza
-        current_user_id = current_user.id # <<< USA ID REALE
         logger.info(f"Upload per utente '{current_user_id}'")
 
-    # Setup e Validazioni Iniziali
     upload_folder = current_app.config.get('UPLOAD_FOLDER_PATH')
     db_path = current_app.config.get('DATABASE_FILE')
     if not upload_folder or not db_path:
@@ -251,7 +282,6 @@ def upload_documents():
     if not uploaded_files or all(f.filename == '' for f in uploaded_files):
          return jsonify({'success': False, 'error_code': 'NO_FILE_SELECTED', 'message': 'Nessun file selezionato per il caricamento.'}), 400
 
-    # Processamento File
     processed_ok_info, processed_fail_info, skipped_files_info = [], [], []
     conn = None
 
@@ -260,101 +290,53 @@ def upload_documents():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
+        # COSTRUISCI LA CONFIGURAZIONE UNA SOLA VOLTA
+        core_config_dict = build_full_config_for_background_process(current_user_id)
+
         for file in uploaded_files:
-            doc_id = None; md_filepath = None
+            doc_id = None
             original_filename = secure_filename(file.filename) if file and file.filename else 'N/A'
 
             if file and file.filename and allowed_file(original_filename):
+                file.seek(0, os.SEEK_END) # Vai alla fine del file
+                file_size = file.tell()   # Leggi la posizione (che è la dimensione in byte)
+                file.seek(0)              # Torna all'inizio per la lettura successiva
                 extracted_text = extract_text_from_file(file, original_filename)
 
                 if extracted_text is not None:
                     doc_id = str(uuid.uuid4())
-                    stored_md_filename = f"{doc_id}.md"
-                    
-                    # Percorso completo per salvare il file
-                    full_md_filepath = os.path.join(upload_folder, stored_md_filename)
-                    # PERCORSO RELATIVO da salvare nel DB
-                    relative_md_filepath = os.path.join(os.path.basename(os.path.dirname(upload_folder)), stored_md_filename)
-
                     original_mimetype = file.mimetype
-                    md_filesize = 0
 
-                    # ---- BLOCCO TRY/EXCEPT PRINCIPALE PER IL SINGOLO FILE ----
                     try:
-                        # Salva MD usando il percorso completo
-                        with open(full_md_filepath, 'w', encoding='utf-8') as f_md:
-                            f_md.write(extracted_text)
-                        md_filesize = os.path.getsize(full_md_filepath)
-                        logger.info(f"File '{original_filename}' salvato come MD: {stored_md_filename}")
-
-                        # INSERT SQLite (con user_id e contenuto)
                         sql_insert_doc = """
-                            INSERT INTO documents (
-                                doc_id, original_filename, content,
-                                filesize, mimetype, user_id, processing_status
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO documents (doc_id, original_filename, content, mimetype, user_id, processing_status, filesize) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
                         """
-                        values_to_insert = (
-                            doc_id,
-                            original_filename,
-                            extracted_text, # Inseriamo il testo estratto
-                            md_filesize,
-                            original_mimetype,
-                            current_user_id,
-                            'pending'
-                        )
-
+                        values_to_insert = (doc_id, original_filename, extracted_text, original_mimetype, current_user_id, 'pending', file_size)
                         cursor.execute(sql_insert_doc, values_to_insert)
-                        logger.info(f"Record DB inserito per doc_id: {doc_id} (UserID: {current_user_id if current_user_id else 'None'}, stato pending)")
 
-                        # AVVIA INDICIZZAZIONE (con user_id)
-                        indexing_status = _index_document(doc_id, conn, current_user_id)
 
-                        # Categorizza risultato
+                        indexing_status = _index_document(doc_id, conn, current_user_id, core_config_dict)
+
                         if indexing_status == 'completed':
                             processed_ok_info.append({ 'doc_id': doc_id, 'original_filename': original_filename, 'final_status': indexing_status })
                         else:
                             processed_fail_info.append({ 'doc_id': doc_id, 'original_filename': original_filename, 'final_status': indexing_status })
 
-                    # ---- GESTORI ECCEZIONI per il try sopra ----
-                    except sqlite3.Error as db_err: # Errore specifico DB
-                        logger.error(f"Errore DB inserendo record iniziale per {original_filename}: {db_err}")
-                        skipped_files_info.append({'filename': original_filename, 'error': 'Database error during initial registration.'})
-                        # Tentativo pulizia file MD
-                        if 'md_filepath' in locals() and md_filepath and os.path.exists(md_filepath):
-                            try:
-                                os.remove(md_filepath)
-                                logger.info(f"File MD rimosso ({md_filepath}) dopo fallimento INSERT DB.")
-                            except OSError as remove_err:
-                                logger.warning(f"Fallito tentativo rimozione file MD {md_filepath} dopo fallimento INSERT DB: {remove_err}")
-
-                    except Exception as save_err: # Altri errori (I/O, _index_document, etc.)
-                         logger.error(f"Errore imprevisto salvataggio/registrazione/indicizzazione {original_filename}: {save_err}", exc_info=True)
-                         skipped_files_info.append({'filename': original_filename, 'error': f'Unexpected error during file processing: {save_err}'})
-                         # Tentativo pulizia file MD
-                         if 'md_filepath' in locals() and md_filepath and os.path.exists(md_filepath):
-                             try:
-                                 os.remove(md_filepath)
-                                 logger.info(f"File MD parziale rimosso ({md_filepath}) dopo errore.")
-                             except OSError as remove_err:
-                                 logger.warning(f"Fallito tentativo rimozione file MD {md_filepath} dopo errore: {remove_err}")
-                    # ---- FINE GESTORI ECCEZIONI ----
-
-                else: # Questo else corrisponde a: if extracted_text is not None:
+                    except sqlite3.Error as db_err:
+                        logger.error(f"Errore DB inserendo record per {original_filename}: {db_err}")
+                        skipped_files_info.append({'filename': original_filename, 'error': 'Database error.'})
+                    except Exception as process_err:
+                         logger.error(f"Errore imprevisto durante processamento {original_filename}: {process_err}", exc_info=True)
+                         skipped_files_info.append({'filename': original_filename, 'error': f'Unexpected error: {process_err}'})
+                else:
                      logger.warning(f"Estrazione testo fallita per '{original_filename}'. File scartato.")
                      skipped_files_info.append({'filename': original_filename, 'error': 'Text extraction failed.'})
-
-            elif file and file.filename: # Questo elif corrisponde a: if file and file.filename and allowed_file(original_filename):
+            elif file and file.filename:
                 logger.warning(f"File '{original_filename}' scartato: estensione non permessa.")
                 skipped_files_info.append({'filename': original_filename, 'error': 'File type not allowed'})
-            else:
-                 logger.warning("Trovato un file invalido o senza nome nella lista.")
-        # ---- FINE CICLO FOR file in uploaded_files ----
-
-        # Commit DB alla FINE
+        
         conn.commit()
-        total_processed = len(processed_ok_info) + len(processed_fail_info)
-        logger.info(f"Commit DB eseguito. Totale file processati (OK+Fail): {total_processed}, Scartati: {len(skipped_files_info)}")
 
     except sqlite3.Error as e:
         logger.error(f"Errore SQLite esterno al ciclo file: {e}")
@@ -365,24 +347,13 @@ def upload_documents():
          if conn: conn.rollback()
          return jsonify({'success': False, 'error_code': 'UNEXPECTED_UPLOAD_ERROR', 'message': f'Errore server imprevisto: {e_outer}'}), 500
     finally:
-        if conn:
-            conn.close()
-            logger.debug("Connessione DB chiusa.")
+        if conn: conn.close()
 
-    # Risposta Finale
-    overall_success = (total_processed > 0)
-    final_message = f"Operazione upload completata. {len(processed_ok_info)} file indicizzati con successo."
-    if processed_fail_info:
-        final_message += f" {len(processed_fail_info)} file caricati ma con errori di indicizzazione."
-    if skipped_files_info:
-        final_message += f" {len(skipped_files_info)} file scartati prima dell'elaborazione."
-
+    overall_success = len(processed_ok_info) > 0 or (len(processed_fail_info) == 0 and len(skipped_files_info) == 0)
+    final_message = f"Operazione completata. {len(processed_ok_info)} indicizzati, {len(processed_fail_info)} con errori, {len(skipped_files_info)} scartati."
     return jsonify({
-        'success': overall_success,
-        'message': final_message,
-        'files_indexed_ok': processed_ok_info,
-        'files_indexing_failed': processed_fail_info,
-        'files_skipped': skipped_files_info
+        'success': overall_success, 'message': final_message, 'files_indexed_ok': processed_ok_info,
+        'files_indexing_failed': processed_fail_info, 'files_skipped': skipped_files_info
     }), 200 if overall_success else 400
 
 
@@ -391,8 +362,7 @@ def upload_documents():
 @login_required
 def delete_document(doc_id):
     """
-    Elimina un documento specifico (record DB E CHUNKS CHROMA).
-    Adattato per modalità single/saas e senza file fisici.
+    Elimina un documento specifico (record DB, chunks Chroma E STATISTICHE).
     """
     app_mode = current_app.config.get('APP_MODE', 'single')
     logger.info(f"Richiesta DELETE ricevuta per doc_id: {doc_id} (Modalità: {app_mode})")
@@ -411,7 +381,6 @@ def delete_document(doc_id):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        # --- CONTROLLO ESISTENZA E APPARTENENZA (CORRETTO) ---
         sql_select = "SELECT doc_id FROM documents WHERE doc_id = ? AND user_id = ?"
         params_select = (doc_id, current_user_id)
         cursor.execute(sql_select, params_select)
@@ -423,10 +392,8 @@ def delete_document(doc_id):
             logger.warning(message)
             return jsonify({'success': False, 'error_code': 'DOCUMENT_NOT_FOUND', 'message': message}), 404
 
-        logger.info(f"[{doc_id}] Trovato documento appartenente all'utente. Procedo con l'eliminazione.")
-        # --- FINE CONTROLLO ---
+        logger.info(f"[{doc_id}] Trovato documento. Procedo con l'eliminazione.")
 
-        # Elimina da ChromaDB (logica invariata)
         chroma_delete_success = False
         try:
             chroma_client = current_app.config.get('CHROMA_CLIENT')
@@ -440,22 +407,26 @@ def delete_document(doc_id):
                        doc_collection.delete(ids=chunk_ids_to_delete)
                    chroma_delete_success = True
                 except Exception:
-                   chroma_delete_success = True # Se la collezione non esiste, è comunque un successo
+                   chroma_delete_success = True
         except Exception as e_chroma:
             logger.error(f"[{doc_id}] ERRORE durante l'eliminazione da ChromaDB: {e_chroma}", exc_info=True)
 
         # Elimina da SQLite
-        sql_delete = "DELETE FROM documents WHERE doc_id = ? AND user_id = ?"
-        cursor.execute(sql_delete, (doc_id, current_user_id))
+        sql_delete_doc = "DELETE FROM documents WHERE doc_id = ? AND user_id = ?"
+        cursor.execute(sql_delete_doc, (doc_id, current_user_id))
+        
+        # ---  ISTRUZIONE DI PULIZIA STATISTICHE ---
+        logger.info(f"[{doc_id}] Eliminazione record corrispondente da content_stats...")
+        sql_delete_stats = "DELETE FROM content_stats WHERE content_id = ? AND user_id = ?"
+        cursor.execute(sql_delete_stats, (doc_id, current_user_id))
         
         if cursor.rowcount == 0:
-             conn.rollback(); conn.close()
-             return jsonify({'success': False, 'error_code': 'DB_DELETE_FAILED', 'message': 'Errore DB durante eliminazione.'}), 500
-        
+             logger.warning(f"[{doc_id}] Il DELETE da documents non ha modificato righe (potrebbe essere già stato cancellato).")
+
         conn.commit()
         conn.close()
 
-        final_message = f"Documento {doc_id} eliminato con successo dal database."
+        final_message = f"Documento {doc_id} eliminato con successo dal database e dalle statistiche."
         if not chroma_delete_success:
             final_message += " ATTENZIONE: Errore durante pulizia ChromaDB."
             

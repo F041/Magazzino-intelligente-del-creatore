@@ -13,6 +13,8 @@ import textstat
 import copy
 from app.services.embedding.embedding_service import generate_embeddings
 from app.core.youtube_processor import _background_channel_processing
+from app.utils import build_full_config_for_background_process 
+from app.services.chunking.agentic_chunker import chunk_text_agentically 
 
 
 # --- Import Servizi e Moduli App ---
@@ -156,20 +158,17 @@ def reprocess_single_video(video_id):
 
     try:
         # --- 1. Setup Configurazione ---
-        logger.debug(f"[Reprocess Single] [{video_id}] Verifica config...")
-        db_path_sqlite = current_app.config.get('DATABASE_FILE')
-        llm_api_key = current_app.config.get('GOOGLE_API_KEY')
-        embedding_model = current_app.config.get('GEMINI_EMBEDDING_MODEL')
-        chunk_size = current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
-        chunk_overlap = current_app.config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
-        base_video_collection_name = current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
-        chroma_client = current_app.config.get('CHROMA_CLIENT') # Serve sempre per ottenere collezione
-        chroma_collection_single = current_app.config.get('CHROMA_VIDEO_COLLECTION') # Solo per single
-
-        if not all([db_path_sqlite, llm_api_key, embedding_model, base_video_collection_name, chroma_client]): # Client serve sempre
-            raise RuntimeError("Configurazione server incompleta (DB, API Key, Embedding, Chroma Client).")
-        if app_mode == 'single' and not chroma_collection_single:
-             raise RuntimeError("Configurazione server incompleta (Collezione Chroma Single Mode).")
+        logger.debug(f"[Reprocess Single] [{video_id}] Costruzione configurazione completa...")
+        core_config = build_full_config_for_background_process(current_user_id)
+        
+        db_path_sqlite = core_config.get('DATABASE_FILE')
+        base_video_collection_name = core_config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
+        chroma_client = core_config.get('CHROMA_CLIENT')
+        
+        # Le variabili specifiche per il chunking le leggiamo dopo, quando servono.
+        # Qui verifichiamo solo la configurazione di base.
+        if not all([db_path_sqlite, base_video_collection_name, chroma_client]):
+            raise RuntimeError("Configurazione server incompleta (DB, Collection Name, o Chroma Client).")
         logger.debug(f"[Reprocess Single] [{video_id}] Config OK.")
 
 
@@ -223,89 +222,61 @@ def reprocess_single_video(video_id):
             message = f"Riprocessamento {video_id} fallito: {error_details}" # Aggiorniamo il messaggio per l'utente
             logger.warning(f"[Reprocess Single] [{video_id}] Trascrizione fallita. Motivo: {error_details}")
                 # --- 5. Chunking, Embedding, Chroma ---
-        chunks = [] # Inizializza chunks qui
+        chunks = []
         if final_status == 'processing_embedding' and transcript_text:
-            try:
-                logger.debug(f"[Reprocess Single] [{video_id}] Chunking...")
+            # --- NUOVA LOGICA DI CHUNKING CONDIZIONALE ---
+            use_agentic_chunking = str(core_config.get('USE_AGENTIC_CHUNKING', 'False')).lower() == 'true'
+            chunk_size = core_config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
+            chunk_overlap = core_config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
+
+            if use_agentic_chunking:
+                logger.info(f"[Reprocess Single] [{video_id}] Tentativo di CHUNKING INTELLIGENTE (Agentic)...")
+                chunks = chunk_text_agentically(transcript_text, llm_provider=core_config.get('llm_provider', 'google'), settings=core_config)
+                if not chunks:
+                    logger.warning(f"[Reprocess Single] [{video_id}] CHUNKING INTELLIGENTE fallito. Ritorno al metodo classico.")
+                    chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            else:
+                logger.info(f"[Reprocess Single] [{video_id}] Esecuzione CHUNKING CLASSICO.")
                 chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            # --- FINE NUOVA LOGICA ---
 
-                if chunks:
-                    logger.info(f"[Reprocess Single] [{video_id}] {len(chunks)} chunks creati.")
-                    logger.debug(f"[Reprocess Single] [{video_id}] Embedding...")
-                    user_settings_for_embedding = {'llm_provider': 'google', 'llm_api_key': llm_api_key, 'llm_embedding_model': embedding_model}
-                    embeddings = generate_embeddings(chunks, user_settings=user_settings_for_embedding, task_type=TASK_TYPE_DOCUMENT)
-
-                    if embeddings and len(embeddings) == len(chunks):
-                        logger.info(f"[Reprocess Single] [{video_id}] Embedding OK.")
-
-                        # --- 5.a Ottieni Collezione Chroma ---
-                        logger.debug(f"[Reprocess Single] [{video_id}] Ottenimento collezione Chroma...")
-                        if app_mode == 'single':
-                             chroma_collection_to_use = chroma_collection_single
-                             if chroma_collection_to_use: collection_name_for_log = chroma_collection_to_use.name
-                        elif app_mode == 'saas':
-                             user_video_collection_name = f"{base_video_collection_name}_{current_user_id}"
-                             collection_name_for_log = user_video_collection_name
-                             try: chroma_collection_to_use = chroma_client.get_or_create_collection(name=user_video_collection_name)
-                             except Exception as e_saas_coll: logger.error(f"[Reprocess Single] [{video_id}] Fallimento get/create coll. SAAS '{collection_name_for_log}': {e_saas_coll}"); chroma_collection_to_use = None
-                        if not chroma_collection_to_use:
-                            logger.error(f"[Reprocess Single] [{video_id}] Collezione Chroma '{collection_name_for_log}' NON disponibile!")
-                            final_status = 'failed_chroma_config' # Nuovo stato errore
-                        else:
-                             logger.info(f"[Reprocess Single] [{video_id}] Uso collezione Chroma: '{collection_name_for_log}'")
-
-                             # --- 5.b Elimina Vecchi Chunk da Chroma ---
-                             if final_status == 'processing_embedding': # Procedi solo se non ci sono stati errori prima
-                                 try:
-                                     logger.info(f"[Reprocess Single] [{video_id}] Tentativo eliminazione vecchi chunk da Chroma '{collection_name_for_log}'...")
-                                     existing_chunks = chroma_collection_to_use.get(where={"video_id": video_id}, include=[]) # Solo ID
-                                     ids_to_delete = existing_chunks.get('ids', [])
-                                     if ids_to_delete:
-                                         logger.debug(f"[Reprocess Single] [{video_id}] Elimino {len(ids_to_delete)} chunk IDs: {ids_to_delete}")
-                                         chroma_collection_to_use.delete(ids=ids_to_delete)
-                                         logger.info(f"[Reprocess Single] [{video_id}] Vecchi chunk eliminati da Chroma.")
-                                     else:
-                                         logger.info(f"[Reprocess Single] [{video_id}] Nessun vecchio chunk da eliminare trovato in Chroma.")
-                                 except Exception as e_chroma_del:
-                                     # Logga errore ma continua per tentare l'upsert (potrebbe essere il primo processamento)
-                                     logger.error(f"[Reprocess Single] [{video_id}] Errore durante eliminazione vecchi chunk Chroma: {e_chroma_del}", exc_info=True)
-                                     # Non cambiamo lo stato qui, l'upsert fallirà se la collezione ha problemi seri
-
-                             # --- 5.c Upsert Nuovi Chunk in Chroma ---
-                             if final_status == 'processing_embedding': # Controlla di nuovo
-                                 try:
-                                     ids_upsert = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
-                                     metadatas_upsert = [{
-                                         'video_id': video_id, 'channel_id': video_meta_dict['channel_id'], 'video_title': video_meta_dict['title'],
-                                         'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 'language': transcript_lang,
-                                         'caption_type': transcript_type,
-                                         **({"user_id": current_user_id} if app_mode == 'saas' else {})
-                                     } for i in range(len(chunks))]
-                                     logger.info(f"[Reprocess Single] [{video_id}] Upsert di {len(chunks)} nuovi chunk in Chroma '{collection_name_for_log}'...")
-                                     chroma_collection_to_use.upsert(ids=ids_upsert, embeddings=embeddings, metadatas=metadatas_upsert, documents=chunks)
-                                     logger.info(f"[Reprocess Single] [{video_id}] Upsert Chroma OK.")
-                                     final_status = 'completed' # Successo finale!
-                                 except Exception as chroma_e_upsert:
-                                     logger.exception(f"[Reprocess Single] [{video_id}] Errore Upsert Chroma.");
-                                     final_status = 'failed_chroma_write'
-                    # Gestione errori embedding
-                    elif embeddings is None: final_status = 'failed_embedding'; logger.error(f"[Reprocess Single] [{video_id}] Embedding fallito (API/Config error).")
-                    else: final_status = 'failed_embedding'; logger.error(f"[Reprocess Single] [{video_id}] Discrepanza Embedding/Chunks.")
-                else: # Nessun chunk generato
-                    final_status = 'completed'; logger.info(f"[Reprocess Single] [{video_id}] No chunks, marco come completo (senza upsert).")
-                    # Se non ci sono chunk, dobbiamo comunque eliminare quelli vecchi da Chroma!
-                    if chroma_collection_to_use:
-                         try:
-                             logger.info(f"[Reprocess Single] [{video_id}] Nessun nuovo chunk, elimino eventuali vecchi da Chroma...")
-                             existing_chunks = chroma_collection_to_use.get(where={"video_id": video_id}, include=[])
-                             ids_to_delete = existing_chunks.get('ids', [])
-                             if ids_to_delete: chroma_collection_to_use.delete(ids=ids_to_delete); logger.info(f"[Reprocess Single] [{video_id}] Vecchi chunk eliminati (perché non ce ne sono di nuovi).")
-                         except Exception as e_chroma_del_nochunks: logger.error(f"[Reprocess Single] [{video_id}] Errore eliminazione vecchi chunk (caso no-nuovi-chunk): {e_chroma_del_nochunks}")
-
-            # Gestione eccezioni specifiche embedding/chunking
-            except google_exceptions.ResourceExhausted: final_status = 'failed_embedding_ratelimit'; logger.error(f"[{video_id}] Rate limit embedding.")
-            except google_exceptions.GoogleAPIError: final_status = 'failed_embedding_api'; logger.error(f"[{video_id}] API Error embedding.")
-            except Exception as chunk_embed_e: final_status = 'failed_processing'; logger.exception(f"[{video_id}] Errore Chunk/Embed/Chroma prep.")
+            if not chunks:
+                final_status = 'completed'
+                logger.info(f"[Reprocess Single] [{video_id}] Nessun chunk generato dalla trascrizione, marco come completo.")
+            else:
+                logger.info(f"[Reprocess Single] [{video_id}] Creati {len(chunks)} chunk. Procedo con embedding...")
+                try:
+                    embeddings = generate_embeddings(chunks, user_settings=core_config, task_type=TASK_TYPE_DOCUMENT)
+                    if not embeddings or len(embeddings) != len(chunks):
+                        final_status = 'failed_embedding'
+                        logger.error(f"[{video_id}] Fallimento generazione/corrispondenza embedding.")
+                    else:
+                        logger.info(f"[{video_id}] Embedding OK. Preparazione per ChromaDB...")
+                        collection_name_for_log = f"{base_video_collection_name}_{current_user_id}" if app_mode == 'saas' else base_video_collection_name
+                        chroma_collection_to_use = chroma_client.get_or_create_collection(name=collection_name_for_log)
+                        logger.info(f"[{video_id}] Uso collezione Chroma: '{collection_name_for_log}'")
+                        
+                        chroma_collection_to_use.delete(where={"video_id": video_id})
+                        logger.info(f"[{video_id}] Vecchi chunk per il video eliminati da Chroma.")
+                        
+                        ids_upsert = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
+                        metadatas_upsert = [{'video_id': video_id, 'channel_id': video_meta_dict['channel_id'], 'video_title': video_meta_dict['title'], 'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 'language': transcript_lang, 'caption_type': transcript_type, **({"user_id": current_user_id} if app_mode == 'saas' else {})} for i in range(len(chunks))]
+                        chroma_collection_to_use.upsert(ids=ids_upsert, embeddings=embeddings, metadatas=metadatas_upsert, documents=chunks)
+                        logger.info(f"[{video_id}] Upsert di {len(chunks)} nuovi chunk in Chroma OK.")
+                        final_status = 'completed'
+                except Exception as e_embed_chroma:
+                    logger.exception(f"[{video_id}] Errore durante embedding o operazione ChromaDB.")
+                    final_status = 'failed_embedding' # O un codice di errore più specifico
+        
+        # Pulizia Chroma se trascrizione vuota
+        if final_status == 'completed' and not chunks:
+            try:
+                collection_name_for_log = f"{base_video_collection_name}_{current_user_id}" if app_mode == 'saas' else base_video_collection_name
+                chroma_collection_to_use = chroma_client.get_or_create_collection(name=collection_name_for_log)
+                chroma_collection_to_use.delete(where={"video_id": video_id})
+                logger.info(f"[{video_id}] Pulizia ChromaDB eseguita per video senza nuovi chunk.")
+            except Exception as e_chroma_clean:
+                logger.error(f"[{video_id}] Errore durante pulizia Chroma per video senza chunk: {e_chroma_clean}")
         # Altri casi (es. trascrizione fallita) mantengono lo stato già impostato
 
         # --- 6. Aggiornamento Finale SQLite ---
@@ -405,8 +376,15 @@ def delete_all_user_videos():
         conn_sqlite = sqlite3.connect(db_path)
         cursor_sqlite = conn_sqlite.cursor()
         logger.info(f"[{current_user_id}] ESECUZIONE DELETE FROM videos WHERE user_id = ?...")
+
+        # Prima cancella i video veri e propri
         cursor_sqlite.execute("DELETE FROM videos WHERE user_id = ?", (current_user_id,))
         rows_affected = cursor_sqlite.rowcount
+        
+        # ---  ISTRUZIONE DI PULIZIA STATISTICHE ---
+        logger.info(f"[{current_user_id}] Eliminazione record corrispondenti da content_stats per 'videos'...")
+        cursor_sqlite.execute("DELETE FROM content_stats WHERE user_id = ? AND source_type = 'videos'", (current_user_id,))
+
         logger.info(f"[{current_user_id}] Righe potenzialmente affette dal DELETE: {rows_affected}. Tentativo COMMIT...")
 
         # Commit immediato

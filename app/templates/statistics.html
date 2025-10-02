@@ -183,8 +183,8 @@
 
                 new Chart(ctx, {
                     type: 'bar',
-                    data: { labels: labels, datasets: [{ label: 'Numero di Contenuti', data: counts, backgroundColor: 'rgba(67, 97, 238, 0.6)', borderColor: 'rgba(67, 97, 238, 1)', borderWidth: 1 }] },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Numero di Contenuti' } }, x: { title: { display: true, text: 'Fascia di lunghezza (parole)' } } } }
+                    data: { labels: labels, datasets: [{ label: 'Numero di contenuti', data: counts, backgroundColor: 'rgba(67, 97, 238, 0.6)', borderColor: 'rgba(67, 97, 238, 1)', borderWidth: 1 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Numero di contenuti' } }, x: { title: { display: true, text: 'Fascia di lunghezza (parole)' } } } }
                 });
             }
 
@@ -271,7 +271,7 @@
                 recalculateForm.addEventListener('submit', async (event) => {
                     event.preventDefault(); 
                     const confirmed = await window.showConfirmModal(
-                        'Conferma Ricalcolo',
+                        'Conferma ricalcolo',
                         'Questa operazione analizzerà tutti i tuoi contenuti esistenti per calcolare le statistiche. Potrebbe richiedere qualche istante. Sei sicuro di voler procedere?'
                     );
                     if (confirmed) {

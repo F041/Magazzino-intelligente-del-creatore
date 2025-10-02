@@ -103,7 +103,12 @@ def recalculate_stats():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        # Configurazione delle fonti aggiornata per leggere sempre dal DB
+        # --- NUOVA ISTRUZIONE DI PULIZIA ---
+        logger.info(f"Pulizia di TUTTE le statistiche precedenti per l'utente {user_id}...")
+        cursor.execute("DELETE FROM content_stats WHERE user_id = ?", (user_id,))
+        logger.info("Pulizia completata.")
+        # --- FINE NUOVA ISTRUZIONE ---
+
         source_config = {
             'videos': {'table': 'videos', 'id_col': 'video_id', 'content_col': 'transcript'},
             'documents': {'table': 'documents', 'id_col': 'doc_id', 'content_col': 'content'},
@@ -123,7 +128,6 @@ def recalculate_stats():
             for item in items_to_process:
                 content_id, content_text_from_db = item[0], item[1]
                 
-                # La logica ora è unificata e semplice
                 content_text = content_text_from_db or ''
 
                 if content_text.strip():

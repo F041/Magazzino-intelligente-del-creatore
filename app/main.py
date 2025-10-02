@@ -632,7 +632,7 @@ def create_app(config_object=AppConfig):
         else:
             try:
                 conn = sqlite3.connect(db_path); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
-                sql_query = 'SELECT * FROM documents'
+                sql_query = 'SELECT doc_id, original_filename, uploaded_at, processing_status, filesize FROM documents'
                 params = []
                 if app_mode == 'saas':
                     sql_query += ' WHERE user_id = ?'

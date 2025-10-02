@@ -58,75 +58,120 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     });
 
-    // --- LOGICA MENU A TENDINA E VISIBILITA' PANNELLI ---
-    const customSelectContainer = document.querySelector(".custom-select-container");
-    if (customSelectContainer) {
-        const selectedDisplay = customSelectContainer.querySelector(".select-selected");
-        const optionsList = customSelectContainer.querySelector(".select-items");
-        const options = optionsList.querySelectorAll("div[data-value]");
-        const hiddenInput = document.getElementById("llm_provider");
-        const googleSettings = document.getElementById("google-settings-group");
-        const groqSettings = document.getElementById("groq-settings-group");
-        const ollamaSettings = document.getElementById("ollama-settings-group");
-        const resetBtn = document.getElementById("reset-ai-settings-btn");
+// --- LOGICA MENU A TENDINA E VISIBILITA' PANNELLI ---
+const customSelectContainer = document.querySelector(".custom-select-container");
+if (customSelectContainer) {
+    const selectedDisplay = customSelectContainer.querySelector(".select-selected");
+    const optionsList = customSelectContainer.querySelector(".select-items");
+    const options = optionsList.querySelectorAll("div[data-value]");
+    const hiddenInput = document.getElementById("llm_provider");
+    const googleSettings = document.getElementById("google-settings-group");
+    const groqSettings = document.getElementById("groq-settings-group");
+    const ollamaSettings = document.getElementById("ollama-settings-group");
+    const resetBtn = document.getElementById("reset-ai-settings-btn");
 
-        function toggleResetButtonVisibility() {
-          if (!resetBtn || !hiddenInput) return;
-          const selectedProvider = hiddenInput.value;
-          if (selectedProvider !== "google") {
-            resetBtn.style.display = "inline-flex";
-          } else {
-            resetBtn.style.display = "none";
-          }
+    // Riferimenti ai campi "model" di Ollama e Groq (se presenti nel DOM)
+    const globalOllamaModelInput = document.getElementById("ollama_model_name");
+    const globalGroqModelInput = document.getElementById("groq_model_name");
+
+    /**
+     * Regola la visibilità del pulsante "Ripristina predefinite".
+     * - google => sempre nascosto
+     * - ollama / groq => mostrato SOLO se il relativo campo "model" è valorizzato (valore salvato -> visibile)
+     * - altri provider => mostrato
+     *
+     * Nota: NON si aggancia a eventi 'input' sui campi modello: questo assicura che
+     * il pulsante non compaia subito durante la digitazione ma solo dopo un salvataggio/ricarica.
+     */
+    function toggleResetButtonVisibility() {
+      if (!resetBtn || !hiddenInput) return;
+      const selectedProvider = hiddenInput.value;
+
+      // google -> nascondi
+      if (selectedProvider === "google") {
+        resetBtn.style.display = "none";
+        return;
+      }
+
+      // ollama -> mostra solo se campo modello valorizzato
+      if (selectedProvider === "ollama") {
+        if (!globalOllamaModelInput || globalOllamaModelInput.value.trim() === "") {
+          resetBtn.style.display = "none";
+        } else {
+          resetBtn.style.display = "inline-flex";
         }
+        return;
+      }
 
-        function toggleProviderSettings() {
-          if (!hiddenInput) return;
-          const selectedProvider = hiddenInput.value;
-          if (googleSettings) {
-            googleSettings.classList.toggle("visible", selectedProvider === "google");
-            googleSettings.classList.toggle("hidden", selectedProvider !== "google");
-          }
-          if (groqSettings) {
-          groqSettings.classList.toggle("visible", selectedProvider === "groq");
-          groqSettings.classList.toggle("hidden", selectedProvider !== "groq");
-          }
-          if (ollamaSettings) {
-            ollamaSettings.classList.toggle("visible", selectedProvider === "ollama");
-            ollamaSettings.classList.toggle("hidden", selectedProvider !== "ollama");
-          }
-          toggleResetButtonVisibility();
+      // groq -> mostra solo se campo modello valorizzato
+      if (selectedProvider === "groq") {
+        if (!globalGroqModelInput || globalGroqModelInput.value.trim() === "") {
+          resetBtn.style.display = "none";
+        } else {
+          resetBtn.style.display = "inline-flex";
         }
+        return;
+      }
 
-        if (selectedDisplay) {
-            selectedDisplay.addEventListener("click", function (e) {
-              e.stopPropagation();
-              optionsList.classList.toggle("select-hide");
-              this.classList.toggle("select-arrow-active");
-            });
-        }
-
-        options.forEach((option) => {
-          option.addEventListener("click", function () {
-            if (selectedDisplay && hiddenInput && optionsList) {
-                selectedDisplay.innerHTML = this.innerHTML;
-                hiddenInput.value = this.getAttribute("data-value");
-                optionsList.classList.add("select-hide");
-                selectedDisplay.classList.remove("select-arrow-active");
-                toggleProviderSettings();
-            }
-          });
-        });
-
-        document.addEventListener("click", function () {
-            if (optionsList && selectedDisplay) {
-                optionsList.classList.add("select-hide");
-                selectedDisplay.classList.remove("select-arrow-active");
-            }
-        });
-
-        toggleProviderSettings();
+      // tutti gli altri provider -> mostra
+      resetBtn.style.display = "inline-flex";
     }
+
+    function toggleProviderSettings() {
+      if (!hiddenInput) return;
+      const selectedProvider = hiddenInput.value;
+      if (googleSettings) {
+        googleSettings.classList.toggle("visible", selectedProvider === "google");
+        googleSettings.classList.toggle("hidden", selectedProvider !== "google");
+      }
+      if (groqSettings) {
+        groqSettings.classList.toggle("visible", selectedProvider === "groq");
+        groqSettings.classList.toggle("hidden", selectedProvider !== "groq");
+      }
+      if (ollamaSettings) {
+        ollamaSettings.classList.toggle("visible", selectedProvider === "ollama");
+        ollamaSettings.classList.toggle("hidden", selectedProvider !== "ollama");
+      }
+      // decide visibilità del pulsante basandosi sui valori correnti (es. quelli salvati)
+      toggleResetButtonVisibility();
+    }
+
+    if (selectedDisplay) {
+        selectedDisplay.addEventListener("click", function (e) {
+          e.stopPropagation();
+          optionsList.classList.toggle("select-hide");
+          this.classList.toggle("select-arrow-active");
+        });
+    }
+
+    options.forEach((option) => {
+      option.addEventListener("click", function () {
+        if (selectedDisplay && hiddenInput && optionsList) {
+            selectedDisplay.innerHTML = this.innerHTML;
+            hiddenInput.value = this.getAttribute("data-value");
+            optionsList.classList.add("select-hide");
+            selectedDisplay.classList.remove("select-arrow-active");
+            toggleProviderSettings();
+        }
+      });
+    });
+
+    // NOTA: non registriamo qui listener 'input' che modifichino la visibilità del pulsante,
+    // così il pulsante NON appare subito mentre l'utente digita il nome del modello.
+    // (rimane possibile avere altri listener per scopi diversi, es. resetConnectionStatus)
+
+    document.addEventListener("click", function () {
+        if (optionsList && selectedDisplay) {
+            optionsList.classList.add("select-hide");
+            selectedDisplay.classList.remove("select-arrow-active");
+        }
+    });
+
+    // Chiamata iniziale per impostare correttamente pannelli e visibilità in base ai valori salvati
+    toggleProviderSettings();
+}
+
+
 
 
     // --- LOGICA DI SINCRONIZZAZIONE WORDPRESS ---
@@ -570,6 +615,8 @@ if (downloadFullBtn) {
             }
         }, 30000); // 30 secondi
     });
+    
 }
+
 
 });

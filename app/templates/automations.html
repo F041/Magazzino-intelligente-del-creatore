@@ -182,15 +182,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 let html = '<h4>Canale YouTube monitorato:</h4>';
                 if (data.youtube_channel && data.youtube_channel.is_active) {
                     const ch = data.youtube_channel;
-                    const lastChecked = ch.last_checked_at ? new Date(ch.last_checked_at).toLocaleString() : 'Mai';
-                    html += `<div class="status-display"><p><strong>Nome:</strong> ${ch.channel_name || '(Non disponibile)'}</p><p><strong>URL:</strong> ${ch.channel_url || 'N/D'}</p><p><strong>Ultimo Controllo:</strong> ${lastChecked}</p><p><strong>Stato:</strong> Attivo</p><button class="action-btn delete-btn remove-source-btn" data-type="youtube">Disattiva monitoraggio YouTube</button></div>`;
+                    const lastCheckedYT = ch.last_checked_at ? new Date(ch.last_checked_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' }) : 'Mai';
+                    html += `<div class="status-display"><p><strong>Nome:</strong> ${ch.channel_name || '(Non disponibile)'}</p><p><strong>URL:</strong> ${ch.channel_url || 'N/D'}</p><p><strong>Ultimo Controllo:</strong> ${lastCheckedYT}</p><p><strong>Stato:</strong> Attivo</p><button class="action-btn delete-btn remove-source-btn" data-type="youtube">Disattiva monitoraggio YouTube</button></div>`;
                 } else { html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun canale YouTube monitorato.</p>'; }
+                
                 html += '<hr style="margin: 20px 0;"><h4>Feed RSS monitorato:</h4>';
                 if (data.rss_feed && data.rss_feed.is_active) {
                     const fd = data.rss_feed;
-                    const lastChecked = fd.last_checked_at ? new Date(fd.last_checked_at).toLocaleString() : 'Mai';
-                    html += `<div class="status-display"><p><strong>Titolo:</strong> ${fd.feed_title || '(Non disponibile)'}</p><p><strong>URL:</strong> ${fd.feed_url || 'N/D'}</p><p><strong>Ultimo Controllo:</strong> ${lastChecked}</p><p><strong>Stato:</strong> Attivo</p><button class="action-btn delete-btn remove-source-btn" data-type="rss">Disattiva monitoraggio RSS</button></div>`;
+                    const lastCheckedRSS = fd.last_checked_at ? new Date(fd.last_checked_at).toLocaleString('it-IT', { timeZone: 'Europe/Rome' }) : 'Mai';
+                    html += `<div class="status-display"><p><strong>Titolo:</strong> ${fd.feed_title || '(Non disponibile)'}</p><p><strong>URL:</strong> ${fd.feed_url || 'N/D'}</p><p><strong>Ultimo Controllo:</strong> ${lastCheckedRSS}</p><p><strong>Stato:</strong> Attivo</p><button class="action-btn delete-btn remove-source-btn" data-type="rss">Disattiva monitoraggio RSS</button></div>`;
                 } else { html += '<p class="none-active" style="color: var(--color-text-light); font-style: italic;">Nessun feed RSS monitorato.</p>'; }
+                
                 statusDisplayDiv.innerHTML = html;
                 addRemoveListeners();
             } else { throw new Error(data.message || 'Errore caricamento stato'); }

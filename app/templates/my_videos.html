@@ -87,36 +87,32 @@
 {{ super() }}
 <script>
   document.addEventListener("DOMContentLoaded", () => {
+    // --- Elementi e Funzioni di Supporto ---
     const messageDiv = document.getElementById("action-message");
+    const overlay = document.getElementById('loading-overlay');
+    const overlayMessage = document.getElementById('loading-overlay-message');
 
     function showNotification(message, type = "success") {
       if (!messageDiv) return;
-      messageDiv.className =
-        type === "success" ? "success-message" : "error-message";
+      messageDiv.className = type === "success" ? "success-message" : "error-message";
       messageDiv.textContent = message;
-      messageDiv.style.opacity = "0";
-      messageDiv.style.display = "flex";
-      setTimeout(() => {
-        messageDiv.style.opacity = "1";
-      }, 10);
-      setTimeout(() => {
-        messageDiv.style.opacity = "0";
-        setTimeout(() => {
-          messageDiv.style.display = "none";
-        }, 500);
-      }, 5000);
+      messageDiv.style.display = 'block';
+      setTimeout(() => { if(messageDiv) messageDiv.style.display = 'none'; }, 5000);
     }
 
-    const confirmModal = document.getElementById("confirm-modal");
-    const confirmOverlay = document.getElementById("confirm-modal-overlay");
-    const confirmOkBtn = document.getElementById("confirm-modal-ok");
-    const confirmCancelBtn = document.getElementById("confirm-modal-cancel");
-    const confirmTitle = document.getElementById("confirm-modal-title");
-    const confirmText = document.getElementById("confirm-modal-text");
+    function showOverlay(message) {
+        if (overlayMessage) overlayMessage.textContent = message;
+        if (overlay) overlay.classList.add('visible');
+    }
 
-    
+    function hideOverlay() {
+        if (overlay) overlay.classList.remove('visible');
+    }
+
+    // --- LOGICA PULSANTE "RIPROCESSA" (versione corretta e unificata) ---
     document.querySelectorAll(".reprocess-btn").forEach((button) => {
       const originalButtonHTML = button.innerHTML;
+      
       button.addEventListener("click", async (event) => {
         const btn = event.currentTarget;
         const videoId = btn.dataset.videoId;
@@ -124,15 +120,24 @@
 
         if (!videoId || !statusCell) return;
 
+        // --- MODIFICA 1: Imposta stato "processing" ---
+        if (window.setAppStatus) window.setAppStatus('processing');
+        showOverlay('Riprocessamento del video in corso...');
+        
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         statusCell.innerHTML = `<span class="status-badge status-processing">processing</span>`;
-
+        
         const response = await fetch(`/api/videos/${videoId}/reprocess`, {
           method: "POST",
           headers: { Accept: "application/json" },
         });
 
+        hideOverlay();
+        // --- MODIFICA 2: Ripristina stato "idle" ---
+        if (window.setAppStatus) window.setAppStatus('idle');
+
+        // ... (il resto della logica per gestire la risposta rimane invariato) ...
         if (response.status === 401) {
           const data = await response.json();
           const userConfirmed = await showConfirmModal(
@@ -152,9 +157,11 @@
           const data = await response.json();
           const statusClass = data.new_status.toLowerCase().replace(/_/g, "-");
           statusCell.innerHTML = `<span class="status-badge status-${statusClass}">${data.new_status}</span>`;
+          
           if (!response.ok || !data.success) {
             throw new Error(data.message || `Errore ${response.status}`);
           }
+          
           showNotification(data.message || "Operazione completata.", "success");
         } catch (error) {
           showNotification(error.message, "error");
@@ -167,6 +174,7 @@
       });
     });
 
+    // --- LOGICA PULSANTE "ELIMINA TUTTI" (invariata) ---
     const deleteAllBtn = document.getElementById("delete-all-videos-btn");
     if (deleteAllBtn) {
       deleteAllBtn.addEventListener("click", async () => {
@@ -188,9 +196,7 @@
           const data = await response.json();
           if (response.ok && data.success) {
             showNotification(data.message, "success");
-            document.querySelector(
-              ".data-table tbody"
-            ).innerHTML = `<tr><td colspan="7" class="no-items-message">Nessun video da mostrare.</td></tr>`;
+            document.querySelector(".data-table tbody").innerHTML = `<tr><td colspan="7" class="no-items-message">Nessun video da mostrare.</td></tr>`;
             deleteAllBtn.textContent = "Eliminati";
           } else {
             throw new Error(data.message);
@@ -202,9 +208,7 @@
         }
       });
 
-      const isTableEmpty = !document.querySelector(
-        "#videos-container tbody tr:not(:has(.no-items-message))"
-      );
+      const isTableEmpty = !document.querySelector("#videos-container tbody tr:not(:has(.no-items-message))");
       if (isTableEmpty) {
         deleteAllBtn.disabled = true;
       }

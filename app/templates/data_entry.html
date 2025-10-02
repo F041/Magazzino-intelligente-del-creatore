@@ -545,10 +545,7 @@ Creatore{% endblock %} {% block content %}
     if (uploadDocBtnDocs) {
       fileInput.addEventListener("change", () => {
         uploadDocBtnDocs.disabled = fileInput.files.length === 0;
-        selectedFileInfoDocs.textContent =
-          fileInput.files.length > 0
-            ? `${fileInput.files.length} file selezionati.`
-            : "";
+        selectedFileInfoDocs.textContent = fileInput.files.length > 0 ? `${fileInput.files.length} file selezionati.` : "";
       });
       uploadDocBtnDocs.addEventListener("click", async () => {
         const formData = new FormData();
@@ -556,28 +553,33 @@ Creatore{% endblock %} {% block content %}
           formData.append("documents", file);
         }
         docUploadStatusDocs.innerHTML = `Caricamento... <span class="loading-spinner"></span>`;
-        docUploadStatusDocs.className = "success-message";
+        docUploadStatusDocs.className = "info-message"; // Usiamo 'info' per il caricamento
         docUploadStatusDocs.style.display = "block";
         uploadDocBtnDocs.disabled = true;
+        
         try {
           const response = await fetch("/api/documents/upload", {
             method: "POST",
             body: formData,
           });
           const data = await response.json();
+          
           if (response.ok && data.success) {
-            docUploadStatusDocs.textContent = data.message;
+            docUploadStatusDocs.textContent = data.message + " La pagina si ricaricherà a breve.";
             docUploadStatusDocs.className = "success-message";
+            // --- NUOVA LOGICA DI REFRESH ---
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000); // Attendi 2 secondi prima di ricaricare
           } else {
-            throw new Error(data.message);
+            throw new Error(data.message || 'Errore durante l\'upload.');
           }
         } catch (error) {
           docUploadStatusDocs.textContent = `Errore: ${error.message}`;
           docUploadStatusDocs.className = "error-message";
+          uploadDocBtnDocs.disabled = false; // Riabilita il pulsante solo in caso di errore
         } finally {
-          uploadDocBtnDocs.disabled = true;
-          fileInput.value = "";
-          selectedFileInfoDocs.textContent = "";
+          // Non svuotiamo più i campi qui, tanto la pagina si ricaricherà
         }
       });
     }

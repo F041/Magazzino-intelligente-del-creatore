@@ -718,11 +718,18 @@ def delete_all_user_articles():
         # 1. Elimina da SQLite
         conn_sqlite = sqlite3.connect(db_path)
         cursor_sqlite = conn_sqlite.cursor()
+
+        # Prima cancella gli articoli veri e propri
         cursor_sqlite.execute("DELETE FROM articles WHERE user_id = ?", (current_user_id,))
         sqlite_rows_affected = cursor_sqlite.rowcount
+
+        # ---  ISTRUZIONE DI PULIZIA STATISTICHE ---
+        logger.info(f"[{current_user_id}] Eliminazione record corrispondenti da content_stats per 'articles'...")
+        cursor_sqlite.execute("DELETE FROM content_stats WHERE user_id = ? AND source_type = 'articles'", (current_user_id,))
+
         conn_sqlite.commit()
         
-        # Verifica opzionale
+        # Verifica opzionale (invariata)
         cursor_sqlite.execute("SELECT COUNT(*) FROM articles WHERE user_id = ?", (current_user_id,))
         sqlite_rows_after_delete = cursor_sqlite.fetchone()[0]
 

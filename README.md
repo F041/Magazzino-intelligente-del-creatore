@@ -40,6 +40,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
 *   **Gestione API Key (Modalità `saas`):**
     *   Interfaccia web (`/keys/manage`) per utenti loggati per generare, visualizzare ed eliminare chiavi API personali.
     *   Le API critiche (es. `/api/search/`) sono protette e richiedono una chiave API valida per identificare l'utente.
+*   **Chunking Intelligente (Agentic Chunking):** (Opzionale) Possibilità di utilizzare un modello AI per suddividere i testi in modo semantico, preservando il contesto ed evitando tagli bruschi. Migliora la qualità dei dati per la ricerca RAG.
 *   **Configurazione AI via UI:**
     *   Una pagina dedicata "Impostazioni" permette all'utente di **sovrascrivere le configurazioni di default** (presenti nel file `.env`) direttamente dall'interfaccia web.
     *   È possibile cambiare dinamicamente il fornitore AI (attualmente Google Gemini), specificare un **modello primario e uno di ripiego** per la generazione, configurare il modello di embedding, e inserire la propria API Key.
@@ -75,7 +76,8 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   **Pulizia Automatica:** Se un articolo o una pagina vengono cancellati dal sito WordPress, verranno rimossi anche dal Magazzino alla successiva sincronizzazione.
     *   **Processo in Background con Feedback:** L'intera sincronizzazione viene eseguita in un thread separato, con un messaggio di stato nell'interfaccia che mostra l'avanzamento in tempo reale.
 *   **Pipeline di Indicizzazione:**
-    *   Genera embedding (Google Gemini `text-embedding-004`) per chunk di video, documenti e articoli.
+    *   **Suddivisione Testi (Chunking) Flessibile:** I contenuti vengono suddivisi in pezzi (chunk). Di base, viene usato un metodo a dimensione fissa. Attivando l'opzione **Agentic Chunking**, il sistema utilizza un LLM per trovare i punti di rottura logici nel testo, preservando il contesto.
+    *   **Generazione Embedding:** Per ogni chunk viene generato un embedding (es. con Google Gemini `text-embedding-004`) che ne rappresenta il significato vettoriale.
     *   Memorizza metadati e contenuti/trascrizioni in SQLite (con `user_id` in `saas`).
     *   Memorizza embedding vettoriali in **collezioni ChromaDB dedicate per tipo di contenuto e per utente** (in `saas`).
     *   Ottimizzato (per i video) per evitare di riprocessare contenuti già presenti nel DB *per l'utente specifico* (in `saas`).
@@ -178,6 +180,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   Apri il file `.env` con un editor di testo e **modifica almeno le seguenti variabili OBBLIGATORIE**:
         *   `FLASK_SECRET_KEY`: Genera una chiave segreta forte e casuale. Puoi usare il comando `python -c 'import secrets; print(secrets.token_hex(32))'` in un terminale Python e copiare l'output.
         *   `GOOGLE_API_KEY`: Inserisci la tua chiave API per Google AI (Gemini).
+        *   **USE_AGENTIC_CHUNKING**: (Opzionale) Imposta a `True` per attivare il chunking semantico basato su IA. **Attenzione:** questo processo è più lento e consuma crediti API aggiuntivi per la generazione, ma migliora notevolmente la qualità della suddivisione dei testi lunghi. Lasciare `False` o omettere la riga per usare il metodo classico a dimensione fissa.
         *   `COHERE_API_KEY`: (Opzionale, ma raccomandato per risposte di alta qualità) Inserisci la tua chiave API di Cohere per la funzione di re-ranking.
         *   `LLM_MODELS`: Inserisci una lista di modelli Gemini separati da virgola, senza spazi. L'applicazione proverà il primo e, in caso di errore (es. non disponibile o bloccato), passerà al successivo. L'ordine è importante. Esempio: `RAG_GENERATIVE_MODELS_FALLBACK_LIST="gemini-2.5-pro,gemini-2.0-flash"`
         *   `ALLOWED_EMAILS`: **(Opzionale, ma raccomandato per la sicurezza)** Inserisci una lista di indirizzi email separati da virgola, senza spazi. Se questa variabile è impostata, solo gli utenti con queste email potranno registrarsi. Se lasciata vuota, la registrazione è aperta a chiunque. Esempio: `ALLOWED_EMAILS=mia_email@gmail.com,collaboratore@esempio.com`
@@ -195,6 +198,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
         *   `OAUTHLIB_INSECURE_TRANSPORT=1`: **IMPORTANTE:** Lascia `1` SOLO se accedi all'app tramite `http://localhost` o un IP senza HTTPS durante lo sviluppo. **Se deployi in produzione con HTTPS (es. tramite Cloudflare Tunnel o un reverse proxy come Nginx), DEVI impostarlo a `0`**, altrimenti il flusso OAuth potrebbe fallire o essere insicuro.
         *   **`ANONYMIZED_TELEMETRY=False`**: Aggiungi questa riga al tuo file `.env`. Disabilita l'invio di dati di telemetria da parte di ChromaDB, il che può prevenire errori di inizializzazione se il container ha problemi a contattare i server di telemetria o se mancano dipendenze specifiche per la telemetria nell'immagine Docker.
         *   Gli altri percorsi (`DATABASE_FILE`, `CHROMA_DB_PATH`, ecc.) sono già configurati per funzionare con la directory `data` e Docker.
+    
 
 5.  **(Opzionale - Solo Windows con Docker Desktop) Configura Limiti Risorse WSL 2:**
     Se usi Docker Desktop su Windows e noti un consumo eccessivo di RAM, puoi provare a limitare le risorse per WSL 2 creando o modificando il file `%UserProfile%\.wslconfig` (es. `C:\Users\TuoNome\.wslconfig`) con contenuti come:
@@ -501,7 +505,7 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Implementare gestione stato conversazione nella chat Flask.
 *   [x] Valutare uso libreria JS (Marked.js + DOMPurify) per mostrare formattazione LLM (elenchi, grassetto).
 *   [x] Risolto problema di sicurezza e UX nell'ottenimento del codice per l'embed.
-*   [X] Creare script bot separato che usi una chiave API del creator per permettere alla sua community di interrogare i suoi contenuti via Telegram.
+*   [x] Creare script bot separato che usi una chiave API del creator per permettere alla sua community di interrogare i suoi contenuti via Telegram.
 *   [x] Setup base Pytest e prima fixture app/client.
 *   [x] Test per autenticazione utente (registrazione, login, logout).
 *   [x] Test per API principali (es. search, gestione contenuti) con mocking.
@@ -510,21 +514,17 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Ottimizzato recupero con Re-ranking: implementata architettura a 2 fasi con recupero ampio da ChromaDB e ri-classificazione di precisione tramite Cohere.
 *   [x] Mettere modello fallback in UI impostazioni.
 *   [x] Permette di collegarsi ad Ollama come fornitore LLM.
+*   [x] Aggiunto supporto per modelli di embedding personalizzati via Ollama.
+*   [x] Creata nuova icona nel box input chat, con lampadina, per considentire all'IA di suggerire nuove idee di contenuti.
+*   [x] Implementato Chunking Intelligente (Agentic): Aggiunta la possibilità (opzionale, via .env) di usare un LLM per suddividere i documenti in modo semantico.
+*   [x] Bottone ripristina per far sparire il bottone Ripristina in settings se Ollama o Groq non ha il campo modello compilato
 
 **Prossimi Passi Possibili:**
-
-**Creare intent conversazione:**
-*   [ ] **Creare nuovo intent:** Quando non ho elementi con distanza sufficiente dalla soglia, provare a dare una risposta replicando lo stile dell'autore.
-        - questo potrebbe andare in conflitto con il fallback del prompt del RAG
-
 
 **Stabilità e Qualità:**
 *   [ ] **Gestione Errori API:** Standardizzare formati JSON risposte errore.
 *   [ ] **Gestione Errori Indicizzazione:** Migliorare diagnostica/gestione errori estrazione testo e embedding.
-*   [ ] **Sviluppare Suite di Test:** (Iniziato)
-*   [ ] **Valutare nuovo modello di embedding:** usare https://huggingface.co/spaces/mteb/leaderboard per capire se conviene usare [embeddinggemma-300m](https://ai.google.dev/gemma/docs/embeddinggemma/model_card) tramite Ollama. Questo richiederebbe anche il campo modello embedding sulla scheda fornitore Ollama
-*   [ ] **Valutare agentic chuking:** al momento spezzo i contenuti in maniera brusca, facendo perdere contesto in fase di recupero. 
-*   [ ] **Bottone ripristina:** far sparire il bottone Ripristina in settings se Ollama non ha il campo modello compilato
+*   [ ] **Continuazione agentic chunking** per video, sito, etc. Al momento solo in documenti. Valutare di usare il modello fallback (flash) per velocizzare il processo
 
 
 **Nuove Sorgenti Dati/Funzionalità:**
@@ -536,15 +536,10 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [ ] **Funzione /dati_personali su bot telegram:** Aggiugnere funzionalità bot: spiegare che il log domande non raccoglie dati personali, quindi non serve consenso GDPR.
 
 
-
-
 **DevOps e Deployment:**
 *   [x] **Dockerizzazione:** Creati `Dockerfile` e `docker-compose.yml` per esecuzione self-hosted.
 *   [x] **CI/CD:** Impostare pipeline.
 *   [ ] **Valutare DB Esterno:** Considerare PostgreSQL/Supabase per deployment `saas` su larga scala (o per istanze self-hosted che richiedono maggiore robustezza/concorrenza, specialmente se si separa lo scheduler).
-
-**Nuova modalità conversaione:**
-*   [ ] **Nuove idee:** creare nuova icona nel box input chat, con lampadina, per considentire all'IA di suggerire nuove idee di contenuti.
 
 
 **Funzionalità Rimosse/Archiviate:**

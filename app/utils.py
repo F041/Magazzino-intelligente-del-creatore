@@ -6,79 +6,95 @@ from flask import current_app
 from datetime import datetime 
 import secrets
 import string
+import os
 
 
 logger = logging.getLogger(__name__)
 
 def generate_api_key(length=40):
     """Genera una chiave API sicura e casuale."""
-    # Usa lettere maiuscole/minuscole, numeri. Escludi caratteri ambigui se vuoi.
     alphabet = string.ascii_letters + string.digits
-    # Aggiungi un prefisso per riconoscibilità (opzionale)
-    prefix = "sk_" # Simula "secret key"
-    # Calcola lunghezza parte casuale
+    prefix = "sk_"
     random_length = length - len(prefix)
     if random_length <= 0:
         raise ValueError("La lunghezza richiesta per la chiave API è troppo corta.")
-    # Genera parte casuale
     random_part = ''.join(secrets.choice(alphabet) for _ in range(random_length))
     return prefix + random_part
 
 def build_full_config_for_background_process(user_id: str) -> dict:
     """
-    Costruisce un dizionario di configurazione completo per i processi in background,
-    unendo la configurazione di base dell'app con le impostazioni personalizzate
-    dell'utente salvate nel database.
+    Costruisce un dizionario di configurazione completo, unendo la configurazione di base
+    dell'app con le impostazioni personalizzate (e non vuote) dell'utente.
     """
-    if not user_id:
-        return {**current_app.config}
-
-    # 1. Inizia con la configurazione di base dell'applicazione
+    # 1. Inizia con una COPIA della configurazione di base dell'applicazione.
+    #    Questa contiene già i valori di default da .env (es. GOOGLE_API_KEY, RAG_MODELS_LIST).
     full_config = {**current_app.config}
 
-    # 2. Recupera le impostazioni specifiche dell'utente dal DB
-    user_settings = {}
-    db_path = current_app.config.get('DATABASE_FILE')
-    conn = None
-    try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        # Selezioniamo solo le colonne che ci interessano per sovrascrivere
-        cursor.execute("SELECT llm_provider, llm_model_name, llm_embedding_model, llm_api_key, ollama_base_url FROM user_settings WHERE user_id = ?", (user_id,))
-        settings_row = cursor.fetchone()
-        if settings_row:
-            # Filtriamo via i valori None per non sovrascrivere una config valida con un valore nullo
-            user_settings = {k: v for k, v in dict(settings_row).items() if v is not None}
-            logger.info(f"Trovate impostazioni utente per il processo background: {list(user_settings.keys())}")
-    except sqlite3.Error as e:
-        logger.error(f"Impossibile caricare le impostazioni utente per il thread (user: {user_id}): {e}")
-    finally:
-        if conn:
-            conn.close()
+    # 2. Leggi esplicitamente le variabili d'ambiente che potrebbero non essere in app.config
+    #    ma che vogliamo controllare dinamicamente.
+    if 'USE_AGENTIC_CHUNKING' not in full_config:
+        full_config['USE_AGENTIC_CHUNKING'] = os.environ.get('USE_AGENTIC_CHUNKING', 'False')
     
-    # 3. "Fondi" le impostazioni, dando priorità a quelle dell'utente
-    full_config.update(user_settings)
+    # 3. Se c'è un utente, recupera le sue impostazioni specifiche dal DB.
+    if user_id:
+        db_path = current_app.config.get('DATABASE_FILE')
+        conn = None
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT llm_provider, llm_model_name, llm_embedding_model, llm_api_key, ollama_base_url FROM user_settings WHERE user_id = ?", (user_id,))
+            settings_row = cursor.fetchone()
+            
+            if settings_row:
+                logger.info(f"Trovate impostazioni utente per il processo (user: {user_id}). Applico sovrascritture.")
+                
+                # --- NUOVA LOGICA DI MERGE ROBUSTA ---
+                # Sovrascrivi i valori di default SOLO se l'impostazione utente è valida (non vuota).
+                
+                user_provider = settings_row['llm_provider']
+                if user_provider and user_provider.strip():
+                    full_config['llm_provider'] = user_provider
+
+                user_model_name = settings_row['llm_model_name']
+                if user_model_name and user_model_name.strip():
+                    full_config['llm_model_name'] = user_model_name
+                    # Per coerenza, aggiorniamo anche la lista RAG_MODELS_LIST
+                    full_config['RAG_MODELS_LIST'] = [m.strip() for m in user_model_name.split(',') if m.strip()]
+
+                user_embedding_model = settings_row['llm_embedding_model']
+                if user_embedding_model and user_embedding_model.strip():
+                    full_config['llm_embedding_model'] = user_embedding_model
+
+                user_api_key = settings_row['llm_api_key']
+                if user_api_key and user_api_key.strip():
+                    full_config['llm_api_key'] = user_api_key
+                    # Per coerenza, aggiorniamo anche la chiave specifica del provider
+                    if full_config.get('llm_provider') in ['google', 'groq']:
+                        full_config['GOOGLE_API_KEY'] = user_api_key
+
+                user_ollama_url = settings_row['ollama_base_url']
+                if user_ollama_url and user_ollama_url.strip():
+                    full_config['ollama_base_url'] = user_ollama_url
+
+        except sqlite3.Error as e:
+            logger.error(f"Impossibile caricare le impostazioni utente per il processo (user: {user_id}): {e}")
+        finally:
+            if conn:
+                conn.close()
     
     return full_config
 
+
 def format_datetime_filter(value, format='%d %b %Y'):
-    """
-    Filtro Jinja per formattare stringhe di data in formato ISO (con o senza 'Z').
-    Restituisce la stringa formattata o il valore originale in caso di errore.
-    """
-    # Se il valore non è una stringa o è troppo corto per essere una data valida, lo restituiamo subito.
     if not isinstance(value, str) or len(value) <= 1:
         return value
-
     try:
         if value.endswith('Z'):
             dt_object = datetime.fromisoformat(value.replace('Z', '+00:00'))
         else:
             dt_object = datetime.fromisoformat(value)
-        
         return dt_object.strftime(format)
-            
     except (ValueError, TypeError) as e:
         logger.warning(f"Filtro format_date: Impossibile analizzare il valore '{value}'. Errore: {e}")
         return value

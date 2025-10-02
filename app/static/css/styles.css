@@ -907,3 +907,41 @@ label {
   }
 }
 
+
+
+/* ==========================================================================
+   Componente: Overlay di Caricamento Globale
+   ========================================================================== */
+
+.loading-overlay {
+    display: none; /* Nascosto di default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 9998; /* Sotto il modale, ma sopra tutto il resto */
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+    cursor: wait; /* Il cursore mostra che si sta aspettando */
+}
+
+.loading-overlay.visible {
+    display: flex; /* Lo mostriamo usando flex */
+}
+
+.loading-spinner-box {
+    font-size: 3rem;
+    color: var(--color-primary);
+    margin-bottom: 20px;
+}
+
+.loading-overlay-message {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
