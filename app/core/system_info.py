@@ -29,27 +29,100 @@ def get_system_stats():
             'sqlite_table_counts': {}
         }
 
-        # ---  BLOCCO PER LO SCHEDULER ---
         scheduler_stats = {
-            'next_run': 'Non pianificato',
-            'last_run_status': 'N/A' # Aggiungeremo questo in futuro se serve
+            'next_run': 'Non pianificato'
         }
-        
-        try:
-            scheduler = current_app.scheduler
-            job = scheduler.get_job('check_monitored_sources_job')
-            if job and job.next_run_time:
-                # Formattiamo la data per renderla leggibile
-                next_run_dt = job.next_run_time.astimezone() # Converte nel fuso orario locale del server
-                scheduler_stats['next_run'] = next_run_dt.strftime('%d %B %Y alle %H:%M:%S')
-            elif job:
-                scheduler_stats['next_run'] = 'In pausa o non attivo'
-        except Exception as e:
-            logger.warning(f"Impossibile recuperare lo stato dello scheduler: {e}")
-            scheduler_stats['next_run'] = 'Errore nel recupero stato'
-        
-        final_stats['scheduler_status'] = scheduler_stats
 
+        # --- blocco aggiornato per recupero scheduler (in system_info.py) ---
+        try:
+            scheduler = current_app.config.get('SCHEDULER_INSTANCE')
+
+            if not scheduler:
+                scheduler_stats['next_run'] = 'Scheduler non disponibile'
+            elif not hasattr(scheduler, 'get_jobs'):
+                logger.warning(f"Oggetto scheduler presente ma senza get_jobs(): {type(scheduler)}")
+                scheduler_stats['next_run'] = 'Scheduler non interrogabile'
+            else:
+                try:
+                    # Preferiamo cercare il job specifico se esiste (più esplicito)
+                    job = None
+                    try:
+                        job = scheduler.get_job('check_monitored_sources_job')
+                    except Exception:
+                        # get_job potrebbe non essere disponibile su alcune implementazioni; fallback a get_jobs
+                        job = None
+
+                    jobs = None
+                    try:
+                        jobs = scheduler.get_jobs()
+                    except Exception as e:
+                        logger.warning(f"Impossibile leggere jobs dallo scheduler: {e}")
+                        scheduler_stats['next_run'] = 'Errore nel recupero jobs'
+                        jobs = None
+
+                    if job is None and jobs:
+                        # prendi il job con lo stesso id, se presente nella lista
+                        for j in jobs:
+                            if getattr(j, 'id', None) == 'check_monitored_sources_job':
+                                job = j
+                                break
+
+                    if not job:
+                        # se non c'è il job specifico, prova a scegliere il job più prossimo dalla lista
+                        if not jobs:
+                            scheduler_stats['next_run'] = 'Nessun job pianificato nel registro'
+                        else:
+                            jobs_with_times = [j for j in jobs if getattr(j, 'next_run_time', None)]
+                            if jobs_with_times:
+                                next_job = min(jobs_with_times, key=lambda j: j.next_run_time)
+                                candidate = next_job.next_run_time
+                            else:
+                                candidate = None
+                    else:
+                        candidate = getattr(job, 'next_run_time', None)
+
+                    # Se la next_run_time è None, proviamo a calcolarla dal trigger (se possibile)
+                    if candidate is None and job is not None:
+                        try:
+                            # usa la timezone del scheduler se disponibile, altrimenti UTC
+                            tz = getattr(scheduler, 'timezone', None)
+                            from datetime import datetime, timezone
+                            now = datetime.now(tz if tz else timezone.utc)
+                            # trigger.get_next_fire_time(prev_fire_time, now) -> datetime or None
+                            candidate = job.trigger.get_next_fire_time(None, now)
+                        except Exception as e:
+                            logger.debug(f"Impossibile calcolare next_run_time dal trigger: {e}")
+
+                    if not candidate:
+                        # Se ancora nulla, forniamo informazioni utili all'utente
+                        scheduler_stats['next_run'] = 'Nessuna prossima esecuzione disponibile'
+                    else:
+                        # Normalizziamo timezone e formattiamo
+                        try:
+                            # Se naive, assumiamo UTC (o la timezone del scheduler)
+                            if getattr(candidate, 'tzinfo', None) is None:
+                                from datetime import timezone
+                                if getattr(scheduler, 'timezone', None):
+                                    # proviamo ad usare la timezone del scheduler se è un tzinfo
+                                    candidate = candidate.replace(tzinfo=scheduler.timezone).astimezone()
+                                else:
+                                    candidate = candidate.replace(tzinfo=timezone.utc).astimezone()
+                            else:
+                                candidate = candidate.astimezone()
+                            scheduler_stats['next_run'] = candidate.strftime('%d %B %Y alle %H:%M:%S')
+                        except Exception as e:
+                            logger.warning(f"Errore nel formattare next_run_time: {e}")
+                            scheduler_stats['next_run'] = str(candidate)
+                except Exception as outer_e:
+                    logger.warning(f"Errore recupero jobs (outer): {outer_e}")
+                    scheduler_stats['next_run'] = 'Errore nel recupero stato'
+        except Exception as e:
+            logger.warning(f"Impossibile recuperare lo stato dello scheduler (outermost): {e}")
+            scheduler_stats['next_run'] = 'Errore nel recupero stato'
+        # --- fine blocco aggiornato ---
+
+
+        final_stats['scheduler_status'] = scheduler_stats
     
         # ---  BLOCCO PER LA RAM ---
         ram_stats = {

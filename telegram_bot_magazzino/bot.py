@@ -51,6 +51,28 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
     logger.info(f"Utente {user.first_name} (ID: {user.id}) ha avviato il bot.")
 
+# Funzione per il comando /dati_personali
+async def privacy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Spiega come vengono gestite le domande e la privacy."""
+    user = update.effective_user
+    logger.info(f"Utente {user.first_name} ha richiesto info sulla privacy con /dati_personali.")
+    
+    privacy_message = (
+        "<b>Gestione dei dati personali e delle domande</b>\n\n"
+        "Ecco come funziona questo bot per rispettare i tuoi dati personali:\n\n"
+        "🔹 <b>Cosa viene registrato?</b>\n"
+        "Viene salvato solo il <u>testo della domanda</u> che invii. Questo viene fatto in forma completamente <b>anonima</b>.\n\n"
+        "🔹 <b>Cosa NON viene registrato?</b>\n"
+        "Il bot <b>NON</b> salva nessuna informazione personale su di te, come il tuo nome utente, il tuo ID di Telegram o qualsiasi altro dato che possa identificarti.\n\n"
+        "🔹 <b>Perché vengono salvate le domande?</b>\n"
+        "Le domande vengono analizzate in forma aggregata e anonima per due scopi principali:\n"
+        "  1. Capire quali argomenti sono più richiesti.\n"
+        "  2. Migliorare la qualità delle risposte future del sistema.\n\n"
+        "Poiché non viene raccolto alcun dato personale, non è richiesto un consenso specifico secondo le normative GDPR. Il tuo utilizzo del bot è sicuro e la tua identità rimane protetta."
+    )
+    
+    await update.message.reply_html(privacy_message)
+
 # Funzione per gestire le domande
 async def handle_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_message = update.message.text
@@ -178,6 +200,7 @@ def main() -> None:
 
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("dati_personali", privacy_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_question))
 
     logger.info("Bot avviato e in ascolto...")

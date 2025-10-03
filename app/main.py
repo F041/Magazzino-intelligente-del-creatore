@@ -187,6 +187,7 @@ def create_app(config_object=AppConfig):
         app=app,
         timezone="Europe/Rome"
     )
+    app.config['SCHEDULER_INSTANCE'] = app.scheduler
 
 
     # Inizializzazione DB SQLite (incluse tabelle monitoring) e Directory Chroma

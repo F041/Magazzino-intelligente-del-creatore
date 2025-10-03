@@ -25,8 +25,7 @@ Creatore{% endblock %} {% block head_styles %}
 {% endfor %} {% endif %} {% endwith %}
 
 <div class="tabs-container">
-    
-<nav class="tabs-navigation">
+  <nav class="tabs-navigation">
     <div class="tab-link" data-tab="generali">
       <i class="fas fa-brain"></i>
       <span>Intelligenza artificiale</span>
@@ -41,12 +40,12 @@ Creatore{% endblock %} {% block head_styles %}
     </div>
   </nav>
 
-<form
+  <form
     method="POST"
     action="{{ url_for('settings.settings_page') }}"
     class="settings-form"
     autocomplete="off"
-    id="settings-main-form" 
+    id="settings-main-form"
   >
     {% include '_settings_generali_tab.html' %}
 
@@ -182,6 +181,8 @@ Creatore{% endblock %} {% block head_styles %}
     </div>
   </form>
 </div>
-{% endblock %} {% block scripts %} {{ super() }}
+{% endblock %} {% block scripts %} 
+{{ super() }}
 <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+<script src="{{ url_for('static', filename='js/_settings_wordpress.js') }}"></script>
 {% endblock %}

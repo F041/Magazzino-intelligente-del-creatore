@@ -171,103 +171,6 @@ if (customSelectContainer) {
     toggleProviderSettings();
 }
 
-
-
-
-    // --- LOGICA DI SINCRONIZZAZIONE WORDPRESS ---
-    const syncBtn = document.getElementById("sync-wordpress-btn");
-    const syncMessageDiv = document.getElementById("sync-message");
-    let pollingInterval = null;
-    if (syncBtn && syncMessageDiv) {
-      const syncBtnOriginalHTML = syncBtn.innerHTML;
-      async function checkWpProgress() {
-        try {
-          const response = await fetch("/api/website/wordpress/progress");
-          const data = await response.json();
-          if (!data.is_processing) {
-            clearInterval(pollingInterval);
-            pollingInterval = null;
-            syncMessageDiv.className = data.error
-              ? "error-message"
-              : "success-message";
-            syncMessageDiv.textContent =
-              data.error || data.message || "Operazione completata.";
-            if (typeof window.setAppStatus === "function") {
-              window.setAppStatus("ready");
-            }
-            if (!data.error) {
-              setTimeout(() => {
-                window.location.reload();
-              }, 1500);
-            } else {
-              syncBtn.disabled = false;
-              syncBtn.innerHTML = syncBtnOriginalHTML;
-            }
-            } else {
-                    syncMessageDiv.className = 'info-message';
-                    syncMessageDiv.textContent = data.message; 
-                }
-        } catch (error) {
-          clearInterval(pollingInterval);
-          pollingInterval = null;
-          syncMessageDiv.className = "error-message";
-          syncMessageDiv.textContent =
-            "Errore di connessione durante il controllo dello stato.";
-          syncBtn.disabled = false;
-          syncBtn.innerHTML = syncBtnOriginalHTML;
-          if (typeof window.setAppStatus === "function") {
-            window.setAppStatus("ready");
-          }
-        }
-      }
-  syncBtn.addEventListener("click", async () => {
-    const userConfirmed = await showConfirmModal(
-      "Conferma sincronizzazione",
-      "Assicurati di aver salvato le impostazioni. L'operazione potrebbe richiedere alcuni minuti. Vuoi avviare la sincronizzazione?"
-    );
-    if (!userConfirmed) return;
-
-    // --- INIZIO LOGICA MODIFICATA ---
-    
-    // 1. Avvia la richiesta per far partire il processo in background
-    try {
-        const response = await fetch("/api/website/wordpress/sync", {
-            method: "POST"
-        });
-        const data = await response.json();
-        if (!response.ok) { // Se la richiesta di avvio fallisce, mostra l'errore e fermati
-            throw new Error(data.message || "Impossibile avviare il processo di sincronizzazione.");
-        }
-
-        // 2. Se l'avvio è andato a buon fine (202 Accepted), DELEGA tutto al sistema avanzato
-        // La funzione globale window.startAsyncTask è definita in base.html
-        window.startAsyncTask('/api/website/wordpress/progress', {
-            messageDiv: syncMessageDiv,
-            button: syncBtn,
-            buttonOriginalHTML: syncBtnOriginalHTML,
-            onSuccess: () => {
-                // Attendi un istante per far leggere il messaggio finale,
-                // poi ricarica la pagina all'ancora corretta.
-                setTimeout(() => {
-                    window.location.href = window.location.pathname + '#sito-web';
-                    window.location.reload();
-                }, 1500);
-            }
-        });
-
-    } catch (error) {
-        syncMessageDiv.className = "error-message";
-        syncMessageDiv.textContent = `Errore: ${error.message}`;
-        syncBtn.disabled = false;
-        syncBtn.innerHTML = syncBtnOriginalHTML;
-        if (typeof window.setAppStatus === "function") {
-            window.setAppStatus("ready");
-        }
-    }
-    // --- FINE LOGICA MODIFICATA ---
-  });
-    }
-
     // --- LOGICA PER IL TEST DI CONNESSIONE OLLAMA ---
     const testOllamaBtn = document.getElementById("test-ollama-btn");
     const ollamaUrlInput = document.getElementById("ollama_base_url");
@@ -617,6 +520,4 @@ if (downloadFullBtn) {
     });
     
 }
-
-
 });

@@ -20,12 +20,14 @@ from .rss import _index_article
 logger = logging.getLogger(__name__)
 connectors_bp = Blueprint('connectors', __name__)
 
+# --- NUOVA "SALA DI CONTROLLO" PER LA SINCRONIZZAZIONE ---
+# Questa variabile globale terrà traccia dello stato del processo in background.
 wp_sync_status = {
     'is_processing': False, 'total_items': 0, 'processed_items': 0,
     'message': '', 'error': None, 'new_items': 0, 'updated_items': 0,
     'skipped_items': 0, 'deleted_items': 0
 }
-wp_sync_lock = threading.Lock()
+wp_sync_lock = threading.Lock() # Un "semaforo" per evitare che più processi scrivano qui contemporaneamente
 
 def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None, core_config: Optional[dict] = None) -> str:
     app_mode = current_app.config.get('APP_MODE', 'single')
@@ -145,6 +147,9 @@ def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Op
 def _calculate_content_hash(content_text: str) -> str:
     return hashlib.sha256(content_text.encode('utf-8')).hexdigest()
 
+# --- NUOVA FUNZIONE PER IL LAVORO IN BACKGROUND ---
+# Questa contiene la logica che prima era nell'endpoint, con in più
+# gli aggiornamenti allo stato (wp_sync_status).
 def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_config: dict):
     global wp_sync_status, wp_sync_lock
     
@@ -249,7 +254,7 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
                         logger.info(f"{item_type.capitalize()} '{title}' modificato. Aggiornamento.")
                         item_id = existing[id_col]
                         cursor.execute(f"UPDATE {table_name} SET title = ?, published_at = ?, content = ?, content_hash = ?, processing_status = 'pending' WHERE {id_col} = ?",
-                                       (title, published_at_iso, content_text, current_hash, item_id))
+                                    (title, published_at_iso, content_text, current_hash, item_id))
                         if item_type == 'post':
                             _index_article(item_id, conn, user_id, core_config)
                         else:
@@ -288,6 +293,8 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
             if conn:
                 conn.close()
 
+# --- ENDPOINT DI AVVIO SINCRONIZZAZIONE (MODIFICATO) ---
+# Ora questo endpoint è molto più snello.
 @connectors_bp.route('/wordpress/sync', methods=['POST'])
 @login_required
 def sync_wordpress():
@@ -327,12 +334,16 @@ def sync_wordpress():
     logger.info(f"Avviato thread di sincronizzazione WordPress per l'utente: {user_id}")
     return jsonify({'success': True, 'message': 'Sincronizzazione avviata in background.'}), 202
 
+# --- NUOVO ENDPOINT PER IL POLLING ---
+# Questo è l'endpoint che il frontend chiamerà per avere aggiornamenti.
 @connectors_bp.route('/wordpress/progress', methods=['GET'])
 @login_required
 def get_wordpress_sync_progress():
     global wp_sync_status, wp_sync_lock
     with wp_sync_lock:
+        # Creiamo una copia per evitare problemi di concorrenza
         status_copy = copy.deepcopy(wp_sync_status)
+        # Restituiamo solo i dati essenziali per la UI
         response_data = {
             'is_processing': status_copy.get('is_processing', False),
             'message': status_copy.get('message', ''),
@@ -441,8 +452,8 @@ def download_all_pages():
         sql_query = "SELECT page_id, title, page_url, content FROM pages WHERE processing_status = 'completed' AND content IS NOT NULL"
         params = []
         if app_mode == 'saas':
-           sql_query += " AND user_id = ?"
-           params.append(current_user_id)
+            sql_query += " AND user_id = ?"
+            params.append(current_user_id)
         
         cursor.execute(sql_query, tuple(params))
 
