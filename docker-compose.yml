@@ -10,6 +10,9 @@ services:
       # Mappatura relativa per i dati persistenti. Indispensabile.
       - ./data:/app/data
       - ./.env:/app/.env:ro
+      # Forziamo il container a usare l'ora del server host
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
     # Precedentemente
     # volumes:
@@ -19,8 +22,6 @@ services:
     #   # Specifica il percorso del tuo file .env
     #   - /home/NOMEUTENTE/Magazzino-intelligente-del-creatore/.env # MODIFICA!
     restart: unless-stopped
-    environment:
-      - TZ=Europe/Rome #modifica sia questo che altrove se la tua attività "vive" altrove
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
@@ -33,8 +34,6 @@ services:
     env_file:
       - .env 
     restart: unless-stopped
-    environment:
-      - TZ=Europe/Rome
     depends_on:
       app:
         condition: service_started

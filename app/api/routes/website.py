@@ -135,6 +135,9 @@ def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Op
 
         # 2. Elimina dal database SQLite
         cursor.execute("DELETE FROM pages WHERE page_id = ? AND user_id = ?", (page_id, user_id))
+        # 3. Elimina dalle statistiche
+        cursor.execute("DELETE FROM content_stats WHERE content_id = ? AND user_id = ?", (page_id, user_id))
+        logger.info(f"[_delete_page][{page_id}] Record eliminato anche da content_stats.")
         if cursor.rowcount == 0:
             logger.warning(f"[_delete_page][{page_id}] Nessuna riga eliminata dal DB (potrebbe essere già stata cancellata).")
         

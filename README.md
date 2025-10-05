@@ -518,6 +518,7 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Creata nuova icona nel box input chat, con lampadina, per considentire all'IA di suggerire nuove idee di contenuti.
 *   [x] Implementato Chunking Intelligente (Agentic): Aggiunta la possibilità (opzionale, via .env) di usare un LLM per suddividere i documenti in modo semantico.
 *   [x] Bottone ripristina per far sparire il bottone Ripristina in settings se Ollama o Groq non ha il campo modello compilato
+*   [x] Funzione /dati_personali su bot telegram
 
 **Prossimi Passi Possibili:**
 
@@ -533,7 +534,6 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 
 **UI/UX:**
 *   [ ] **Feedback Processi Background:** Migliorare ulteriormente il feedback per operazioni lunghe (re-indicizzazione).
-*   [ ] **Funzione /dati_personali su bot telegram:** Aggiugnere funzionalità bot: spiegare che il log domande non raccoglie dati personali, quindi non serve consenso GDPR.
 
 
 **DevOps e Deployment:**

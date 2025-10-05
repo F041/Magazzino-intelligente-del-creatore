@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import patch, MagicMock, mock_open
 import io
 import xml.etree.ElementTree as ET
+from google.api_core import exceptions as google_exceptions
+from app.services.embedding.gemini_embedding import get_gemini_embeddings, TASK_TYPE_DOCUMENT
 
 # Importa le funzioni e classi da testare DAI LORO MODULI ORIGINALI
 from app.services.embedding.gemini_embedding import split_text_into_chunks
@@ -187,4 +189,35 @@ def test_extract_text_from_unsupported_file():
     extracted_text = extract_text_from_file(mock_file_storage_unsupported, "test.zip")
     assert extracted_text is None
 
+def test_get_gemini_embeddings_handles_rate_limit_and_fails_gracefully(monkeypatch):
+    """
+    TEST: Verifica che la funzione di embedding gestisca gli errori di rate limit
+    facendo dei tentativi e poi fallendo in modo pulito.
+    """
+    # 1. ARRANGE: Prepariamo lo scenario di fallimento
+    
+    # Diciamo al monkeypatch di "fermare" la funzione time.sleep per rendere il test istantaneo
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    
+    # Creiamo un "attore finto" che, quando chiamato, simulerà sempre un errore di "risorse esaurite"
+    mock_genai = MagicMock()
+    mock_genai.embed_content.side_effect = google_exceptions.ResourceExhausted("Simulated Rate Limit Exceeded")
+    
+    # Sostituiamo il vero 'genai' con il nostro attore finto
+    with patch('app.services.embedding.gemini_embedding.genai', mock_genai):
+        
+        # 2. ACT: Eseguiamo la funzione che vogliamo testare
+        result = get_gemini_embeddings(
+            texts=["testo che fallirà"],
+            api_key="fake_api_key",
+            model_name="fake_model"
+        )
 
+    # 3. ASSERT: Verifichiamo il comportamento
+    
+    # La funzione deve restituire None per segnalare il fallimento
+    assert result is None
+    
+    # La cosa più importante: verifichiamo che abbia provato più volte!
+    # La nostra funzione è impostata per fare 5 tentativi (retries=5)
+    assert mock_genai.embed_content.call_count == 5
