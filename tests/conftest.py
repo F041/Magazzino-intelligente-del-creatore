@@ -38,7 +38,7 @@ def app():
     yield flask_app
 
     logger.info(f"CONFTEST: Teardown for session-scoped app fixture.")
-    
+
     # 1. Spegni ChromaDB PRIMA di tentare di cancellare i file
     if hasattr(flask_app, 'config') and 'CHROMA_CLIENT' in flask_app.config:
         chroma_client_instance = flask_app.config.get('CHROMA_CLIENT')
@@ -70,7 +70,7 @@ def app():
                     time.sleep(0.5) # Pausa tra i tentativi
                 else:
                     logger.error(f"CONFTEST: Failed to remove test dir after multiple attempts: {_TEST_DATA_DIR_CONFTEST}")
-    
+        
     # 1. Spegni ChromaDB PRIMA di tentare di cancellare i file
     if hasattr(flask_app, 'config') and 'CHROMA_CLIENT' in flask_app.config:
         chroma_client_instance = flask_app.config.get('CHROMA_CLIENT')

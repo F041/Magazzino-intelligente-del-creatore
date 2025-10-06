@@ -5,9 +5,9 @@ import zipfile
 import io
 import shutil
 import tempfile
-# <-- CORREZIONE 3: Importiamo patch e MagicMock -->
 from unittest.mock import patch, MagicMock
 from flask import url_for
+from app.main import _handle_startup_restore
 # Importiamo la funzione che vogliamo testare direttamente
 from app.main import _handle_startup_restore
 
@@ -135,6 +135,73 @@ def test_live_restore_simulation(app):
         assert restored_video is not None
         assert restored_video[0] == "VIDEO RIPRISTINATO"
 
+        cursor.execute("SELECT * FROM videos WHERE video_id = ?", ("vid_vecchio",))
+        assert cursor.fetchone() is None
+        
+        conn.close()
+
+def test_live_restore_simulation(app):
+    # Usiamo una cartella temporanea che viene pulita automaticamente alla fine del test
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # 1. ARRANGE: Prepariamo l'ambiente del test
+
+        # --- Crea i dati del "backup" (il DB che vogliamo ripristinare) ---
+        source_db_path = os.path.join(temp_dir, 'source.db')
+        conn = sqlite3.connect(source_db_path)
+        cursor = conn.cursor()
+        # Usiamo una tabella semplice per il test
+        cursor.execute("CREATE TABLE videos (video_id TEXT, title TEXT)")
+        cursor.execute("INSERT INTO videos (video_id, title) VALUES (?, ?)", ("vid_nuovo", "VIDEO RIPRISTINATO"))
+        conn.commit()
+        conn.close()
+
+        # --- Prepara la cartella "data" di destinazione ---
+        target_data_dir = os.path.join(temp_dir, 'data')
+        os.makedirs(os.path.join(target_data_dir, 'chroma_db'), exist_ok=True)
+        
+        # Metti il backup compresso nella cartella di destinazione
+        pending_zip_path = os.path.join(target_data_dir, 'pending_restore.zip')
+        with zipfile.ZipFile(pending_zip_path, 'w') as zf:
+            # Il nome del file dentro lo zip deve corrispondere a quello che l'app si aspetta
+            zf.write(source_db_path, arcname='test_magazzino.db') 
+
+        # --- Crea un finto DB "vecchio" che ci aspettiamo venga cancellato ---
+        old_db_path = os.path.join(target_data_dir, 'test_magazzino.db')
+        conn = sqlite3.connect(old_db_path)
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE videos (video_id TEXT, title TEXT)")
+        cursor.execute("INSERT INTO videos (video_id, title) VALUES (?, ?)", ("vid_vecchio", "VIDEO DA CANCELLARE"))
+        conn.commit()
+        conn.close()
+
+        # --- Prepara una finta configurazione che punti alla nostra cartella temporanea ---
+        mock_config = {
+            'DATABASE_FILE': old_db_path,
+            'CHROMA_PERSIST_PATH': os.path.join(target_data_dir, 'chroma_db')
+        }
+
+        # 2. ACT: Chiama la funzione di ripristino, simulando l'uscita dall'app
+        with patch('app.main.sys.exit') as mock_exit:
+            _handle_startup_restore(mock_config)
+            # Verifichiamo che la funzione tenti di chiudere l'app, come previsto
+            mock_exit.assert_called_once_with(0)
+
+        # 3. ASSERT: Controlliamo che il ripristino sia avvenuto correttamente
+        
+        # Il file zip deve essere sparito
+        assert not os.path.exists(pending_zip_path)
+        
+        # Riconnettiamoci al file del database (che ora dovrebbe essere quello nuovo)
+        conn = sqlite3.connect(old_db_path)
+        cursor = conn.cursor()
+        
+        # Cerchiamo il video "nuovo": deve esserci
+        cursor.execute("SELECT title FROM videos WHERE video_id = ?", ("vid_nuovo",))
+        restored_video = cursor.fetchone()
+        assert restored_video is not None
+        assert restored_video[0] == "VIDEO RIPRISTINATO"
+
+        # Cerchiamo il video "vecchio": NON deve esserci
         cursor.execute("SELECT * FROM videos WHERE video_id = ?", ("vid_vecchio",))
         assert cursor.fetchone() is None
         
