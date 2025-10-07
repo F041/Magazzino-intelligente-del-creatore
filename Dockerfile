@@ -1,6 +1,8 @@
 # Usa un'immagine Python ufficiale. Scegli la versione che stai usando.
 # Usare un'immagine "slim" riduce la dimensione finale.
 FROM python:3.9-slim
+ENV TZ=Europe/Rome
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Imposta la directory di lavoro nell'immagine
 WORKDIR /app

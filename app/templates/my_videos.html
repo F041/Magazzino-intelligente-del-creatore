@@ -1,118 +1,140 @@
-{% extends "base.html" %}
+{% extends "base.html" %} {% block title %}I tuoi video - Magazzino del
+Creatore{% endblock %} {% block content %}
+<h1>I tuoi video salvati ({{ videos|length }})</h1>
 
-{% block title %}I tuoi video - Magazzino del Creatore{% endblock %}
+<div class="action-panel">
+  <a
+    href="{{ url_for('videos.download_all_transcripts') }}"
+    class="action-btn success-btn"
+  >
+    <i class="fas fa-download fa-fw"></i>
+    <span>Scarica trascrizioni (.txt)</span>
+  </a>
+  <span style="font-size: 0.9em; color: var(--color-text-light)"
+    >(Solo video 'completed')</span
+  >
+  {% if config.APP_MODE == 'saas' %}
+  <button
+    id="delete-all-videos-btn"
+    class="action-btn delete-btn"
+    style="margin-left: auto"
+  >
+    <i class="fas fa-trash-alt fa-fw"></i>
+    <span>Elimina tutti</span>
+  </button>
+  {% endif %}
+</div>
 
-{% block content %}
-    <h1>I tuoi video salvati ({{ videos|length }})</h1>
+<div id="action-message"></div>
 
-    <div class="action-panel">
-        <a href="{{ url_for('videos.download_all_transcripts') }}" class="action-btn success-btn">
-            <i class="fas fa-download fa-fw"></i>
-            <span>Scarica trascrizioni (.txt)</span>
-        </a>
-        <span style="font-size: 0.9em; color: var(--color-text-light);">(Solo video 'completed')</span>
-        {% if config.APP_MODE == 'saas' %}
-            <button id="delete-all-videos-btn" class="action-btn delete-btn" style="margin-left: auto;">
-                <i class="fas fa-trash-alt fa-fw"></i>
-                <span>Elimina tutti</span>
-            </button>
-        {% endif %}
-    </div>
-
-    <div id="action-message"></div>
-
-    <div id="videos-container">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Titolo</th>
-                    <th>Data Pubblicazione</th>
-                    <th>Stato</th>
-                    <th>Tipo Sottotitoli</th>
-                    <th>Lingua</th>
-                    <th>Anteprima Trascrizione</th>
-                    <th>Azioni</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for video in videos %}
-                <tr id="video-row-{{ video.video_id | escape }}">
-                    <td><a href="{{ video.url }}" target="_blank" title="{{ video.title }}">{{ video.title }}</a></td>
-                    <td>{{ video.published_at | format_date }}</td>
-                    <td id="status-{{ video.video_id | escape }}">
-                        <span class="status-badge status-{{ video.processing_status | lower | replace('_','-') }}">{{ video.processing_status }}</span>
-                    </td>
-                    <td>
-                        {% if video.captions_type %}
-                            {{ video.captions_type }}
-                        {% else %}
-                            N/D
-                        {% endif %}
-                    </td>
-                    <td>{{ video.transcript_language if video.transcript_language else 'N/D' }}</td>
-                    <td>
-                        {% if video.transcript %}
-                            <p style="font-size: 0.9em; color: var(--color-text-secondary); margin: 0;">
-                                {{ video.transcript[:100] }}{% if video.transcript|length > 100 %}...{% endif %}
-                            </p>
-                        {% else %}
-                            <span style="color: var(--color-text-light); font-style: italic;">Nessuna</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button class="action-btn reprocess-btn" data-video-id="{{ video.video_id | trim | escape }}">
-                            <i class="fas fa-sync-alt fa-fw"></i>
-                            {% if video.processing_status == 'completed' %}
-                                <span>Riprocessa (Completo)</span>
-                            {% else %}
-                                <span>Riprocessa</span>
-                            {% endif %}
-                        </button>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="7" class="no-items-message">
-                        Nessun video trovato nel database.<br>
-                        Vai su <a href="{{ url_for('data_entry') }}">Ingresso Dati</a> per processare un canale.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
+<div id="videos-container">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Titolo</th>
+        <th>Data Pubblicazione</th>
+        <th>Stato</th>
+        <th>Tipo Sottotitoli</th>
+        <th>Lingua</th>
+        <th>Anteprima Trascrizione</th>
+        <th>Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for video in videos %}
+      <tr id="video-row-{{ video.video_id | escape }}">
+        <td>
+          <a href="{{ video.url }}" target="_blank" title="{{ video.title }}"
+            >{{ video.title }}</a
+          >
+        </td>
+        <td>{{ video.published_at | format_date }}</td>
+        <td id="status-{{ video.video_id | escape }}">
+          <span
+            class="status-badge status-{{ video.processing_status | lower | replace('_','-') }}"
+            >{{ video.processing_status }}</span
+          >
+        </td>
+        <td>
+          {% if video.captions_type %} {{ video.captions_type }} {% else %} N/D
+          {% endif %}
+        </td>
+        <td>
+          {{ video.transcript_language if video.transcript_language else 'N/D'
+          }}
+        </td>
+        <td>
+          {% if video.transcript %}
+          <p
+            style="
+              font-size: 0.9em;
+              color: var(--color-text-secondary);
+              margin: 0;
+            "
+          >
+            {{ video.transcript[:100] }}{% if video.transcript|length > 100
+            %}...{% endif %}
+          </p>
+          {% else %}
+          <span style="color: var(--color-text-light); font-style: italic"
+            >Nessuna</span
+          >
+          {% endif %}
+        </td>
+        <td>
+          <button
+            class="action-btn reprocess-btn"
+            data-video-id="{{ video.video_id | trim | escape }}"
+          >
+            <i class="fas fa-sync-alt fa-fw"></i>
+            <span>Riprocessa</span>
+          </button>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="no-items-message">
+          Nessun video trovato nel database.<br />
+          Vai su <a href="{{ url_for('data_entry') }}">Ingresso Dati</a> per
+          processare un canale.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %} {% block scripts %} {{ super() }}
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     // --- Elementi e Funzioni di Supporto ---
     const messageDiv = document.getElementById("action-message");
-    const overlay = document.getElementById('loading-overlay');
-    const overlayMessage = document.getElementById('loading-overlay-message');
+    const overlay = document.getElementById("loading-overlay");
+    const overlayMessage = document.getElementById("loading-overlay-message");
 
     function showNotification(message, type = "success") {
       if (!messageDiv) return;
-      messageDiv.className = type === "success" ? "success-message" : "error-message";
+      messageDiv.className =
+        type === "success" ? "success-message" : "error-message";
       messageDiv.textContent = message;
-      messageDiv.style.display = 'block';
-      setTimeout(() => { if(messageDiv) messageDiv.style.display = 'none'; }, 5000);
+      messageDiv.style.display = "block";
+      setTimeout(() => {
+        if (messageDiv) messageDiv.style.display = "none";
+      }, 5000);
     }
 
     function showOverlay(message) {
-        if (overlayMessage) overlayMessage.textContent = message;
-        if (overlay) overlay.classList.add('visible');
+      if (overlayMessage) overlayMessage.textContent = message;
+      if (overlay) overlay.classList.add("visible");
     }
 
     function hideOverlay() {
-        if (overlay) overlay.classList.remove('visible');
+      if (overlay) overlay.classList.remove("visible");
     }
 
     // --- LOGICA PULSANTE "RIPROCESSA" (versione corretta e unificata) ---
     document.querySelectorAll(".reprocess-btn").forEach((button) => {
       const originalButtonHTML = button.innerHTML;
-      
+
       button.addEventListener("click", async (event) => {
         const btn = event.currentTarget;
         const videoId = btn.dataset.videoId;
@@ -121,13 +143,13 @@
         if (!videoId || !statusCell) return;
 
         // --- MODIFICA 1: Imposta stato "processing" ---
-        if (window.setAppStatus) window.setAppStatus('processing');
-        showOverlay('Riprocessamento del video in corso...');
-        
+        if (window.setAppStatus) window.setAppStatus("processing");
+        showOverlay("Riprocessamento del video in corso...");
+
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         statusCell.innerHTML = `<span class="status-badge status-processing">processing</span>`;
-        
+
         const response = await fetch(`/api/videos/${videoId}/reprocess`, {
           method: "POST",
           headers: { Accept: "application/json" },
@@ -135,7 +157,7 @@
 
         hideOverlay();
         // --- MODIFICA 2: Ripristina stato "idle" ---
-        if (window.setAppStatus) window.setAppStatus('idle');
+        if (window.setAppStatus) window.setAppStatus("idle");
 
         // ... (il resto della logica per gestire la risposta rimane invariato) ...
         if (response.status === 401) {
@@ -157,12 +179,36 @@
           const data = await response.json();
           const statusClass = data.new_status.toLowerCase().replace(/_/g, "-");
           statusCell.innerHTML = `<span class="status-badge status-${statusClass}">${data.new_status}</span>`;
-          
+
           if (!response.ok || !data.success) {
             throw new Error(data.message || `Errore ${response.status}`);
           }
-          
+
           showNotification(data.message || "Operazione completata.", "success");
+          // ---  BLOCCO PER AGGIORNAMENTO DINAMICO UI ---
+          if (data.success && data.updated_metadata) {
+            const videoRow = document.getElementById(`video-row-${videoId}`);
+            if (videoRow) {
+              // Aggiorna il titolo del video (cella 0)
+              const titleCell = videoRow.cells[0].querySelector("a");
+              if (titleCell) {
+                titleCell.textContent = data.updated_metadata.title;
+                titleCell.title = data.updated_metadata.title;
+              }
+              // Aggiorna il tipo di sottotitoli (cella 3)
+              videoRow.cells[3].textContent =
+                data.updated_metadata.captions_type;
+              // Aggiorna la lingua (cella 4)
+              videoRow.cells[4].textContent =
+                data.updated_metadata.transcript_language;
+              // Aggiorna l'anteprima della trascrizione (cella 5)
+              const previewCellPara = videoRow.cells[5].querySelector("p");
+              if (previewCellPara) {
+                previewCellPara.textContent =
+                  data.updated_metadata.transcript_preview;
+              }
+            }
+          }
         } catch (error) {
           showNotification(error.message, "error");
         } finally {
@@ -196,7 +242,9 @@
           const data = await response.json();
           if (response.ok && data.success) {
             showNotification(data.message, "success");
-            document.querySelector(".data-table tbody").innerHTML = `<tr><td colspan="7" class="no-items-message">Nessun video da mostrare.</td></tr>`;
+            document.querySelector(
+              ".data-table tbody"
+            ).innerHTML = `<tr><td colspan="7" class="no-items-message">Nessun video da mostrare.</td></tr>`;
             deleteAllBtn.textContent = "Eliminati";
           } else {
             throw new Error(data.message);
@@ -208,7 +256,9 @@
         }
       });
 
-      const isTableEmpty = !document.querySelector("#videos-container tbody tr:not(:has(.no-items-message))");
+      const isTableEmpty = !document.querySelector(
+        "#videos-container tbody tr:not(:has(.no-items-message))"
+      );
       if (isTableEmpty) {
         deleteAllBtn.disabled = true;
       }

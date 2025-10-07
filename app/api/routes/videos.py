@@ -172,30 +172,32 @@ def reprocess_single_video(video_id):
         logger.debug(f"[Reprocess Single] [{video_id}] Config OK.")
 
 
-        # --- 2. Connessione DB e Recupero Metadati Video ---
+        # --- 2. Connessione DB e Recupero Metadati FRESCHI da YouTube ---
         logger.debug(f"[Reprocess Single] [{video_id}] Connessione DB: {db_path_sqlite}")
         conn_sqlite = sqlite3.connect(db_path_sqlite)
-        conn_sqlite.row_factory = sqlite3.Row
         cursor_sqlite = conn_sqlite.cursor()
 
-        sql_get_meta = "SELECT video_id, title, channel_id, published_at, description FROM videos WHERE video_id = ?"
-        params_get_meta = [video_id]
+        sql_check_owner = "SELECT video_id FROM videos WHERE video_id = ?"
+        params_check_owner = [video_id]
         if app_mode == 'saas':
-            sql_get_meta += " AND user_id = ?"
-            params_get_meta.append(current_user_id)
-            logger.info(f"[Reprocess Single] [{video_id}] SAAS: Verifico appartenenza utente '{current_user_id}'...")
+            sql_check_owner += " AND user_id = ?"
+            params_check_owner.append(current_user_id)
 
-        cursor_sqlite.execute(sql_get_meta, tuple(params_get_meta))
-        video_meta = cursor_sqlite.fetchone()
+        cursor_sqlite.execute(sql_check_owner, tuple(params_check_owner))
+        video_exists_for_user = cursor_sqlite.fetchone()
 
-        if not video_meta:
-            message = f"Video ID '{video_id}' non trovato" + (f" per utente '{current_user_id}'" if app_mode=='saas' else "") + "."
+        if not video_exists_for_user:
+            message = f"Video ID '{video_id}' non trovato o non appartenente all'utente."
             logger.warning(f"[Reprocess Single] {message}")
             if conn_sqlite: conn_sqlite.close()
             return jsonify({'success': False, 'error_code': 'VIDEO_NOT_FOUND', 'message': message}), 404
-        logger.info(f"[Reprocess Single] [{video_id}] Metadati recuperati: {video_meta['title']}")
-        # Converti in dizionario per comodità
-        video_meta_dict = dict(video_meta)
+
+        logger.info(f"[{video_id}] Video trovato nel DB. Recupero metadati aggiornati da YouTube...")
+        token_path = core_config.get('TOKEN_PATH')
+        youtube_client = YouTubeClient(token_file=token_path)
+        video_model = youtube_client.get_video_details(video_id)
+        video_meta_dict = video_model.model_dump() # Usiamo il modello pydantic per avere i dati puliti
+        logger.info(f"[Reprocess Single] [{video_id}] Metadati aggiornati recuperati: {video_meta_dict['title']}")
 
         # --- 3. Aggiorna Stato Iniziale (Opzionale ma consigliato) ---
         # cursor_sqlite.execute("UPDATE videos SET processing_status = 'processing_reprocess' WHERE video_id = ?", (video_id,))
@@ -280,13 +282,13 @@ def reprocess_single_video(video_id):
         # Altri casi (es. trascrizione fallita) mantengono lo stato già impostato
 
         # --- 6. Aggiornamento Finale SQLite ---
-        logger.info(f"[Reprocess Single] [{video_id}] Aggiornamento finale DB. Stato: {final_status}, Lingua: {transcript_lang}, Tipo: {transcript_type}")
+        logger.info(f"[Reprocess Single] [{video_id}] Aggiornamento finale DB. Stato: {final_status}")
         cursor_sqlite.execute( """
             UPDATE videos
-            SET transcript = ?, transcript_language = ?, captions_type = ?, processing_status = ?, added_at = CURRENT_TIMESTAMP
+            SET title = ?, description = ?, transcript = ?, transcript_language = ?, captions_type = ?, processing_status = ?, added_at = CURRENT_TIMESTAMP
             WHERE video_id = ?
             """,
-            (transcript_text, transcript_lang, transcript_type, final_status, video_id)
+            (video_meta_dict['title'], video_meta_dict['description'], transcript_text, transcript_lang, transcript_type, final_status, video_id)
         )
         conn_sqlite.commit() # Commit di TUTTE le modifiche DB
         update_db_success = True
@@ -321,6 +323,14 @@ def reprocess_single_video(video_id):
         'message': message,
         'new_status': final_status
     }
+    if is_overall_success:
+        response_data['updated_metadata'] = {
+            'title': video_meta_dict['title'],
+            'description': video_meta_dict['description'],
+            'transcript_preview': (transcript_text[:100] + '...' if transcript_text and len(transcript_text) > 100 else transcript_text) or 'Nessuna',
+            'captions_type': transcript_type or 'N/D',
+            'transcript_language': transcript_lang or 'N/D'
+        }
     status_code = 200 # Restituisci sempre 200 se l'API ha gestito l'operazione (anche se fallita)
                      # Tranne per errori 4xx (es. Not Found) gestiti prima
 

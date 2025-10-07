@@ -24,8 +24,16 @@ def app():
     client_secrets_path_for_test = test_config_instance.CLIENT_SECRETS_PATH
     os.makedirs(os.path.dirname(client_secrets_path_for_test), exist_ok=True)
     with open(client_secrets_path_for_test, 'w') as f:
-        f.write('{"installed":{"client_id":"test", "client_secret":"test"}}') # Contenuto più realistico
+        f.write('{"installed":{"client_id":"test", "client_secret":"test"}}')
     logger.info(f"CONFTEST: Dummy client_secrets.json created at: {client_secrets_path_for_test}")
+
+    # --- INIZIO BLOCCO AGGIUNTO ---
+    # Crea un file token.json finto ma valido per i test
+    token_path_for_test = test_config_instance.TOKEN_PATH
+    with open(token_path_for_test, 'w') as f:
+        f.write('{"token": "fake_token", "refresh_token": "fake_refresh", "token_uri": "https://oauth2.googleapis.com/token", "client_id": "test", "client_secret": "test", "scopes": ["https://www.googleapis.com/auth/youtube.readonly"]}')
+    logger.info(f"CONFTEST: Dummy token.json created at: {token_path_for_test}")
+    # --- FINE BLOCCO AGGIUNTO ---
 
     flask_app = create_app(test_config_instance)
     
@@ -38,26 +46,21 @@ def app():
     yield flask_app
 
     logger.info(f"CONFTEST: Teardown for session-scoped app fixture.")
-
-    # 1. Spegni ChromaDB PRIMA di tentare di cancellare i file
+    
     if hasattr(flask_app, 'config') and 'CHROMA_CLIENT' in flask_app.config:
         chroma_client_instance = flask_app.config.get('CHROMA_CLIENT')
-        # Controlliamo che il client e il sistema interno esistano prima di chiamare stop()
         if chroma_client_instance and hasattr(chroma_client_instance, '_system') and hasattr(chroma_client_instance._system, 'stop'):
             try:
                 logger.info("CONFTEST: Attempting to stop ChromaDB internal system...")
                 chroma_client_instance._system.stop()
                 logger.info("CONFTEST: ChromaDB internal system stop called.")
-                # Diamo un istante al sistema per rilasciare i file
                 import time
                 time.sleep(0.5)
             except Exception as e_chroma_stop:
                 logger.warning(f"CONFTEST: Error trying to stop ChromaDB system: {e_chroma_stop}")
 
-    # 2. Ora procedi con la cancellazione della cartella
     if _TEST_DATA_DIR_CONFTEST and os.path.exists(_TEST_DATA_DIR_CONFTEST):
         import time
-        # Aggiungiamo dei tentativi per rendere la pulizia più robusta
         for i in range(3):
             try:
                 shutil.rmtree(_TEST_DATA_DIR_CONFTEST)
@@ -67,42 +70,10 @@ def app():
             except Exception as e:
                 logger.warning(f"CONFTEST: Error removing test data dir (Attempt {i+1}): {e}")
                 if i < 2:
-                    time.sleep(0.5) # Pausa tra i tentativi
-                else:
-                    logger.error(f"CONFTEST: Failed to remove test dir after multiple attempts: {_TEST_DATA_DIR_CONFTEST}")
-        
-    # 1. Spegni ChromaDB PRIMA di tentare di cancellare i file
-    if hasattr(flask_app, 'config') and 'CHROMA_CLIENT' in flask_app.config:
-        chroma_client_instance = flask_app.config.get('CHROMA_CLIENT')
-        # Controlliamo che il client e il sistema interno esistano prima di chiamare stop()
-        if chroma_client_instance and hasattr(chroma_client_instance, '_system') and hasattr(chroma_client_instance._system, 'stop'):
-            try:
-                logger.info("CONFTEST: Attempting to stop ChromaDB internal system...")
-                chroma_client_instance._system.stop()
-                logger.info("CONFTEST: ChromaDB internal system stop called.")
-                # Diamo un istante al sistema per rilasciare i file
-                import time
-                time.sleep(0.5)
-            except Exception as e_chroma_stop:
-                logger.warning(f"CONFTEST: Error trying to stop ChromaDB system: {e_chroma_stop}")
-
-    # 2. Ora procedi con la cancellazione della cartella
-    if _TEST_DATA_DIR_CONFTEST and os.path.exists(_TEST_DATA_DIR_CONFTEST):
-        import time
-        # Aggiungiamo dei tentativi per rendere la pulizia più robusta
-        for i in range(3):
-            try:
-                shutil.rmtree(_TEST_DATA_DIR_CONFTEST)
-                logger.info(f"CONFTEST: Test data directory removed: {_TEST_DATA_DIR_CONFTEST}")
-                _TEST_DATA_DIR_CONFTEST = None
-                break
-            except Exception as e:
-                logger.warning(f"CONFTEST: Error removing test data dir (Attempt {i+1}): {e}")
-                if i < 2:
-                    time.sleep(0.5) # Pausa tra i tentativi
+                    time.sleep(0.5)
                 else:
                     logger.error(f"CONFTEST: Failed to remove test dir after multiple attempts: {_TEST_DATA_DIR_CONFTEST}")
     
-@pytest.fixture(scope='function') # 'function' scope è corretto per client per isolamento
-def client(app): # Ora dipende dalla fixture 'app' definita sopra
+@pytest.fixture(scope='function')
+def client(app):
     return app.test_client()

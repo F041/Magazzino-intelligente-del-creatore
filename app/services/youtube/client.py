@@ -7,6 +7,7 @@ import logging
 import re
 import time
 import os
+import html
 
 from app.api.models.video import Video
 
@@ -109,7 +110,6 @@ class YouTubeClient:
                 )
                 response = request.execute()
 
-                # La prima volta che eseguiamo la chiamata, otteniamo il conteggio totale
                 if next_page_token is None:
                     total_results = response.get('pageInfo', {}).get('totalResults', 0)
                     logger.info(f"Conteggio totale video dal canale: {total_results}")
@@ -118,11 +118,11 @@ class YouTubeClient:
                     if item.get('id', {}).get('kind') == 'youtube#video':
                         video = Video(
                             video_id=item['id']['videoId'],
-                            title=item['snippet']['title'],
+                            title=html.unescape(item['snippet']['title']),
                             url=f"https://www.youtube.com/watch?v={item['id']['videoId']}",
                             channel_id=channel_id,
                             published_at=item['snippet']['publishedAt'],
-                            description=item['snippet']['description']
+                            description=html.unescape(item['snippet']['description'])
                         )
                         all_videos.append(video)
 
@@ -135,7 +135,7 @@ class YouTubeClient:
 
         except Exception as e:
             logger.exception(f"Errore durante il recupero dei video del canale {channel_id}: {str(e)}")
-            return all_videos, total_results # Restituisce quello che ha trovato finora
+            return all_videos, total_results
 
     def get_video_details(self, video_id: str) -> Video:
         """Recupera i dettagli di un singolo video"""
@@ -150,14 +150,17 @@ class YouTubeClient:
                 raise ValueError(f"No details found for video ID {video_id}")
 
             item = response['items'][0]
+            
+            # --- BLOCCO CORRETTO ---
             video = Video(
                 video_id=video_id,
-                title=item['snippet']['title'],
+                title=html.unescape(item['snippet']['title']),
                 url=f"https://www.youtube.com/watch?v={video_id}",
-                channel_id=item['snippet']['channelId'],
+                channel_id=item['snippet']['channelId'], # <-- Corretto: leggiamo l'ID dalla risposta
                 published_at=item['snippet']['publishedAt'],
-                description=item['snippet']['description']
+                description=html.unescape(item['snippet']['description'])
             )
+            # --- FINE BLOCCO CORRETTO ---
             return video
 
         except Exception as e:
