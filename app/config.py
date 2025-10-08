@@ -75,7 +75,7 @@ class BaseConfig:
     print(f"DEBUG CONFIG.PY: Valore di RAG_DEFAULT_N_RESULTS impostato a: {RAG_DEFAULT_N_RESULTS}")
     # NUOVA LOGICA per la lista di modelli con fallback
     # Leggiamo la stringa dal .env, fornendo un default stabile se manca
-    _models_str = os.environ.get('LLM_MODELS', "gemini-2.5-pro,gemini-2.0-flash")
+    _models_str = os.environ.get('LLM_MODELS', "gemini-2.5-pro,gemini-2.5-flash")
     # Puliamo la stringa e la trasformiamo in una lista, rimuovendo eventuali modelli vuoti
     RAG_MODELS_LIST = [model.strip() for model in _models_str.split(',') if model.strip()]
     # Aggiungiamo un controllo per evitare che la lista sia vuota a causa di un errore di configurazione

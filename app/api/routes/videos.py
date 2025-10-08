@@ -593,99 +593,99 @@ def download_all_transcripts():
         headers={"Content-Disposition": f"attachment;filename={output_filename}"}
     )
 
-def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Optional[str]) -> str:
+def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Optional[str], core_config: dict) -> str:
     """
-    Re-indicizza un singolo video. USA LA TRASCRIZIONE DAL DB SE ESISTE.
-    Se non esiste, la scarica da YouTube. Gestisce correttamente i dati dal DB.
+    Re-indicizza un singolo video. Ora gestisce correttamente gli errori di rate limit
+    rilanciandoli verso l'alto.
     """
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    logger.info(f"[_reindex_video_from_db][{video_id}] Avvio re-indicizzazione intelligente per utente: {user_id}")
+    app_mode = core_config.get('APP_MODE', 'single')
+    logger.info(f"[_reindex_video_from_db][{video_id}] Avvio re-indicizzazione per utente: {user_id}")
     
     final_status = 'failed_reindex_init'
-    cursor = conn.cursor()
-    # Impostiamo il row_factory sulla connessione passata, per sicurezza
+    chunking_version_to_set = None
+    
     conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
 
     try:
+        # Tutta la logica di processing rimane qui dentro
         sql_get_video = "SELECT title, channel_id, published_at, transcript, transcript_language, captions_type FROM videos WHERE video_id = ? AND user_id = ?"
         cursor.execute(sql_get_video, (video_id, user_id))
         video_data = cursor.fetchone()
 
         if not video_data:
-            logger.warning(f"[_reindex_video_from_db][{video_id}] Video non trovato nel DB per utente {user_id}.")
             return 'failed_not_found'
 
-        video_meta_dict = dict(video_data) # Ora questo funzionerà sempre
+        video_meta_dict = dict(video_data)
         transcript_text = video_meta_dict.get('transcript')
-        transcript_lang = video_meta_dict.get('transcript_language')
-        transcript_type = video_meta_dict.get('captions_type')
-
         if not transcript_text or not transcript_text.strip():
             logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione non trovata nel DB. Tento il download da YouTube.")
             try:
-                # La logica di recupero trascrizione rimane invariata
-                token_path = current_app.config.get('TOKEN_PATH')
+                token_path = core_config.get('TOKEN_PATH')
                 youtube_client = YouTubeClient(token_file=token_path)
                 transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
-
                 if transcript_result and not transcript_result.get('error'):
                     transcript_text = transcript_result['text']
                     transcript_lang = transcript_result['language']
                     transcript_type = transcript_result['type']
-                    cursor.execute(
-                        "UPDATE videos SET transcript = ?, transcript_language = ?, captions_type = ? WHERE video_id = ?",
-                        (transcript_text, transcript_lang, transcript_type, video_id)
-                    )
-                    logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione scaricata e salvata nel DB.")
+                    cursor.execute("UPDATE videos SET transcript = ?, transcript_language = ?, captions_type = ? WHERE video_id = ?", (transcript_text, transcript_lang, transcript_type, video_id))
                 else:
-                    logger.warning(f"[_reindex_video_from_db][{video_id}] Download da YouTube fallito. Stato: failed_transcript.")
                     final_status = 'failed_transcript'
-                    cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
-                    return final_status
+                    cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id)); return final_status
             except Exception as e_yt:
-                logger.error(f"[_reindex_video_from_db][{video_id}] Errore critico durante il download da YouTube: {e_yt}", exc_info=True)
                 final_status = 'failed_transcript_api'
-                cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
-                return final_status
+                cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id)); return final_status
         else:
-            logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione trovata nel DB. Procedo a costo zero.")
+            logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione trovata nel DB.")
 
-        # Il resto della logica di chunking, embedding e upsert in ChromaDB rimane identico
-        llm_api_key = current_app.config.get('GOOGLE_API_KEY')
-        embedding_model = current_app.config.get('GEMINI_EMBEDDING_MODEL')
-        chunk_size = current_app.config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
-        chunk_overlap = current_app.config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
-        base_video_collection_name = current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
-        chroma_client = current_app.config.get('CHROMA_CLIENT')
-
+        use_agentic_chunking = str(core_config.get('USE_AGENTIC_CHUNKING', 'False')).lower() == 'true'
+        if transcript_text and transcript_text.strip():
+            if use_agentic_chunking:
+                chunks = chunk_text_agentically(transcript_text, llm_provider=core_config.get('llm_provider', 'google'), settings=core_config)
+            else:
+                chunks = split_text_into_chunks(transcript_text, chunk_size=core_config.get('DEFAULT_CHUNK_SIZE_WORDS', 300), chunk_overlap=core_config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50))
+        else:
+            chunks = []
+        
+        chroma_client = core_config.get('CHROMA_CLIENT')
+        base_video_collection_name = core_config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
         user_video_collection_name = f"{base_video_collection_name}_{user_id}"
         video_collection = chroma_client.get_or_create_collection(name=user_video_collection_name)
-        
         video_collection.delete(where={"video_id": video_id})
-
-        chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        
         if chunks:
-                user_settings_for_embedding = {'llm_provider': 'google', 'llm_api_key': llm_api_key, 'llm_embedding_model': embedding_model}
-                embeddings = generate_embeddings(chunks, user_settings=user_settings_for_embedding, task_type=TASK_TYPE_DOCUMENT)
-                if embeddings and len(embeddings) == len(chunks):
-                    ids_upsert = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
-                    metadatas_upsert = [{
-                        'video_id': video_id, 'video_title': video_meta_dict['title'], 'channel_id': video_meta_dict['channel_id'],
-                        'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 'language': transcript_lang,
-                        'caption_type': transcript_type, 'user_id': user_id
-                    } for i in range(len(chunks))]
-                    
-                    video_collection.upsert(ids=ids_upsert, embeddings=embeddings, metadatas=metadatas_upsert, documents=chunks)
-                    final_status = 'completed'
-                else:
-                    final_status = 'failed_embedding'
+            embeddings = generate_embeddings(chunks, user_settings=core_config, task_type=TASK_TYPE_DOCUMENT)
+            if embeddings and len(embeddings) == len(chunks):
+                # ... (costruzione metadati e upsert)
+                ids_upsert = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
+                metadatas_upsert = [{'video_id': video_id, 'video_title': video_meta_dict['title'], 'channel_id': video_meta_dict['channel_id'],'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 'language': transcript_lang,'caption_type': transcript_type, 'user_id': user_id} for i in range(len(chunks))]
+                video_collection.upsert(ids=ids_upsert, embeddings=embeddings, metadatas=metadatas_upsert, documents=chunks)
+                final_status = 'completed'
+            else:
+                final_status = 'failed_embedding'
         else:
             final_status = 'completed'
+        
+    except google_exceptions.ResourceExhausted as e:
+        # Se l'errore è SPECIFICATAMENTE un rate limit, NON lo gestiamo qui.
+        # Lo rilanciamo verso l'alto per farlo gestire allo script che sa come attendere.
+        logger.warning(f"[_reindex_video_from_db][{video_id}] Rate limit rilevato. Lo segnalo al processo principale per il retry.")
+        raise e # Rilancia l'eccezione
 
     except Exception as e:
+        # Tutti gli ALTRI errori (problemi di DB, file mancanti, ecc.) vengono gestiti qui.
         logger.error(f"[_reindex_video_from_db][{video_id}] Errore critico durante re-indicizzazione: {e}", exc_info=True)
         final_status = 'failed_reindex_critical'
+
+    if final_status == 'completed':
+        if use_agentic_chunking:
+            rag_models = core_config.get('RAG_MODELS_LIST', [])
+            model_name_marker = rag_models[0].strip() if rag_models and rag_models[0].strip() else "unknown_model"
+            chunking_version_to_set = f'agentic_v1_{model_name_marker}'
+        else:
+            chunking_version_to_set = 'classic_v1'
     
-    cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id))
+    cursor.execute("UPDATE videos SET processing_status = ?, chunking_version = ? WHERE video_id = ?", (final_status, chunking_version_to_set, video_id))
+    
     logger.info(f"[_reindex_video_from_db][{video_id}] Re-indicizzazione terminata con stato: {final_status}")
     return final_status

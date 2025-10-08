@@ -25,17 +25,16 @@ def build_full_config_for_background_process(user_id: str) -> dict:
     """
     Costruisce un dizionario di configurazione completo, unendo la configurazione di base
     dell'app con le impostazioni personalizzate (e non vuote) dell'utente.
+    ORA CONSERVA ANCHE I MODELLI DI DEFAULT DEL SISTEMA.
     """
-    # 1. Inizia con una COPIA della configurazione di base dell'applicazione.
-    #    Questa contiene già i valori di default da .env (es. GOOGLE_API_KEY, RAG_MODELS_LIST).
     full_config = {**current_app.config}
 
-    # 2. Leggi esplicitamente le variabili d'ambiente che potrebbero non essere in app.config
-    #    ma che vogliamo controllare dinamicamente.
+    if 'RAG_MODELS_LIST' in full_config:
+        full_config['DEFAULT_RAG_MODELS_LIST_FROM_ENV'] = full_config['RAG_MODELS_LIST'][:] 
+
     if 'USE_AGENTIC_CHUNKING' not in full_config:
         full_config['USE_AGENTIC_CHUNKING'] = os.environ.get('USE_AGENTIC_CHUNKING', 'False')
     
-    # 3. Se c'è un utente, recupera le sue impostazioni specifiche dal DB.
     if user_id:
         db_path = current_app.config.get('DATABASE_FILE')
         conn = None
@@ -49,9 +48,6 @@ def build_full_config_for_background_process(user_id: str) -> dict:
             if settings_row:
                 logger.info(f"Trovate impostazioni utente per il processo (user: {user_id}). Applico sovrascritture.")
                 
-                # --- NUOVA LOGICA DI MERGE ROBUSTA ---
-                # Sovrascrivi i valori di default SOLO se l'impostazione utente è valida (non vuota).
-                
                 user_provider = settings_row['llm_provider']
                 if user_provider and user_provider.strip():
                     full_config['llm_provider'] = user_provider
@@ -59,7 +55,7 @@ def build_full_config_for_background_process(user_id: str) -> dict:
                 user_model_name = settings_row['llm_model_name']
                 if user_model_name and user_model_name.strip():
                     full_config['llm_model_name'] = user_model_name
-                    # Per coerenza, aggiorniamo anche la lista RAG_MODELS_LIST
+                    # Sovrascriviamo la lista RAG con quella dell'utente
                     full_config['RAG_MODELS_LIST'] = [m.strip() for m in user_model_name.split(',') if m.strip()]
 
                 user_embedding_model = settings_row['llm_embedding_model']
@@ -69,7 +65,6 @@ def build_full_config_for_background_process(user_id: str) -> dict:
                 user_api_key = settings_row['llm_api_key']
                 if user_api_key and user_api_key.strip():
                     full_config['llm_api_key'] = user_api_key
-                    # Per coerenza, aggiorniamo anche la chiave specifica del provider
                     if full_config.get('llm_provider') in ['google', 'groq']:
                         full_config['GOOGLE_API_KEY'] = user_api_key
 

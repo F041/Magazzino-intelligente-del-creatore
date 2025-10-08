@@ -416,6 +416,22 @@ Se preferisci non costruire l'immagine Docker localmente, puoi utilizzare le imm
         docker compose pull app  # Scarica l'ultima immagine specificata nel compose
         docker compose up -d     # Avvia in background
         ```
+## Manutenzione via Riga di Comando
+
+Il progetto include degli script di manutenzione da lanciare tramite terminale per operazioni massive o di test.
+
+### Re-indicizzazione Intelligente dei Contenuti
+
+Dopo aver modificato una logica di base (come l'algoritmo di chunking) o per correggere errori, potrebbe essere necessario re-indicizzare i contenuti esistenti.
+
+-   **Script**: `scripts/reindex_content.py`
+-   **Cosa fa**: Analizza tutti i contenuti di un utente (es. video) e riprocessa solo quelli che non sono aggiornati all'ultima versione di chunking (basata sulle tue impostazioni attuali, come l'Agentic Chunking).
+-   **È sicuro**: Puoi interrompere lo script in qualsiasi momento. Alla successiva esecuzione, riprenderà dal punto in cui si era interrotto, senza processare di nuovo i contenuti già aggiornati.
+
+**Comando di esempio (per i video):**
+```bash
+python scripts/reindex_content.py --email tua_email@esempio.com --type videos
+```
 
 ## Utilizzo (Modalità `saas`)
 
@@ -477,6 +493,14 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   **Attuale implementazione si basa su SQLite**
     *   SQLite gestisce le operazioni di scrittura in modo sequenziale (una alla volta). In scenari con un'alta concorrenza - ad esempio, 3 o più utenti che avviano processi di indicizzazione contemporaneamente, o uno scheduler che scrive mentre un utente carica un documento - si potrebbero verificare errori di database is locked.
     *   PostgreSQL risolve questo problema
+
+*   **Superamento Limiti Quota API (es. Google Gemini):**
+    *   Operazioni che richiedono un gran numero di chiamate API in poco tempo, come la re-indicizzazione di massa (`scripts/reindex_content.py`) o il primo caricamento di centinaia di documenti con l'**Agentic Chunking** attivo, possono esaurire la quota gratuita offerta dai fornitori di modelli AI (es. 50 richieste al giorno per Google Gemini 2.5-pro, 250 per 2.5-flash).
+    *   **Sintomi:** Vedrai errori `429 ResourceExhausted` o `Quota exceeded` nei log del terminale e il processo per quel singolo elemento fallirà (anche se gli script sono progettati per continuare con gli altri elementi).
+    *   **Soluzioni:**
+        1.  **Attendere:** Le quote si resettano (solitamente ogni minuto o ogni giorno). Grazie alla logica di "resume", puoi semplicemente rilanciare lo script `reindex_content.py` in un secondo momento e questo riprenderà a processare solo i contenuti mancanti.
+        2.  **Abilitare la Fatturazione (Soluzione Professionale):** Associare un metodo di pagamento al tuo account del fornitore AI (es. Google Cloud) aumenta drasticamente i limiti di quota. Per operazioni una tantum come la re-indicizzazione, il costo è generalmente molto basso (spesso pochi centesimi).
+        3.  **Usare un Modello Locale (Ollama):** La soluzione definitiva per eliminare la dipendenza da quote esterne. Configurando l'applicazione per usare un modello tramite Ollama, tutte le elaborazioni avvengono sul tuo computer/server, senza limiti di chiamate API.
 
 
 ## TODO e Prossimi Passi

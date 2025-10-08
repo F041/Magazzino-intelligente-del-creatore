@@ -143,6 +143,16 @@ def init_db(config):
             else:
                 raise # Rilancia altri errori OperationalError
 
+        # 3. Tenta di AGGIUNGERE la nuova colonna chunking_version se non esiste
+        try:
+            cursor.execute("ALTER TABLE videos ADD COLUMN chunking_version TEXT")
+            logger.info("Colonna 'chunking_version' aggiunta alla tabella 'videos'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e).lower():
+                logger.debug("Colonna 'chunking_version' già presente nella tabella 'videos'.")
+            else:
+                raise
+
         # --- Tabella documents ---
         # 1. Crea la tabella SE NON ESISTE
         cursor.execute('''

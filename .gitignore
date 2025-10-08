@@ -60,7 +60,10 @@ htmlcov/
 
 ## Folders
 data/
-scripts/
+scripts/*
+# un'eccezione per i file che vogliamo tenere
+!scripts/reindex_content.py
+
 prompts/
 
 # Custom Scripts
