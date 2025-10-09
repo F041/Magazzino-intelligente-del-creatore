@@ -3,6 +3,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     const syncBtn = document.getElementById("sync-wordpress-btn");
     const syncMessageDiv = document.getElementById("sync-message");
+    const syncLoader = document.getElementById("sync-loader"); 
 
     if (syncBtn && syncMessageDiv) {
         const syncBtnOriginalHTML = syncBtn.innerHTML;
@@ -31,6 +32,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 window.startAsyncTask('/api/website/wordpress/progress', {
                     messageDiv: syncMessageDiv,
                     button: syncBtn,
+                    loader: syncLoader,
                     buttonOriginalHTML: syncBtnOriginalHTML,
                     // Definiamo cosa fare quando il processo finisce con successo
                     onSuccess: () => {

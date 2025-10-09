@@ -133,7 +133,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 10px 24px; /* Padding aggiustato */
+            padding: 8px 22px; 
             border-radius: 8px; /* Ridotto */
             font-size: 0.95rem; /* Leggermente ridotto */
             font-weight: 500;
@@ -498,11 +498,12 @@
                 flex-direction: column;
                 align-items: stretch; /* Bottoni full-width */
             }
-             .hero-cta .btn {
-                width: 100%; /* Bottoni CTA full-width su mobile */
-                max-width: 300px; /* Ma con un max per non essere troppo larghi */
+            .hero-cta .btn {
+                width: 100%; /* Forza i bottoni ad occupare tutta la larghezza disponibile */
+                max-width: 340px; /* Aumentiamo la larghezza massima per accomodare testi lunghi */
                 margin-left: auto;
                 margin-right: auto;
+                box-sizing: border-box; /* Assicura che padding e bordi non rompano il layout */
             }
             
             .cta-card {
@@ -511,6 +512,18 @@
             .container {
                  padding: 0 15px;
             }
+            
+            /* --- INIZIO MODIFICA PER UNIFORMARE I BOTTONI --- */
+            .tabs {
+                flex-direction: column;
+                align-items: center;
+                gap: 12px;
+            }
+            .tab {
+                width: 100%;
+                max-width: 320px; /* Limita la larghezza massima per non farli troppo larghi */
+            }
+            /* --- FINE MODIFICA --- */
         }
     </style>
 </head>

@@ -707,14 +707,15 @@ label {
 .action-panel {
     margin-bottom: var(--spacing-xl);
     padding: var(--spacing-lg);
-    background-color: var(--color-background-secondary); /* Sfondo bianco pulito */
+    background-color: var(--color-background-secondary);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius-md);
     display: flex;
     align-items: center;
-    gap: var(--spacing-lg);
     flex-wrap: wrap;
-    box-shadow: var(--box-shadow-sm); /* Leggera ombra per staccarlo */
+    box-shadow: var(--box-shadow-sm);
+    justify-content: space-between; /* Spinge i gruppi ai lati opposti */
+    gap: 20px; /* Spazio tra i gruppi quando vanno a capo */
 }
 
     .docker-tooltip i {
@@ -887,6 +888,9 @@ label {
   :root { --sidebar-width: 64px; } /* stretta, solo icone */
   .sidebar { width: var(--sidebar-width); }
   .sidebar-brand span, .sidebar-menu a span { display: none; } /* nasconde testi, resta icona */
+  .sidebar-brand i {
+      margin-right: 0; /* ANNULLA IL MARGINE SOLO QUI */
+  }
   .sidebar-menu a { justify-content: center; padding: var(--spacing-sm); }
   .sidebar-menu a i { margin-right: 0; font-size: 1.25rem; }
 }
@@ -946,3 +950,30 @@ label {
     color: var(--color-text-secondary);
 }
 
+/* ==========================================================================
+   Componente: Wrapper Tabella Responsive
+   ========================================================================== */
+
+.table-responsive-wrapper {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Per uno scorrimento più fluido su iOS */
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius-md);
+    box-shadow: var(--box-shadow-sm);
+}
+
+
+.action-group {
+    display: flex;
+    flex-direction: column; /* Mette il testo sotto al bottone */
+    align-items: flex-start; /* Allinea a sinistra */
+}
+
+.table-responsive-wrapper .data-table {
+    margin-top: 0;
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+}

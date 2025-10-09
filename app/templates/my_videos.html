@@ -3,21 +3,22 @@ Creatore{% endblock %} {% block content %}
 <h1>I tuoi video salvati ({{ videos|length }})</h1>
 
 <div class="action-panel">
-  <a
-    href="{{ url_for('videos.download_all_transcripts') }}"
-    class="action-btn success-btn"
-  >
-    <i class="fas fa-download fa-fw"></i>
-    <span>Scarica trascrizioni (.txt)</span>
-  </a>
-  <span style="font-size: 0.9em; color: var(--color-text-light)"
-    >(Solo video 'completed')</span
-  >
+  <div class="action-group">
+    <a
+      href="{{ url_for('videos.download_all_transcripts') }}"
+      class="action-btn success-btn"
+    >
+      <i class="fas fa-download fa-fw"></i>
+      <span>Scarica trascrizioni (.txt)</span>
+    </a>
+    <span style="font-size: 0.9em; color: var(--color-text-light); margin-top: 4px;"
+      >(Solo video 'completed')</span
+    >
+  </div>
   {% if config.APP_MODE == 'saas' %}
   <button
     id="delete-all-videos-btn"
     class="action-btn delete-btn"
-    style="margin-left: auto"
   >
     <i class="fas fa-trash-alt fa-fw"></i>
     <span>Elimina tutti</span>
@@ -27,7 +28,7 @@ Creatore{% endblock %} {% block content %}
 
 <div id="action-message"></div>
 
-<div id="videos-container">
+<div id="videos-container" class="table-responsive-wrapper">
   <table class="data-table">
     <thead>
       <tr>

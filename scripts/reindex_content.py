@@ -40,7 +40,7 @@ def reindex_videos_for_user(app, user_id: str):
         TARGET_CHUNK_VERSION = ''
         if use_agentic:
             rag_models = core_config.get('RAG_MODELS_LIST', [])
-            model_name_marker = rag_models[0].strip() if rag_models and rag_models[0].strip() else "unknown_model"
+            model_name_marker = rag_models[1].strip() if rag_models and rag_models[0].strip() else "unknown_model"
             TARGET_CHUNK_VERSION = f'agentic_v1_{model_name_marker}'
         else:
             TARGET_CHUNK_VERSION = 'classic_v1'
