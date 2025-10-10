@@ -20,7 +20,6 @@ from .rss import _index_article
 logger = logging.getLogger(__name__)
 connectors_bp = Blueprint('connectors', __name__)
 
-# --- NUOVA "SALA DI CONTROLLO" PER LA SINCRONIZZAZIONE ---
 # Questa variabile globale terrà traccia dello stato del processo in background.
 wp_sync_status = {
     'is_processing': False, 'total_items': 0, 'processed_items': 0,
@@ -147,12 +146,50 @@ def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Op
         logger.error(f"[_delete_page][{page_id}] Errore imprevisto durante l'eliminazione: {e}", exc_info=True)
         return False
 
+def _delete_article_permanently(article_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None):
+    """
+    Elimina completamente un articolo: record DB, chunk da ChromaDB e statistiche.
+    """
+    app_mode = current_app.config.get('APP_MODE', 'single')
+    logger.info(f"[_delete_article][{article_id}] Avvio eliminazione permanente (UserID: {user_id}).")
+    cursor = conn.cursor()
+
+    try:
+        # 1. Elimina da ChromaDB
+        try:
+            chroma_client = current_app.config.get('CHROMA_CLIENT')
+            base_article_collection_name = current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content')
+            collection_name = f"{base_article_collection_name}_{user_id}" if app_mode == 'saas' else base_article_collection_name
+            
+            article_collection = chroma_client.get_collection(name=collection_name)
+            
+            chunks_to_delete = article_collection.get(where={"article_id": article_id})
+            chunk_ids = chunks_to_delete.get('ids', [])
+            if chunk_ids:
+                article_collection.delete(ids=chunk_ids)
+                logger.info(f"[_delete_article][{article_id}] Eliminati {len(chunk_ids)} chunk da ChromaDB.")
+        except Exception as e:
+            logger.warning(f"[_delete_article][{article_id}] Errore/avviso durante eliminazione da ChromaDB (procedo comunque): {e}")
+
+        # 2. Elimina dal database SQLite
+        cursor.execute("DELETE FROM articles WHERE article_id = ? AND user_id = ?", (article_id, user_id))
+        
+        # 3. Elimina dalle statistiche
+        cursor.execute("DELETE FROM content_stats WHERE content_id = ? AND user_id = ? AND source_type = 'articles'", (article_id, user_id))
+        logger.info(f"[_delete_article][{article_id}] Record eliminato anche da content_stats.")
+        
+        if cursor.rowcount == 0:
+            logger.warning(f"[_delete_article][{article_id}] Nessuna riga eliminata dal DB (potrebbe essere già stata cancellata).")
+        
+        return True
+
+    except Exception as e:
+        logger.error(f"[_delete_article][{article_id}] Errore imprevisto durante l'eliminazione: {e}", exc_info=True)
+        return False
+
 def _calculate_content_hash(content_text: str) -> str:
     return hashlib.sha256(content_text.encode('utf-8')).hexdigest()
 
-# --- NUOVA FUNZIONE PER IL LAVORO IN BACKGROUND ---
-# Questa contiene la logica che prima era nell'endpoint, con in più
-# gli aggiornamenti allo stato (wp_sync_status).
 def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_config: dict):
     global wp_sync_status, wp_sync_lock
     
@@ -183,13 +220,13 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
             cursor = conn.cursor()
 
             # --- FASE 2: CONFRONTO E PULIZIA ---
-            # Pagine
+            # Pagine (logica invariata)
             cursor.execute("SELECT page_id, page_url FROM pages WHERE user_id = ?", (user_id,))
             pages_in_db = {row['page_url']: {'page_id': row['page_id']} for row in cursor.fetchall()}
             urls_from_wp_pages = {page['link'] for page in pages_from_wp}
             pages_to_delete_urls = set(pages_in_db.keys()) - urls_from_wp_pages
             
-            deleted_pages_count = 0
+            deleted_items_count = 0
             if pages_to_delete_urls:
                 logger.info(f"Trovate {len(pages_to_delete_urls)} pagine da eliminare.")
                 for url in pages_to_delete_urls:
@@ -197,19 +234,27 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
                     page_id_to_delete = page_data_to_delete['page_id']
                     with wp_sync_lock: wp_sync_status['message'] = f'Eliminazione pagina obsoleta: {url[:50]}...'
                     if _delete_page_permanently(page_id_to_delete, conn, user_id):
-                        deleted_pages_count += 1
+                        deleted_items_count += 1
                 conn.commit()
-                with wp_sync_lock: wp_sync_status['deleted_items'] += deleted_pages_count
+                with wp_sync_lock: wp_sync_status['deleted_items'] = deleted_items_count
                 
-            # Articoli
+            # Articoli (logica di eliminazione AGGIUNTA)
             cursor.execute("SELECT article_id, article_url FROM articles WHERE user_id = ?", (user_id,))
             articles_in_db = {row['article_url']: row['article_id'] for row in cursor.fetchall()}
             urls_from_wp_posts = {post['link'] for post in posts_from_wp}
             articles_to_delete_urls = set(articles_in_db.keys()) - urls_from_wp_posts
+
             if articles_to_delete_urls:
-                logger.warning(f"Trovati {len(articles_to_delete_urls)} articoli da eliminare. Funzione di eliminazione non implementata.")
-            
-            # --- FASE 3: AGGIUNTA E AGGIORNAMENTO ---
+                logger.info(f"Trovati {len(articles_to_delete_urls)} articoli da eliminare. ESECUZIONE ELIMINAZIONE.")
+                for url in articles_to_delete_urls:
+                    article_id_to_delete = articles_in_db[url]
+                    with wp_sync_lock: wp_sync_status['message'] = f'Eliminazione articolo obsoleto: {url[:50]}...'
+                    if _delete_article_permanently(article_id_to_delete, conn, user_id):
+                        deleted_items_count += 1
+                conn.commit()
+                with wp_sync_lock: wp_sync_status['deleted_items'] = deleted_items_count
+
+            # --- FASE 3: AGGIUNTA E AGGIORNAMENTO (invariata) ---
             all_items = [('post', item) for item in posts_from_wp] + [('page', item) for item in pages_from_wp]
             total_items_to_process = len(all_items)
             with wp_sync_lock: wp_sync_status['total_items'] = total_items_to_process
@@ -230,16 +275,13 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
 
                 current_hash = hashlib.sha256(content_text.encode('utf-8')).hexdigest()
                 
-                # <-- INIZIO LOGICA CORRETTA PER LE DATE -->
                 date_str = None
                 if item_type == 'post':
-                    # Per gli ARTICOLI, usiamo la data di pubblicazione originale
                     date_str = item_data.get('date_gmt')
-                else: # Per le PAGINE, usiamo la data dell'ultima modifica
+                else:
                     date_str = item_data.get('modified_gmt')
                 
                 published_at_iso = f"{date_str}Z" if date_str else None
-                # <-- FINE LOGICA CORRETTA PER LE DATE -->
 
                 with wp_sync_lock:
                     wp_sync_status['message'] = f"Controllo {item_type} ({processed_count}/{total_items_to_process}): {title[:40]}..."
@@ -283,7 +325,8 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
                 wp_sync_status['new_items'] = new_items_count
                 wp_sync_status['updated_items'] = updated_items_count
                 wp_sync_status['skipped_items'] = skipped_items_count
-                wp_sync_status.update({'is_processing': False, 'message': f"Sincronizzazione completata! ({new_items_count} nuovi, {updated_items_count} aggiornati, {skipped_items_count} saltati)."})
+                final_message = f"Sincronizzazione completata! ({new_items_count} nuovi, {updated_items_count} aggiornati, {deleted_items_count} eliminati)."
+                wp_sync_status.update({'is_processing': False, 'message': final_message})
         
         except Exception as e:
             error_message = f"Errore: {e}"
@@ -296,8 +339,6 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
             if conn:
                 conn.close()
 
-# --- ENDPOINT DI AVVIO SINCRONIZZAZIONE (MODIFICATO) ---
-# Ora questo endpoint è molto più snello.
 @connectors_bp.route('/wordpress/sync', methods=['POST'])
 @login_required
 def sync_wordpress():
@@ -307,6 +348,20 @@ def sync_wordpress():
     with wp_sync_lock:
         if wp_sync_status['is_processing']:
             return jsonify({'success': False, 'message': 'Una sincronizzazione WordPress è già in corso.'}), 409
+
+        # --- MODIFICA CHIAVE 1: IMPOSTIAMO SUBITO LO STATO DI "LAVORO IN CORSO" ---
+        # Questo assicura che qualsiasi richiesta di stato immediata veda che siamo occupati.
+        wp_sync_status.update({
+            'is_processing': True,
+            'message': 'Avvio sincronizzazione...',
+            'error': None,
+            'total_items': 0,
+            'processed_items': 0,
+            'new_items': 0,
+            'updated_items': 0,
+            'skipped_items': 0,
+            'deleted_items': 0
+        })
 
     db_path = current_app.config.get('DATABASE_FILE')
     settings_row = None
@@ -323,6 +378,9 @@ def sync_wordpress():
     settings_dict = dict(settings_row) if settings_row else None
     
     if not settings_dict or not all(settings_dict.values()):
+        # Se fallisce, dobbiamo resettare lo stato a "non in elaborazione"
+        with wp_sync_lock:
+            wp_sync_status['is_processing'] = False
         return jsonify({'success': False, 'message': 'Configurazione WordPress incompleta. Controlla URL, nome utente e Application Password nelle Impostazioni.'}), 400
 
     core_config_dict = build_full_config_for_background_process(user_id)
@@ -335,6 +393,7 @@ def sync_wordpress():
     background_thread.start()
     
     logger.info(f"Avviato thread di sincronizzazione WordPress per l'utente: {user_id}")
+    # --- MODIFICA CHIAVE 2: La risposta ora è coerente con lo stato appena impostato ---
     return jsonify({'success': True, 'message': 'Sincronizzazione avviata in background.'}), 202
 
 # --- NUOVO ENDPOINT PER IL POLLING ---

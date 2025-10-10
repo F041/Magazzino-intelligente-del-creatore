@@ -47,7 +47,7 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
         conn.close()
 
     mock_transcript_result = {'text': "Trascrizione aggiornata.", 'language': 'it', 'type': 'manual'}
-    mock_video_model = Video(video_id=video_id, title='Titolo "Pulito"', description='Descrizione pulita.', url='http://fake.url', channel_id='fake_channel', published_at='2023-01-01T00:00:00Z')
+    mock_video_model = Video(video_id=video_id, title="Titolo Pulito", description='Descrizione pulita.', url='http://fake.url', channel_id='fake_channel', published_at='2023-01-01T00:00:00Z')
     mock_chunks = ["Trascrizione aggiornata."]
     mock_embeddings = [[0.5] * 768]
     
@@ -56,6 +56,7 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
     path_transcript_service = 'app.api.routes.videos.TranscriptService.get_transcript'
     path_split_chunks = 'app.api.routes.videos.split_text_into_chunks'
     path_generate_embeddings = 'app.api.routes.videos.generate_embeddings'
+    path_agentic_chunker = 'app.api.routes.videos.chunk_text_agentically'
     
     mock_valid_credentials = MagicMock(valid=True)
     mock_chroma_collection = MagicMock()
@@ -67,6 +68,7 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
          patch(path_transcript_service, return_value=mock_transcript_result), \
          patch(path_split_chunks, return_value=mock_chunks), \
          patch(path_generate_embeddings, return_value=mock_embeddings), \
+         patch(path_agentic_chunker, return_value=mock_chunks), \
          patch.dict(app.config, {'CHROMA_CLIENT': mock_chroma_client}):
         
         # 2. ACT
@@ -77,7 +79,7 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
     data = response.json
     assert data['success'] is True
     assert data['new_status'] == 'completed'
-    assert data['updated_metadata']['title'] == 'Titolo "Pulito"'
+    assert data['updated_metadata']['title'] == "Titolo Pulito"
 
     with app.app_context():
         conn = sqlite3.connect(app.config['DATABASE_FILE'])
@@ -86,4 +88,4 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
         final_title = cursor.fetchone()[0]
         conn.close()
     
-    assert final_title == 'Titolo "Pulito"'
+    assert final_title == "Titolo Pulito"
