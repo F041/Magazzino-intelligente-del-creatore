@@ -13,7 +13,7 @@ import markdownify as md
 from bs4 import BeautifulSoup
 from typing import Optional 
 from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
-from app.utils import build_full_config_for_background_process
+from app.utils import build_full_config_for_background_process, normalize_url
 from app.services.wordpress.client import WordPressClient
 from .rss import _index_article
 
@@ -220,17 +220,23 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
             cursor = conn.cursor()
 
             # --- FASE 2: CONFRONTO E PULIZIA ---
-            # Pagine (logica invariata)
+            # Pagine (normalizziamo gli URL dal DB e da WP)
             cursor.execute("SELECT page_id, page_url FROM pages WHERE user_id = ?", (user_id,))
-            pages_in_db = {row['page_url']: {'page_id': row['page_id']} for row in cursor.fetchall()}
-            urls_from_wp_pages = {page['link'] for page in pages_from_wp}
+            pages_in_db = {}
+            for row in cursor.fetchall():
+                raw_url = row['page_url']
+                normalized = normalize_url(raw_url) if raw_url else raw_url
+                pages_in_db[normalized] = {'page_id': row['page_id']}
+            urls_from_wp_pages = { normalize_url(page.get('link')) for page in pages_from_wp if page.get('link') }
             pages_to_delete_urls = set(pages_in_db.keys()) - urls_from_wp_pages
             
             deleted_items_count = 0
             if pages_to_delete_urls:
                 logger.info(f"Trovate {len(pages_to_delete_urls)} pagine da eliminare.")
                 for url in pages_to_delete_urls:
-                    page_data_to_delete = pages_in_db[url]
+                    page_data_to_delete = pages_in_db.get(url)
+                    if not page_data_to_delete:
+                        continue
                     page_id_to_delete = page_data_to_delete['page_id']
                     with wp_sync_lock: wp_sync_status['message'] = f'Eliminazione pagina obsoleta: {url[:50]}...'
                     if _delete_page_permanently(page_id_to_delete, conn, user_id):
@@ -238,16 +244,22 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
                 conn.commit()
                 with wp_sync_lock: wp_sync_status['deleted_items'] = deleted_items_count
                 
-            # Articoli (logica di eliminazione AGGIUNTA)
+            # Articoli (normalizziamo gli URL dal DB e da WP)
             cursor.execute("SELECT article_id, article_url FROM articles WHERE user_id = ?", (user_id,))
-            articles_in_db = {row['article_url']: row['article_id'] for row in cursor.fetchall()}
-            urls_from_wp_posts = {post['link'] for post in posts_from_wp}
+            articles_in_db = {}
+            for row in cursor.fetchall():
+                raw_url = row['article_url']
+                normalized = normalize_url(raw_url) if raw_url else raw_url
+                articles_in_db[normalized] = row['article_id']
+            urls_from_wp_posts = { normalize_url(post.get('link')) for post in posts_from_wp if post.get('link') }
             articles_to_delete_urls = set(articles_in_db.keys()) - urls_from_wp_posts
 
             if articles_to_delete_urls:
                 logger.info(f"Trovati {len(articles_to_delete_urls)} articoli da eliminare. ESECUZIONE ELIMINAZIONE.")
                 for url in articles_to_delete_urls:
-                    article_id_to_delete = articles_in_db[url]
+                    article_id_to_delete = articles_in_db.get(url)
+                    if not article_id_to_delete:
+                        continue
                     with wp_sync_lock: wp_sync_status['message'] = f'Eliminazione articolo obsoleto: {url[:50]}...'
                     if _delete_article_permanently(article_id_to_delete, conn, user_id):
                         deleted_items_count += 1
@@ -264,7 +276,8 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
             for idx, (item_type, item_data) in enumerate(all_items):
                 processed_count = idx + 1
                 title = html.unescape(item_data.get('title', {}).get('rendered', 'Senza Titolo'))
-                item_url = item_data.get('link')
+                item_url_raw = item_data.get('link')
+                item_url = normalize_url(item_url_raw) if item_url_raw else item_url_raw
                 content_html = item_data.get('content', {}).get('rendered', '')
                 soup = BeautifulSoup(content_html, 'html.parser')
                 content_text = soup.get_text(separator='\n', strip=True)                
@@ -310,15 +323,42 @@ def _background_wp_sync_core(app_context, user_id: str, settings: dict, core_con
                 else:
                     logger.info(f"Nuovo {item_type} '{title}'. Creazione.")
                     item_id = str(uuid.uuid4())
-                    if item_type == 'post':
-                        cursor.execute("INSERT INTO articles (article_id, guid, feed_url, article_url, title, published_at, content, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')",
-                                    (item_id, item_data.get('guid', {}).get('rendered', item_url), settings['wordpress_url'], item_url, title, published_at_iso, content_text, current_hash, user_id))
-                        _index_article(item_id, conn, user_id, core_config)
-                    else:
-                        cursor.execute("INSERT INTO pages (page_id, page_url, title, published_at, content, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
-                                    (item_id, item_url, title, published_at_iso, content_text, current_hash, user_id))
-                        _index_page(item_id, conn, user_id, core_config)
-                    new_items_count += 1
+                    try:
+                        if item_type == 'post':
+                            cursor.execute("INSERT OR IGNORE INTO articles (article_id, guid, feed_url, article_url, title, published_at, content, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')",
+                                        (item_id, item_data.get('guid', {}).get('rendered', item_url), settings['wordpress_url'], item_url, title, published_at_iso, content_text, current_hash, user_id))
+                            # Se l'insert è stato ignorato (rowcount == 0), recupera l'id esistente
+                            if cursor.rowcount == 0:
+                                cursor.execute("SELECT article_id FROM articles WHERE article_url = ? AND user_id = ?", (item_url, user_id))
+                                existing_row = cursor.fetchone()
+                                if existing_row:
+                                    logger.info(f"Articolo '{title}' già presente dopo INSERT OR IGNORE.")
+                                    skipped_items_count += 1
+                                else:
+                                    new_items_count += 1
+                            else:
+                                _index_article(item_id, conn, user_id, core_config)
+                                new_items_count += 1
+                        else:
+                            cursor.execute("INSERT OR IGNORE INTO pages (page_id, page_url, title, published_at, content, content_hash, user_id, processing_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
+                                        (item_id, item_url, title, published_at_iso, content_text, current_hash, user_id))
+                            if cursor.rowcount == 0:
+                                cursor.execute("SELECT page_id FROM pages WHERE page_url = ? AND user_id = ?", (item_url, user_id))
+                                existing_row = cursor.fetchone()
+                                if existing_row:
+                                    logger.info(f"Pagina '{title}' già presente dopo INSERT OR IGNORE.")
+                                    skipped_items_count += 1
+                                else:
+                                    new_items_count += 1
+                            else:
+                                _index_page(item_id, conn, user_id, core_config)
+                                new_items_count += 1
+                    except sqlite3.IntegrityError as ie:
+                        logger.warning(f"IntegrityError inserimento {item_type} '{title}': {ie}")
+                        skipped_items_count += 1
+                    except Exception as e_insert:
+                        logger.error(f"Errore inserimento nuovo {item_type} '{title}': {e_insert}", exc_info=True)
+                        skipped_items_count += 1
                 conn.commit()
 
             with wp_sync_lock:

@@ -12,12 +12,9 @@ import sys
 import shutil
 import atexit
 from .models.user import User
-from .utils import generate_api_key
 from .utils import generate_api_key, format_datetime_filter
 from .core.setup import init_db, setup_chroma_directory, load_credentials, save_credentials
 from .core.system_info import get_system_stats
-
-  
 
 # --- Import Flask e Correlati ---
 from flask import ( Flask, jsonify, redirect, request, session, url_for,

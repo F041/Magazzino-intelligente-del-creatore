@@ -14,6 +14,7 @@ from app.services.transcripts.youtube_transcript import TranscriptService
 from app.services.transcripts.youtube_transcript_unofficial_library import UnofficialTranscriptService
 from app.services.embedding.embedding_service import generate_embeddings
 from app.services.embedding.gemini_embedding import split_text_into_chunks, TASK_TYPE_DOCUMENT
+from app.services.chunking.agentic_chunker import chunk_text_agentically
 from app.utils import build_full_config_for_background_process
 
 
@@ -91,7 +92,7 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                     status_dict['message'] = f"Processo video {index}/{to_process_count}: {video_model.title}"
 
                 video_id = video_model.video_id
-                
+                                
                 # --- INIZIO LOGICA DI FALLBACK ROBUSTA ---
                 transcript_text, transcript_lang, transcript_type = None, None, None
                 current_video_status = 'pending'
@@ -124,14 +125,29 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                         current_video_status = 'failed_transcript'; transcript_errors += 1
                         error_msg = transcript_result.get('message', 'Tutti i metodi di recupero trascrizione sono falliti.') if transcript_result else 'Errore sconosciuto'
                         logger.error(f"[CORE YT Process] [{video_id}] Recupero trascrizione fallito. Errore finale: {error_msg}")
-                # --- FINE LOGICA DI FALLBACK ROBUSTA ---
                 
-                # ... (il resto della funzione da qui in poi è IDENTICO e gestisce il risultato, qualunque esso sia) ...
                     if current_video_status == 'processing_embedding' and transcript_text:
-                        chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+                        use_agentic_chunking = str(core_config.get('USE_AGENTIC_CHUNKING', 'False')).lower() == 'true'
+                        
+                        if use_agentic_chunking:
+                            try:
+                                logger.info(f"[CORE YT Process] [{video_id}] Tentativo di CHUNKING INTELLIGENTE (Agentic)...")
+                                chunks = chunk_text_agentically(transcript_text, llm_provider=core_config.get('llm_provider', 'google'), settings=core_config)
+                            except google_exceptions.ResourceExhausted as e:
+                                logger.warning(f"[CORE YT Process] [{video_id}] Quota API esaurita durante il chunking intelligente. Fallback al metodo classico. Errore: {e}")
+                                chunks = [] # Assicuriamoci che chunks sia una lista vuota per il controllo successivo
+                            
+                            if not chunks:
+                                logger.warning(f"[CORE YT Process] [{video_id}] CHUNKING INTELLIGENTE non ha prodotto risultati. Ritorno al metodo classico.")
+                                chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+                        else:
+                            logger.info(f"[CORE YT Process] [{video_id}] Esecuzione CHUNKING CLASSICO.")
+                            chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
                         if not chunks: current_video_status = 'completed'
                     elif current_video_status != 'failed_transcript':
                         current_video_status = 'failed_transcript'; transcript_errors += 1
+
 
                     if current_video_status == 'processing_embedding' and chunks:
                         if not chroma_collection_for_upsert:

@@ -7,9 +7,56 @@ from datetime import datetime
 import secrets
 import string
 import os
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 
 logger = logging.getLogger(__name__)
+
+# TODO: conviene aggiunger altro qui?
+'''
+tipo cosa?
+'''
+
+def normalize_url(raw_url: str) -> str:
+    """
+    Normalizza un URL per confronto/stoccaggio:
+    - rimuove frammenti (#...)
+    - rimuove parametri UTM comuni
+    - rimuove trailing slash finale (mantiene "/" se path è root)
+    - rende scheme e netloc in lower-case
+    - ricompone l'URL in forma canonica
+    """
+    if not raw_url or not isinstance(raw_url, str):
+        return raw_url
+
+    try:
+        parsed = urlparse(raw_url.strip())
+        if not parsed.scheme or not parsed.netloc:
+            return raw_url.strip()
+
+        # Rimuovi fragment
+        fragment = ''
+
+        # Filtra query params indesiderati (UTM; estendi la lista se serve)
+        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        filtered_pairs = [(k, v) for (k, v) in query_pairs if not k.lower().startswith('utm_')]
+
+        # Ricostruisci la query in modo deterministico
+        new_query = urlencode(filtered_pairs, doseq=True)
+
+        # Normalizza path (rimuovi trailing slash salvo root '/')
+        path = parsed.path.rstrip('/')
+        if path == '':
+            path = '/'
+
+        normalized = urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), path, '', new_query, fragment))
+        return normalized
+    except Exception:
+        # In caso di problemi, restituisce la stringa pulita senza spazi esterni
+        return raw_url.strip()
+
+
+
 
 def generate_api_key(length=40):
     """Genera una chiave API sicura e casuale."""
@@ -64,9 +111,17 @@ def build_full_config_for_background_process(user_id: str) -> dict:
 
                 user_api_key = settings_row['llm_api_key']
                 if user_api_key and user_api_key.strip():
+                    # Conserviamo la chiave generica
                     full_config['llm_api_key'] = user_api_key
-                    if full_config.get('llm_provider') in ['google', 'groq']:
-                        full_config['GOOGLE_API_KEY'] = user_api_key
+
+                    # MAPPIAMO esplicitamente la chiave alle variabili che i vari moduli si aspettano.
+                    # Questo evita che _index_article/_index_page non trovino la chiave in core_config.
+                    # Se in futuro aggiungiamo altri provider, estendiamo questa mappatura.
+                    full_config['GOOGLE_API_KEY'] = user_api_key
+                    # Se usi nomi diversi per embedding (es. GEMINI), manteniamo anche quello se non già impostato
+                    if not full_config.get('GEMINI_EMBEDDING_API_KEY'):
+                        full_config['GEMINI_EMBEDDING_API_KEY'] = user_api_key
+
 
                 user_ollama_url = settings_row['ollama_base_url']
                 if user_ollama_url and user_ollama_url.strip():

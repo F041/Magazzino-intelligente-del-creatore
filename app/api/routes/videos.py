@@ -696,3 +696,4 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
     
     logger.info(f"[_reindex_video_from_db][{video_id}] Re-indicizzazione terminata con stato: {final_status}")
     return final_status
+

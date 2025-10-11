@@ -169,16 +169,19 @@ def _index_document(doc_id: str, conn: sqlite3.Connection, user_id: Optional[str
              
              chunks = []
              if use_agentic_chunking:
-                logger.info(f"[_index_document][{doc_id}] Tentativo di CHUNKING INTELLIGENTE (Agentic)...")
-                # Passiamo l'INTERO dizionario core_config, che contiene TUTTO.
-                chunks = chunk_text_agentically(
-                    markdown_content, 
-                    llm_provider=core_config.get('llm_provider', 'google'), 
-                    settings=core_config
-                )
-                
+                try:
+                    logger.info(f"[_index_document][{doc_id}] Tentativo di CHUNKING INTELLIGENTE (Agentic)...")
+                    chunks = chunk_text_agentically(
+                        markdown_content, 
+                        llm_provider=core_config.get('llm_provider', 'google'), 
+                        settings=core_config
+                    )
+                except google_exceptions.ResourceExhausted as e:
+                    logger.warning(f"[_index_document][{doc_id}] Quota API esaurita durante il chunking. Fallback al metodo classico. Errore: {e}")
+                    chunks = [] # Resettiamo per sicurezza
+
                 if not chunks:
-                    logger.warning(f"[_index_document][{doc_id}] CHUNKING INTELLIGENTE fallito o ha restituito 0 chunk. Ritorno al metodo classico.")
+                    logger.warning(f"[_index_document][{doc_id}] CHUNKING INTELLIGENTE non ha prodotto risultati. Ritorno al metodo classico.")
                     chunks = split_text_into_chunks(markdown_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
              else:
                 logger.info(f"[_index_document][{doc_id}] Esecuzione CHUNKING CLASSICO (basato su dimensione).")

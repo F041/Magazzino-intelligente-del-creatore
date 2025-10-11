@@ -18,8 +18,11 @@ import textstat
 import copy
 import logging 
 import io
+from app.services.chunking.agentic_chunker import chunk_text_agentically
 from app.services.embedding.embedding_service import generate_embeddings
-from app.utils import build_full_config_for_background_process
+from app.utils import build_full_config_for_background_process, normalize_url
+
+logger = logging.getLogger(__name__)
 
 try:
     from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
@@ -30,9 +33,6 @@ except ImportError:
     get_gemini_embeddings = None
     TASK_TYPE_DOCUMENT = "retrieval_document"
 
-
-
-logger = logging.getLogger(__name__)
 rss_bp = Blueprint('rss', __name__)
 
 # --- STATO GLOBALE e LOCK per Processo RSS ---
@@ -192,7 +192,25 @@ def _index_article(article_id: str, conn: sqlite3.Connection, user_id: Optional[
              final_status = 'completed'
         else:
             logger.info(f"[_index_article][{article_id}] Contenuto letto ({len(article_content)} chars).")
-            chunks = split_text_into_chunks(article_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            # --- INIZIO NUOVA LOGICA DI CHUNKING CONDIZIONALE ---
+            use_agentic_chunking = str(core_config.get('USE_AGENTIC_CHUNKING', 'False')).lower() == 'true'
+
+            chunks = [] # Inizializziamo a lista vuota
+            if use_agentic_chunking:
+                try:
+                    logger.info(f"[_index_article][{article_id}] Tentativo di CHUNKING INTELLIGENTE (Agentic)...")
+                    chunks = chunk_text_agentically(article_content, llm_provider=core_config.get('llm_provider', 'google'), settings=core_config)
+                except google_exceptions.ResourceExhausted as e:
+                    logger.warning(f"[_index_article][{article_id}] Quota API esaurita durante il chunking. Fallback al metodo classico. Errore: {e}")
+                    chunks = [] # Resetta per sicurezza
+
+                if not chunks:
+                    logger.warning(f"[_index_article][{article_id}] CHUNKING INTELLIGENTE non ha prodotto risultati. Ritorno al metodo classico.")
+                    chunks = split_text_into_chunks(article_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            else:
+                logger.info(f"[_index_article][{article_id}] Esecuzione CHUNKING CLASSICO (basato su dimensione).")
+                chunks = split_text_into_chunks(article_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            # --- FINE NUOVA LOGICA ---
             if not chunks:
                  logger.info(f"[_index_article][{article_id}] Nessun chunk generato. Marco come completato.")
                  final_status = 'completed'
@@ -256,22 +274,23 @@ def _process_rss_feed_core(
     initial_feed_url: str, 
     user_id: Optional[str], 
     core_config: dict, 
-    status_dict: Optional[dict] = None, # Nuovo!
-    status_lock: Optional[threading.Lock] = None # Nuovo!
+    status_dict: Optional[dict] = None,
+    status_lock: Optional[threading.Lock] = None
 ) -> bool:
     """
     Logica centrale per processare TUTTI gli articoli NUOVI di un feed RSS,
     gestendo la paginazione (?paged=X).
-    Recupera articoli, confronta con DB (filtrando per user_id se SAAS),
-    processa i nuovi (salva file, indicizza in Chroma), salva nel DB.
-    Richiede un contesto applicativo Flask attivo per current_app.config.
     Restituisce True se il processo si completa senza errori critici, False altrimenti.
     """
     logger.info(f"[CORE RSS Process] Avvio per feed={initial_feed_url}, user_id={user_id}")
     overall_success = False
     conn_sqlite = None
-    # Contatori specifici
-    pages_processed = 0; total_entries = 0; skipped_count = 0; saved_ok_count = 0; failed_count = 0;
+
+    pages_processed = 0
+    total_entries = 0
+    skipped_count = 0
+    saved_ok_count = 0
+    failed_count = 0
 
     try:
         # --- 1. Configurazione e Connessione DB ---
@@ -287,7 +306,24 @@ def _process_rss_feed_core(
         cursor_sqlite = conn_sqlite.cursor()
         logger.info("[CORE RSS Process] DB connesso.")
 
-        # Normalizza URL base
+        # --- Pre-costruzione mappa URL normalizzate dal DB per confronti veloci ---
+        articles_map = {}
+        try:
+            if app_mode == 'saas' and user_id:
+                cursor_sqlite.execute("SELECT article_id, article_url, processing_status FROM articles WHERE user_id = ?", (user_id,))
+            else:
+                cursor_sqlite.execute("SELECT article_id, article_url, processing_status FROM articles")
+            for r in cursor_sqlite.fetchall():
+                raw_db_url = r['article_url']
+                norm_db_url = normalize_url(raw_db_url) if raw_db_url else raw_db_url
+                # In caso di collisioni preferiamo l'ultima letta (non critico)
+                articles_map[norm_db_url] = {'article_id': r['article_id'], 'processing_status': r['processing_status']}
+            logger.debug(f"[CORE RSS Process] Mappa URL articoli costruita ({len(articles_map)} entries).")
+        except Exception as e_map:
+            logger.warning(f"[CORE RSS Process] Impossibile costruire mappa URL articoli dal DB: {e_map}")
+            articles_map = {}
+
+        # Normalizza URL base per paginazione
         parsed_initial_url = urlparse(initial_feed_url)
         base_feed_url = urljoin(initial_feed_url, parsed_initial_url.path)
         page_number = 1
@@ -298,8 +334,10 @@ def _process_rss_feed_core(
             if page_number == 1:
                 url_to_fetch = base_feed_url
             else:
-                separator = '&' if '?' in base_feed_url else '?'; url_to_fetch = f"{base_feed_url}{separator}paged={page_number}"
-            #  Aggiorna lo stato prima di scaricare la pagina
+                separator = '&' if '?' in base_feed_url else '?'
+                url_to_fetch = f"{base_feed_url}{separator}paged={page_number}"
+
+            # Aggiorna stato
             if status_dict and status_lock:
                 with status_lock:
                     status_dict['message'] = f"Analisi pagina #{page_number} del feed..."
@@ -307,46 +345,39 @@ def _process_rss_feed_core(
 
             logger.info(f"[CORE RSS Process] --- Fetch Pagina #{page_number}: {url_to_fetch} ---")
 
-            # === ESEGUI IL PARSING QUI ===
             parsed_feed = feedparser.parse(url_to_fetch, request_headers={'User-Agent': 'MagazzinoDelCreatoreBot/1.0'}, agent='MagazzinoDelCreatoreBot/1.0')
 
-            # === SPOSTA IL CONTROLLO DELLA PRIMA PAGINA QUI (DOPO IL PARSING) ===
+            # Controllo prima pagina
             if page_number == 1:
                 if parsed_feed.bozo:
                     bozo_exception = parsed_feed.get('bozo_exception')
-                    # Verifica se è un errore grave che impedisce la lettura
-                    is_critical_error = isinstance(bozo_exception, (HTTPError, AttributeError, TypeError, ValueError)) or "document" in str(bozo_exception).lower() # Aggiungi controlli se necessario
-                    if is_critical_error: # Controlla solo errori gravi sulla prima pagina
-                        logger.error(f"[CORE RSS Process] Errore critico parsing prima pagina ({url_to_fetch}): {bozo_exception}. Interruzione.");
+                    is_critical_error = isinstance(bozo_exception, (HTTPError, AttributeError, TypeError, ValueError)) or "document" in str(bozo_exception).lower()
+                    if is_critical_error:
+                        logger.error(f"[CORE RSS Process] Errore critico parsing prima pagina ({url_to_fetch}): {bozo_exception}. Interruzione.")
                         if conn_sqlite:
-                            try:
-                                conn_sqlite.close()
-                            except:
-                                pass
-                        return False # Fallimento se la prima pagina è inaccessibile/invalida
-                    else: # Warning per errori minori (es. non well-formed ma leggibile)
+                            try: conn_sqlite.close()
+                            except: pass
+                        return False
+                    else:
                         logger.warning(f"[CORE RSS Process] Problema minore parsing prima pagina: {bozo_exception}")
 
                 if not parsed_feed.entries:
-                    logger.error("[CORE RSS Process] Nessun articolo sulla prima pagina. Feed vuoto o URL errato?");
+                    logger.error("[CORE RSS Process] Nessun articolo sulla prima pagina. Feed vuoto o URL errato?")
                     if conn_sqlite:
-                        try:
-                            conn_sqlite.close()
-                        except:
-                            pass
-                    return False # Fallimento se la prima pagina è vuota
-            # === FINE BLOCCO SPOSTATO ===
+                        try: conn_sqlite.close()
+                        except: pass
+                    return False
 
-            # Controllo Errori Generico / Fine Paginazione (per pagine successive alla prima)
-            if parsed_feed.bozo and page_number > 1: # Controlla bozo solo da pagina 2 in poi per errori HTTP
-                 bozo_exception = parsed_feed.get('bozo_exception')
-                 if isinstance(bozo_exception, HTTPError) and bozo_exception.code >= 400:
-                    logger.info(f"[CORE RSS Process] Errore HTTP {bozo_exception.code} pagina {page_number}. Fine paginazione."); break
+            # Fine paginazione e errori per pagine successive
+            if parsed_feed.bozo and page_number > 1:
+                bozo_exception = parsed_feed.get('bozo_exception')
+                if isinstance(bozo_exception, HTTPError) and getattr(bozo_exception, 'code', 0) >= 400:
+                    logger.info(f"[CORE RSS Process] Errore HTTP {bozo_exception} pagina {page_number}. Fine paginazione.")
+                    break
             if not parsed_feed.entries:
-                logger.info(f"[CORE RSS Process] Nessun articolo pagina {page_number}. Fine paginazione.");
+                logger.info(f"[CORE RSS Process] Nessun articolo pagina {page_number}. Fine paginazione.")
                 break
 
-            # Processamento Articoli Pagina
             pages_processed += 1
             num_entries_page = len(parsed_feed.entries)
             total_entries += num_entries_page
@@ -357,95 +388,142 @@ def _process_rss_feed_core(
                     with status_lock:
                         status_dict['message'] = f"Articolo {entry_index + 1}/{num_entries_page} (Pag. {page_number}): {entry.get('title', 'Senza Titolo')[:50]}..."
                         status_dict['total_articles_processed'] = saved_ok_count + failed_count + skipped_count
+                        status_dict['page_total_articles'] = num_entries_page
+                        status_dict['page_processed_articles'] = entry_index + 1
+
                 logger.debug(f"[CORE RSS Process] Pag.{page_number}, Art.{entry_index+1}: Processo entry...")
-                article_url = entry.get('link'); title = entry.get('title', 'Senza Titolo')
-                content_filepath = None; article_id_to_process = None; needs_processing = False
+                article_url = entry.get('link')
+                title = entry.get('title', 'Senza Titolo')
+                content_filepath = None
+                article_id_to_process = None
+                needs_processing = False
 
-                if not article_url: logger.warning(f"[CORE RSS Process] Articolo '{title}' saltato: manca URL."); skipped_count+=1; continue
+                if not article_url:
+                    logger.warning(f"[CORE RSS Process] Articolo '{title}' saltato: manca URL.")
+                    skipped_count += 1
+                    continue
 
-                # Controllo Esistenza (filtrato per utente se SAAS)
-                sql_check = "SELECT article_id, processing_status FROM articles WHERE article_url = ?"
-                params_check = [article_url]
-                if app_mode == 'saas' and user_id: sql_check += " AND user_id = ?"; params_check.append(user_id)
-                cursor_sqlite.execute(sql_check, tuple(params_check))
-                existing = cursor_sqlite.fetchone()
+                # Normalizza URL per confronto
+                norm_article_url = normalize_url(article_url)
+
+                # Controllo esistenza tramite mappa normalizzata
+                existing = articles_map.get(norm_article_url)
 
                 if existing:
-                    if existing['processing_status'] == 'pending' or existing['processing_status'].startswith('failed_'):
-                        article_id_to_process = existing['article_id']; needs_processing = True; logger.info(f"[CORE RSS Process] Riprovocesso articolo esistente: {title}")
-                    else: skipped_count+=1; logger.debug(f"[CORE RSS Process] Articolo già processato/in corso: {title}"); continue
-                else: # Nuovo
-                    article_id_to_process = str(uuid.uuid4()); needs_processing = True; logger.info(f"[CORE RSS Process] Nuovo articolo: {title}")
+                    if existing['processing_status'] == 'pending' or (existing['processing_status'] and str(existing['processing_status']).startswith('failed_')):
+                        article_id_to_process = existing['article_id']
+                        needs_processing = True
+                        logger.info(f"[CORE RSS Process] Riprovocesso articolo esistente: {title} (matched by normalized URL)")
+                    else:
+                        skipped_count += 1
+                        logger.debug(f"[CORE RSS Process] Articolo già processato/in corso: {title}")
+                        continue
+                else:
+                    # Nuovo articolo
+                    article_id_to_process = str(uuid.uuid4())
+                    needs_processing = True
+                    logger.info(f"[CORE RSS Process] Nuovo articolo: {title}")
                     guid = entry.get('id') or entry.get('guid') or article_url
                     published_at_iso = parse_feed_date(entry.get('published_parsed') or entry.get('updated_parsed'))
-                    content = None # ... (Logica estrazione content come prima) ...
-                    if 'content' in entry and entry.content: content_data = entry.content[0]; soup_content = BeautifulSoup(content_data.value, 'html.parser'); content = '\n'.join(line.strip() for line in soup_content.get_text(separator='\n', strip=True).splitlines() if line.strip())
-                    elif 'summary' in entry and entry.summary: soup_summary = BeautifulSoup(entry.summary, 'html.parser'); content = '\n'.join(line.strip() for line in soup_summary.get_text(separator='\n', strip=True).splitlines() if line.strip()); full_content = get_full_article_content(article_url); content = full_content if full_content else content
-                    else: content = get_full_article_content(article_url)
 
-                    if not content: logger.warning(f"[CORE RSS Process] No content '{title}'."); skipped_count+=1; needs_processing = False; continue
-
+                    # Estrazione del contenuto (priorità: content > summary > fetch full article)
+                    content = None
                     try:
-                        # Ora inseriamo il contenuto direttamente
+                        if 'content' in entry and entry.get('content'):
+                            content_data = entry.content[0]
+                            soup_content = BeautifulSoup(content_data.value, 'html.parser')
+                            content = '\n'.join(line.strip() for line in soup_content.get_text(separator='\n', strip=True).splitlines() if line.strip())
+                        elif 'summary' in entry and entry.get('summary'):
+                            soup_summary = BeautifulSoup(entry.summary, 'html.parser')
+                            content = '\n'.join(line.strip() for line in soup_summary.get_text(separator='\n', strip=True).splitlines() if line.strip())
+                            full_content = get_full_article_content(article_url)
+                            content = full_content if full_content else content
+                        else:
+                            content = get_full_article_content(article_url)
+                    except Exception as e_content:
+                        logger.warning(f"[CORE RSS Process] Errore estrazione contenuto per '{title}': {e_content}")
+                        content = None
+
+                    if not content:
+                        logger.warning(f"[CORE RSS Process] No content per '{title}'. Articolo saltato.")
+                        skipped_count += 1
+                        needs_processing = False
+                        continue
+
+                    # Inserimento nel DB e aggiornamento mappa per evitare duplicati nella stessa run
+                    try:
                         cursor_sqlite.execute("""
                             INSERT INTO articles (article_id, guid, feed_url, article_url, title, published_at, content, user_id, processing_status)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                           (article_id_to_process, guid, initial_feed_url, article_url, title, published_at_iso, content, user_id, 'pending'))
+                            (article_id_to_process, guid, initial_feed_url, article_url, title, published_at_iso, content, user_id, 'pending'))
+                        # aggiorna mappa in memoria
+                        articles_map[norm_article_url] = {'article_id': article_id_to_process, 'processing_status': 'pending'}
                         logger.info(f"[CORE RSS Process] Inserito nuovo '{title}'.")
                     except Exception as e_save:
-                        logger.error(f"[CORE RSS Process] Errore save/insert '{title}': {e_save}", exc_info=True); skipped_count+=1; needs_processing = False;
-                        # Blocco try-except corretto per la rimozione del file
-                        if content_filepath and os.path.exists(content_filepath):
-                            try:
-                                os.remove(content_filepath)
-                                logger.info(f"[CORE RSS Process] File parziale rimosso: {content_filepath}")
-                            except OSError as remove_error:
-                                # Logga l'errore ma continua comunque
-                                logger.warning(f"[CORE RSS Process] Impossibile rimuovere file parziale {content_filepath}: {remove_error}")
-                                pass # Ignora l'errore di rimozione
-                        continue # Continua con il prossimo articolo
+                        logger.error(f"[CORE RSS Process] Errore save/insert '{title}': {e_save}", exc_info=True)
+                        skipped_count += 1
+                        needs_processing = False
+                        # non rimuoviamo file (non usiamo file system per articoli in questa versione)
+                        continue
 
-                # Indicizzazione (se serve)
+                # Indicizzazione (se serve) - _index_article aggiorna lo stato nel DB ma non fa commit
                 if needs_processing and article_id_to_process:
                     logger.info(f"[CORE RSS Process] Indicizzazione articolo {article_id_to_process} ('{title}')...")
-                    # _index_article aggiorna lo stato nel DB ma non fa commit
-                    indexing_status = _index_article(article_id_to_process, conn_sqlite, user_id, core_config)
-                    if indexing_status == 'completed': saved_ok_count += 1
-                    else: failed_count += 1
-            # Fine ciclo articoli pagina
-            page_number += 1 # Vai alla prossima pagina
-        # --- FINE CICLO PAGINAZIONE ---
+                    try:
+                        indexing_status = _index_article(article_id_to_process, conn_sqlite, user_id, core_config)
+                        if indexing_status == 'completed':
+                            saved_ok_count += 1
+                            # aggiorna mappa per riflettere stato finale
+                            articles_map[norm_article_url]['processing_status'] = 'completed'
+                        else:
+                            failed_count += 1
+                            articles_map[norm_article_url]['processing_status'] = indexing_status
+                    except Exception as e_index:
+                        logger.error(f"[CORE RSS Process] Errore indicizzazione per '{title}': {e_index}", exc_info=True)
+                        failed_count += 1
+                        articles_map[norm_article_url] = {'article_id': article_id_to_process, 'processing_status': 'failed_processing_generic'}
 
-        # Commit finale (IMPORTANTE!)
+            # Fine ciclo articoli pagina -> avanza pagina
+            page_number += 1
+
+        # Commit finale (IMPORTANTE)
         logger.info("[CORE RSS Process] Esecuzione COMMIT finale DB...")
         conn_sqlite.commit()
         logger.info("[CORE RSS Process] COMMIT DB eseguito.")
-        overall_success = True # Se siamo arrivati qui senza eccezioni gravi, è un successo
+        overall_success = True
 
     except sqlite3.Error as e_sql_outer:
         logger.error(f"[CORE RSS Process] Errore SQLite esterno: {e_sql_outer}", exc_info=True)
         if conn_sqlite: conn_sqlite.rollback()
         overall_success = False
-    except RuntimeError as rte: # Es. errore config
-         logger.error(f"[CORE RSS Process] Errore runtime: {rte}", exc_info=True)
-         overall_success = False
+    except RuntimeError as rte:
+        logger.error(f"[CORE RSS Process] Errore runtime: {rte}", exc_info=True)
+        overall_success = False
     except Exception as e_core_generic:
-        logger.exception(f"[CORE RSS Process] Errore generico imprevisto.")
+        logger.exception(f"[CORE RSS Process] Errore generico imprevisto: {e_core_generic}")
         if conn_sqlite: conn_sqlite.rollback()
         overall_success = False
     finally:
         if conn_sqlite:
-            try: conn_sqlite.close(); logger.info("[CORE RSS Process] Connessione SQLite chiusa.")
-            except Exception as close_err: logger.error(f"[CORE RSS Process] Errore chiusura DB: {close_err}")
+            try:
+                conn_sqlite.close()
+                logger.info("[CORE RSS Process] Connessione SQLite chiusa.")
+            except Exception as close_err:
+                logger.error(f"[CORE RSS Process] Errore chiusura DB: {close_err}")
 
-    log_summary = (f"[CORE RSS Process] Riepilogo per feed {initial_feed_url} (Utente: {user_id}): "
-                   f"Pagine:{pages_processed}, Tot Articoli Feed:{total_entries}, "
-                   f"Processati/Riprovati:{saved_ok_count + failed_count} (OK:{saved_ok_count}, Fail:{failed_count}), "
-                   f"Saltati:{skipped_count}. Successo Generale: {overall_success}")
-    if overall_success: logger.info(log_summary)
-    else: logger.error(log_summary)
+    log_summary = (
+        f"[CORE RSS Process] Riepilogo per feed {initial_feed_url} (Utente: {user_id}): "
+        f"Pagine:{pages_processed}, Tot Articoli Feed:{total_entries}, "
+        f"Processati/Riprovati:{saved_ok_count + failed_count} (OK:{saved_ok_count}, Fail:{failed_count}), "
+        f"Saltati:{skipped_count}. Successo Generale: {overall_success}"
+    )
+    if overall_success:
+        logger.info(log_summary)
+    else:
+        logger.error(log_summary)
 
     return overall_success
+
 
 # --- Funzione Background per RSS ---
 def _background_rss_processing(app_context, initial_feed_url: str, user_id: Optional[str], initial_status: dict):
@@ -507,68 +585,66 @@ def process_rss_feed():
     AVVIA l'elaborazione di un feed RSS (con paginazione) in background.
     Restituisce 202 Accepted.
     """
-    global rss_processing_status, rss_status_lock # Riferimenti globali
+    global rss_processing_status, rss_status_lock
     app_mode = current_app.config.get('APP_MODE', 'single')
     logger.info(f"Richiesta AVVIO processo feed RSS (Modalità: {app_mode}).")
 
-    # --- Ottieni User ID ---
     current_user_id = current_user.id if app_mode == 'saas' and current_user.is_authenticated else None
-    if app_mode == 'saas' and not current_user_id: return jsonify({'success': False, 'error_code': 'AUTH_REQUIRED'}), 401
+    if app_mode == 'saas' and not current_user_id: 
+        return jsonify({'success': False, 'error_code': 'AUTH_REQUIRED'}), 401
 
-    # --- Controlla se Già in Esecuzione ---
     with rss_status_lock:
         if rss_processing_status.get('is_processing', False):
             logger.warning("Tentativo avvio processo RSS mentre un altro è attivo.")
             return jsonify({'success': False, 'error_code': 'ALREADY_PROCESSING', 'message': 'Un processo RSS è già attivo.'}), 409
 
-    # --- Valida Input ---
-    if not request.is_json: 
-        return jsonify({'success': False, 'error_code': 'INVALID_CONTENT_TYPE', 'message': 'La richiesta deve essere JSON.'}), 400
-    data = request.get_json()
-    initial_feed_url = data.get('rss_url') # Prendi l'URL prima di validarlo
-    
-    if not initial_feed_url: # Controlla prima se manca
-        return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': 'Parametro "rss_url" mancante nel corpo JSON.'}), 400
-    
-    if not is_valid_url(initial_feed_url): # Poi controlla se è un URL valido
-        return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': f"L'URL fornito '{initial_feed_url}' non e un URL valido."}), 400
-
-    # --- Avvia Thread ---
-    try:
-        initial_status_for_thread = {
+        # --- MODIFICA CHIAVE: IMPOSTIAMO LO STATO PRIMA DI RISPONDERE ---
+        rss_processing_status.update({
             'is_processing': True,
             'current_page': 0,
             'total_articles_processed': 0,
             'message': 'Avvio elaborazione feed in background...',
             'error': None
-        }
-        app_context = current_app.app_context()
+        })
+        # ----------------------------------------------------------------
 
+    if not request.is_json: 
+        with rss_status_lock: rss_processing_status['is_processing'] = False # Resetta in caso di errore
+        return jsonify({'success': False, 'error_code': 'INVALID_CONTENT_TYPE', 'message': 'La richiesta deve essere JSON.'}), 400
+    
+    data = request.get_json()
+    initial_feed_url = data.get('rss_url')
+    
+    if not initial_feed_url or not is_valid_url(initial_feed_url):
+        with rss_status_lock: rss_processing_status['is_processing'] = False # Resetta in caso di errore
+        error_message = "Parametro 'rss_url' mancante." if not initial_feed_url else f"L'URL fornito '{initial_feed_url}' non e un URL valido."
+        return jsonify({'success': False, 'error_code': 'VALIDATION_ERROR', 'message': error_message}), 400
+
+    try:
+        app_context = current_app.app_context()
+        # Passiamo una copia dello stato iniziale, ma lo stato globale è già impostato
         background_thread = threading.Thread(
             target=_background_rss_processing,
-            args=(app_context, initial_feed_url, current_user_id, copy.deepcopy(initial_status_for_thread))
+            args=(app_context, initial_feed_url, current_user_id, copy.deepcopy(rss_processing_status))
         )
         background_thread.daemon = True
         background_thread.start()
         logger.info(f"Thread background RSS avviato per: {initial_feed_url}")
 
-        # Aggiorna stato globale DOPO avvio thread
-        with rss_status_lock:
-            rss_processing_status.update(initial_status_for_thread)
-
         return jsonify({
             'success': True,
             'message': 'Elaborazione feed avviata in background. Controlla lo stato periodicamente.'
-        }), 202 # Accepted
+        }), 202
 
     except Exception as e_start:
         logger.exception("Errore CRITICO avvio thread RSS.")
-        with rss_status_lock: # Resetta stato globale se fallisce avvio
+        with rss_status_lock:
             rss_processing_status['is_processing'] = False
             rss_processing_status['message'] = f"Errore avvio processo: {e_start}"
             rss_processing_status['error'] = str(e_start)
         return jsonify({'success': False, 'error_code': 'THREAD_START_FAILED', 'message': f'Errore avvio processo background: {e_start}'}), 500
-
+    indexing_logic.py
+    
 # --- Polling Stato RSS ---
 @rss_bp.route('/progress', methods=['GET'])
 @login_required # O rimuovi se non necessario
@@ -606,58 +682,31 @@ def download_all_articles():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        sql_query = "SELECT article_id, title, article_url, extracted_content_path FROM articles WHERE processing_status = 'completed' AND extracted_content_path IS NOT NULL"
+        # Ora leggiamo direttamente la colonna 'content'
+        sql_query = "SELECT article_id, title, article_url, content FROM articles WHERE processing_status = 'completed' AND content IS NOT NULL"
         params = []
         if app_mode == 'saas':
            sql_query += " AND user_id = ?"
            params.append(current_user_id)
-        sql_query += " ORDER BY published_at DESC" # O added_at
+        sql_query += " ORDER BY published_at DESC"
 
-        logger.info(f"Esecuzione query per contenuti articoli (Filtro Utente: {'Sì' if app_mode=='saas' else 'No'})...")
         cursor.execute(sql_query, tuple(params))
 
         for row in cursor.fetchall():
-            article_id = row['article_id']
-            title = row['title']
-            article_url = row['article_url']
-            content_path = row['extracted_content_path']
-            content = None
-
-            if not content_path:
-                logger.warning(f"[{article_id}] Percorso file contenuto mancante nel DB per '{title}'.")
-                articles_read_errors.append(f"{article_id}: Path Mancante")
-                continue
-
-            try:
-                # Verifica esistenza file prima di aprirlo
-                if not os.path.exists(content_path):
-                    logger.error(f"[{article_id}] File contenuto NON TROVATO: {content_path} per '{title}'.")
-                    articles_read_errors.append(f"{article_id}: File Non Trovato ({os.path.basename(content_path)})")
-                    continue # Salta questo articolo
-
-                with open(content_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
+            content = row['content']
+            if content:
                 articles_processed_count += 1
-
                 all_articles_content.write(f"--- ARTICOLO START ---\n")
-                all_articles_content.write(f"ID: {article_id}\n")
-                all_articles_content.write(f"Titolo: {title}\n")
-                all_articles_content.write(f"URL: {article_url}\n")
+                all_articles_content.write(f"ID: {row['article_id']}\n")
+                all_articles_content.write(f"Titolo: {row['title']}\n")
+                all_articles_content.write(f"URL: {row['article_url']}\n")
                 all_articles_content.write(f"--- Contenuto ---\n{content}\n")
                 all_articles_content.write(f"--- ARTICOLO END ---\n\n\n")
-
-            except (IOError, OSError) as e:
-                logger.error(f"[{article_id}] Errore lettura file {content_path} per '{title}': {e}")
-                articles_read_errors.append(f"{article_id}: Errore Lettura ({e})")
-            except Exception as e_gen:
-                 logger.error(f"[{article_id}] Errore generico lettura/scrittura buffer per '{title}': {e_gen}")
-                 articles_read_errors.append(f"{article_id}: Errore Generico ({e_gen})")
-
-
+            else:
+                articles_read_errors.append(row['article_id'])
+        
         conn.close()
-        logger.info(f"Recuperati contenuti da {articles_processed_count} articoli. Errori lettura file: {len(articles_read_errors)}.")
-        if articles_read_errors:
-             logger.warning(f"Dettaglio errori lettura file: {articles_read_errors}")
+        logger.info(f"Recuperati contenuti da {articles_processed_count} articoli. Errori lettura: {len(articles_read_errors)}.")
 
     except sqlite3.Error as e:
         logger.error(f"Errore DB durante recupero articoli per download: {e}")
@@ -671,16 +720,6 @@ def download_all_articles():
     output_filename = f"articles_{current_user_id if app_mode=='saas' else 'all'}.txt"
     file_content = all_articles_content.getvalue()
     all_articles_content.close()
-
-    # Aggiungi un header al file se ci sono stati errori di lettura
-    if articles_read_errors:
-         error_header = f"ATTENZIONE: Impossibile leggere il contenuto di {len(articles_read_errors)} articoli.\n"
-         error_header += "Dettagli (ID Articolo: Motivo):\n"
-         for err in articles_read_errors:
-             error_header += f"- {err}\n"
-         error_header += "---\n\n"
-         file_content = error_header + file_content
-
 
     return Response(
         file_content,
@@ -719,17 +758,12 @@ def delete_all_user_articles():
         conn_sqlite = sqlite3.connect(db_path)
         cursor_sqlite = conn_sqlite.cursor()
 
-        # Prima cancella gli articoli veri e propri
         cursor_sqlite.execute("DELETE FROM articles WHERE user_id = ?", (current_user_id,))
         sqlite_rows_affected = cursor_sqlite.rowcount
-
-        # ---  ISTRUZIONE DI PULIZIA STATISTICHE ---
-        logger.info(f"[{current_user_id}] Eliminazione record corrispondenti da content_stats per 'articles'...")
+        
         cursor_sqlite.execute("DELETE FROM content_stats WHERE user_id = ? AND source_type = 'articles'", (current_user_id,))
-
         conn_sqlite.commit()
         
-        # Verifica opzionale (invariata)
         cursor_sqlite.execute("SELECT COUNT(*) FROM articles WHERE user_id = ?", (current_user_id,))
         sqlite_rows_after_delete = cursor_sqlite.fetchone()[0]
 
@@ -741,10 +775,8 @@ def delete_all_user_articles():
          if conn_sqlite: conn_sqlite.close()
 
     # 2. Elimina Collezione ChromaDB
-    logger.info(f"[{current_user_id}] Tentativo eliminazione collezione ChromaDB: '{user_article_collection_name}'...")
     try:
         chroma_client.delete_collection(name=user_article_collection_name)
-        logger.info(f"[{current_user_id}] Comando delete_collection per '{user_article_collection_name}' inviato.")
         chroma_deleted = True
     except Exception as e_chroma:
         logger.warning(f"[{current_user_id}] Errore/avviso durante eliminazione collezione ChromaDB '{user_article_collection_name}': {e_chroma}")
@@ -753,18 +785,113 @@ def delete_all_user_articles():
 
     # 3. Risposta Finale
     final_success = (sqlite_rows_after_delete == 0)
-    message = (f"Eliminazione articoli utente {current_user_id}: "
-               f"SQLite({sqlite_rows_affected} righe rimosse, {sqlite_rows_after_delete} rimaste dopo verifica). "
-               f"Chroma({('Tentata' if chroma_deleted else 'Fallita')}).")
-    if chroma_error: message += f" Dettaglio Chroma: {chroma_error}"
-
+    message = f"Eliminazione articoli utente {current_user_id} completata. Record SQLite affetti: {sqlite_rows_affected}."
+    
     return jsonify({
         'success': final_success,
         'message': message,
-        'details': {
-            'sqlite_rows_affected': sqlite_rows_affected,
-            'sqlite_rows_verified': sqlite_rows_after_delete,
-            'chroma_deleted_attempted': chroma_deleted,
-            'chroma_error': chroma_error,
-        }
     }), 200 if final_success else 500
+
+@rss_bp.route('/debug_summary', methods=['GET'])
+@login_required
+def debug_rss_summary():
+    """
+    Endpoint diagnostico: restituisce conteggi e alcuni esempi dagli articoli
+    (utile per capire discrepanze DB <> UI) e informazioni sulla collezione Chroma.
+    """
+    app_mode = current_app.config.get('APP_MODE', 'single')
+    db_path = current_app.config.get('DATABASE_FILE')
+    current_user_id = current_user.id if app_mode == 'saas' and current_user.is_authenticated else None
+
+    result = {
+        'app_mode': app_mode,
+        'user_id': current_user_id,
+        'db': {},
+        'sample_articles': [],
+        'chroma': {}
+    }
+
+    # 1) Statistiche DB
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+
+        # Totale articoli (eventualmente filtrati per utente)
+        total_query = "SELECT COUNT(*) as c FROM articles"
+        params = ()
+        if app_mode == 'saas':
+            total_query += " WHERE user_id = ?"
+            params = (current_user_id,)
+        cur.execute(total_query, params)
+        result['db']['total_articles'] = cur.fetchone()['c']
+
+        # Conteggio per stato di processing_status
+        status_query = "SELECT processing_status, COUNT(*) as c FROM articles"
+        if app_mode == 'saas':
+            status_query += " WHERE user_id = ?"
+        status_query += " GROUP BY processing_status"
+        cur.execute(status_query, params)
+        status_counts = {row['processing_status'] if row['processing_status'] else 'NULL': row['c'] for row in cur.fetchall()}
+        result['db']['by_status'] = status_counts
+
+        # Ultimi 10 articoli per ispezione
+        sample_query = "SELECT article_id, title, article_url, processing_status, added_at FROM articles"
+        if app_mode == 'saas':
+            sample_query += " WHERE user_id = ?"
+        sample_query += " ORDER BY added_at DESC LIMIT 10"
+        cur.execute(sample_query, params)
+        for r in cur.fetchall():
+            result['sample_articles'].append({
+                'article_id': r['article_id'],
+                'title': r['title'],
+                'url': r['article_url'],
+                'status': r['processing_status'],
+                'added_at': r['added_at']
+            })
+
+    except Exception as e:
+        result['db']['error'] = str(e)
+    finally:
+        if conn:
+            conn.close()
+
+    # 2) Info Collezione Chroma (conta documenti, nome collezione usato)
+    try:
+        chroma_client = current_app.config.get('CHROMA_CLIENT')
+        base_name = current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content')
+        collection_name = f"{base_name}_{current_user_id}" if app_mode == 'saas' and current_user_id else base_name
+        result['chroma']['collection_name'] = collection_name
+
+        if not chroma_client:
+            result['chroma']['error'] = 'Chroma client non configurato'
+        else:
+            try:
+                coll = chroma_client.get_collection(name=collection_name)
+                # Proviamo metodi diversi in modo robusto
+                count = None
+                if hasattr(coll, 'count'):
+                    try:
+                        count = coll.count()
+                    except Exception:
+                        count = None
+                if count is None:
+                    try:
+                        all_res = coll.get()  # ATTENZIONE: può restituire molti id, è solo diagnostico
+                        ids = all_res.get('ids', [])
+                        count = len(ids)
+                    except Exception as e_get:
+                        # fallback: prova a ottenere una piccola porzione per capire se la collezione risponde
+                        try:
+                            small = coll.get(limit=1)
+                            count = small.get('metadata', {}).get('count', None) if isinstance(small, dict) else None
+                        except Exception as e_small:
+                            result['chroma']['get_error'] = f"{e_get} | {e_small}"
+                result['chroma']['document_count'] = count
+            except Exception as e_coll:
+                result['chroma']['error'] = str(e_coll)
+    except Exception as e:
+        result['chroma']['error'] = str(e)
+
+    return jsonify(result), 200
