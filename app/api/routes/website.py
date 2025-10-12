@@ -15,6 +15,8 @@ from typing import Optional
 from app.services.embedding.gemini_embedding import split_text_into_chunks, get_gemini_embeddings, TASK_TYPE_DOCUMENT
 from app.utils import build_full_config_for_background_process, normalize_url
 from app.services.wordpress.client import WordPressClient
+from app.services.chunking.agentic_chunker import chunk_text_agentically
+from google.api_core import exceptions as google_exceptions
 from .rss import _index_article
 
 logger = logging.getLogger(__name__)
@@ -59,7 +61,23 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
         if not page_content or not page_content.strip():
             final_status = 'completed'
         else:
-            chunks = split_text_into_chunks(page_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            use_agentic_chunking = str(core_config.get('USE_AGENTIC_CHUNKING', 'False')).lower() == 'true'
+
+            chunks = [] # Inizializziamo a lista vuota
+            if use_agentic_chunking:
+                try:
+                    logger.info(f"[_index_page][{page_id}] Tentativo di CHUNKING INTELLIGENTE (Agentic)...")
+                    chunks = chunk_text_agentically(page_content, llm_provider=core_config.get('llm_provider', 'google'), settings=core_config)
+                except google_exceptions.ResourceExhausted as e:
+                    logger.warning(f"[_index_page][{page_id}] Quota API esaurita durante il chunking. Fallback al metodo classico. Errore: {e}")
+                    chunks = [] # Resetta per sicurezza
+
+                if not chunks:
+                    logger.warning(f"[_index_page][{page_id}] CHUNKING INTELLIGENTE non ha prodotto risultati. Ritorno al metodo classico.")
+                    chunks = split_text_into_chunks(page_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            else:
+                logger.info(f"[_index_page][{page_id}] Esecuzione CHUNKING CLASSICO (basato su dimensione).")
+                chunks = split_text_into_chunks(page_content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
             if not chunks:
                 final_status = 'completed'
             else:

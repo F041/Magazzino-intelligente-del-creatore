@@ -76,7 +76,7 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
     *   **Pulizia Automatica:** Se un articolo o una pagina vengono cancellati dal sito WordPress, verranno rimossi anche dal Magazzino alla successiva sincronizzazione.
     *   **Processo in Background con Feedback:** L'intera sincronizzazione viene eseguita in un thread separato, con un messaggio di stato nell'interfaccia che mostra l'avanzamento in tempo reale.
 *   **Pipeline di Indicizzazione:**
-    *   **Suddivisione Testi (Chunking) Flessibile:** I contenuti vengono suddivisi in pezzi (chunk). Di base, viene usato un metodo a dimensione fissa. Attivando l'opzione **Agentic Chunking**, il sistema utilizza un LLM per trovare i punti di rottura logici nel testo, preservando il contesto.
+    *   **Suddivisione Testi (Chunking) Flessibile:** I contenuti vengono suddivisi in pezzi (chunk). Di base, viene usato un metodo a dimensione fissa. Attivando l'opzione **Agentic Chunking**, il sistema utilizza un LLM per trovare i punti di rottura logici nel testo. **Questa funzionalità, ora applicata a tutte le sorgenti (video, documenti, articoli), include un fallback automatico al metodo classico in caso di errori API (es. quote esaurite), garantendo che l'indicizzazione vada sempre a buon fine.**
     *   **Generazione Embedding:** Per ogni chunk viene generato un embedding (es. con Google Gemini `text-embedding-004`) che ne rappresenta il significato vettoriale.
     *   Memorizza metadati e contenuti/trascrizioni in SQLite (con `user_id` in `saas`).
     *   Memorizza embedding vettoriali in **collezioni ChromaDB dedicate per tipo di contenuto e per utente** (in `saas`).
@@ -543,21 +543,22 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   [x] Implementato Chunking Intelligente (Agentic): Aggiunta la possibilità (opzionale, via .env) di usare un LLM per suddividere i documenti in modo semantico.
 *   [x] Bottone ripristina per far sparire il bottone Ripristina in settings se Ollama o Groq non ha il campo modello compilato
 *   [x] Funzione /dati_personali su bot telegram
+*   [x] Feedback Avanzato per Processi in Background: Implementato un sistema di feedback con barre di avanzamento grafiche e messaggi di stato in tempo reale per tutte le operazioni lunghe (importazione video, articoli RSS, sincronizzazione WordPress e re-indicizzazione completa), garantendo che l'utente sia sempre informato sullo stato del sistema.
+*   [x] Estensione Chunking Intelligente (Agentic): La funzionalità è ora applicata a tutte le sorgenti di testo (documenti, trascrizioni video, articoli RSS, pagine WordPress), non più solo ai documenti. Include un fallback al metodo classico in caso di errori API (es. quote esaurite).
 
 **Prossimi Passi Possibili:**
 
 **Stabilità e Qualità:**
 *   [ ] **Gestione Errori API:** Standardizzare formati JSON risposte errore.
 *   [ ] **Gestione Errori Indicizzazione:** Migliorare diagnostica/gestione errori estrazione testo e embedding.
-*   [ ] **Continuazione agentic chunking** per video, sito, etc. Al momento solo in documenti. Valutare di usare il modello fallback (flash) per velocizzare il processo
+*   [ ] **Pannello di Stato Globale (UI/UX):** Creare un'icona/pannello persistente nella sidebar per mostrare lo stato di qualsiasi processo in background (importazione video, RSS, sync WordPress, re-indicizzazione) indipendentemente dalla pagina in cui si trova l'utente. Questo centralizzerebbe il feedback e migliorerebbe l'esperienza utente durante le operazioni lunghe.
+*   [ ] **Assistente alla Creazione di Contenuti (Repurposing):** Aggiungere una nuova sezione "Repurposing" dove l'utente può selezionare un contenuto esistente (es. un video lungo) e chiedere all'IA di trasformarlo in altri formati, come un articolo per il blog, una serie di 5 tweet, o una bozza per una newsletter. Questo trasformerebbe il Magazzino da strumento di ricerca a vero e proprio assistente creativo.
+*   [ ] **Importazione di File Audio/Video Locali:** Permettere l'upload diretto di file audio (`.mp3`, `.wav`) e video (`.mp4`) locali. Il sistema si occuperebbe di estrarre l'audio e utilizzare un modello di trascrizione (come Whisper, eseguibile anche localmente) per rendere ricercabili anche interviste, lezioni o podcast non pubblicati online.
+*   [ ] **Analisi Tematica dei Contenuti (Insights):** Aggiungere una nuova dashboard nella sezione "Statistiche" che sfrutta un LLM per analizzare l'intera base di conoscenza e identificare i 5-10 temi principali trattati. Fornirebbe una "nuvola di concetti" che mostra di cosa parla veramente il creator, aiutandolo a identificare nicchie o argomenti ricorrenti.
 
 
 **Nuove Sorgenti Dati/Funzionalità:**
 *   [ ] **Podcast:** Implementare gestione feed/audio/trascrizione. Difficoltà: scaricare file audio, usare LLM per trascrizione, quando caricare il podcast tramite RSS Youtube fa risparmiare lavoro.
-
-
-**UI/UX:**
-*   [ ] **Feedback Processi Background:** Migliorare ulteriormente il feedback per operazioni lunghe (re-indicizzazione).
 
 
 **DevOps e Deployment:**
