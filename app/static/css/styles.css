@@ -838,19 +838,41 @@ label {
     }
 
 
-    #process-status {
-    background-color: rgba(255, 255, 255, 0.85); /* Sfondo bianco semi-trasparente */
-    border: 1px solid var(--color-border);
+#process-status {
+    /* Rimuoviamo padding, background e bordi da qui */
     border-radius: var(--border-radius-md);
-    padding: var(--spacing-lg);
-    box-shadow: var(--box-shadow-md);
-    backdrop-filter: blur(4px); /* Effetto vetro smerigliato per staccare dallo sfondo */
+    /* Manteniamo solo il margine superiore */
+    margin-top: var(--spacing-xl);
 }
 
-/* Anche i singoli messaggi (successo/errore) beneficiano di questo stile */
+/* Applichiamo lo stile direttamente ai messaggi che contengono lo stato */
 .success-message, .error-message, .info-message {
-    background-color: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(4px);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    border-radius: var(--border-radius-md);
+    border: 1px solid transparent;
+    display: flex;
+    flex-direction: column; /* Cambiamo in colonna per mettere la barra sotto */
+    align-items: flex-start; /* Allinea a sinistra */
+    box-shadow: var(--box-shadow-sm);
+    background-color: rgba(255, 255, 255, 0.85); /* Sfondo semi-trasparente */
+    backdrop-filter: blur(4px); /* Effetto vetro smerigliato */
+}
+
+.success-message {
+    color: var(--color-success);
+    border-color: rgba(76, 201, 240, 0.2);
+}
+
+.error-message {
+    color: var(--color-error);
+    border-color: rgba(229, 56, 59, 0.2);
+}
+
+/* Creiamo una nuova classe per i messaggi informativi durante il processo */
+.info-message {
+    color: var(--color-text-main);
+    border-color: var(--color-border);
 }
 
 /* Rendiamo il testo del messaggio più scuro per aumentare il contrasto */

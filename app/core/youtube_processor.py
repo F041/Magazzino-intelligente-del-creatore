@@ -199,7 +199,7 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
 def _background_channel_processing(app_context, channel_url: str, user_id: Optional[str], initial_status: dict, status_dict: dict):
     """
     Esegue l'elaborazione del canale in un thread separato, chiamando la funzione core.
-    Aggiorna il dizionario di stato 'status_dict' fornito per la UI.
+    ORA OTTIMIZZATO: Cerca l'ID del canale nel DB prima di interrogare l'API di YouTube.
     """
     status_lock = threading.Lock()
     thread_final_message = "Elaborazione terminata."
@@ -219,7 +219,32 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
 
             token_path = current_app.config.get('TOKEN_PATH')
             youtube_client = YouTubeClient(token_file=token_path)
-            channel_id_extracted = youtube_client.extract_channel_info(channel_url)
+            
+            # --- INIZIO NUOVA LOGICA DI OTTIMIZZAZIONE ---
+            channel_id_extracted = None
+            db_path = current_app.config.get('DATABASE_FILE')
+            conn = None
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                # Cerchiamo se abbiamo già un ID canale associato a questo URL per questo utente
+                cursor.execute("SELECT channel_id FROM monitored_youtube_channels WHERE channel_url = ? AND user_id = ?", (channel_url, user_id))
+                result = cursor.fetchone()
+                if result:
+                    channel_id_extracted = result[0]
+                    logger.info(f"OTTIMIZZAZIONE: ID Canale '{channel_id_extracted}' trovato nel database locale. Salto la chiamata API per la ricerca.")
+            except sqlite3.Error as e:
+                logger.warning(f"Errore nel cercare l'ID canale nel DB locale (procedo con API): {e}")
+            finally:
+                if conn:
+                    conn.close()
+
+            # Se non l'abbiamo trovato nel DB, lo chiediamo a YouTube (come prima)
+            if not channel_id_extracted:
+                logger.info("ID Canale non trovato in cache. Interrogo l'API di YouTube...")
+                channel_id_extracted = youtube_client.extract_channel_info(channel_url)
+            # --- FINE NUOVA LOGICA DI OTTIMIZZAZIONE ---
+
             if not channel_id_extracted:
                  raise ValueError(f"Impossibile estrarre un Channel ID da '{channel_url}'.")
 
@@ -253,8 +278,8 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
         except Exception as e_thread:
             logger.exception(f"BACKGROUND THREAD YT: ERRORE CRITICO.")
             error_text = str(e_thread).lower()
-            if 'forbidden' in error_text or '403' in error_text:
-                thread_final_message = "Errore 403: Accesso negato da YouTube (possibile problema con 'Account Brand')."
+            if 'forbidden' in error_text or '403' in error_text or 'quotaexceeded' in error_text:
+                thread_final_message = "Errore Quota API: hai esaurito le richieste giornaliere a YouTube. Riprova domani."
             else:
                 thread_final_message = f"Errore critico: {e_thread}"
             job_success = False
