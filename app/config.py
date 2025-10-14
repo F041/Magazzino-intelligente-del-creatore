@@ -40,8 +40,7 @@ class BaseConfig:
     WORDPRESS_CLIENT_ID = os.environ.get('WORDPRESS_CLIENT_ID')
     WORDPRESS_CLIENT_SECRET = os.environ.get('WORDPRESS_CLIENT_SECRET')
     # Leggiamo gli SCOPES e li splittiamo subito in lista
-    GOOGLE_SCOPES = os.environ.get('GOOGLE_SCOPES', "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtubepartner").split()
-    # Usiamo basedir calcolato sopra
+    GOOGLE_SCOPES = os.environ.get('GOOGLE_SCOPES', "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtubepartner https://www.googleapis.com/auth/monitoring.read").split()    
     BASE_DIR = basedir
 
     # Leggi il nome/path relativo da .env e costruisci il percorso assoluto
@@ -72,8 +71,7 @@ class BaseConfig:
 
     # --- Impostazioni Ricerca RAG ---
     RAG_DEFAULT_N_RESULTS = 50 # o 15, 5 troppo poco
-    print(f"DEBUG CONFIG.PY: Valore di RAG_DEFAULT_N_RESULTS impostato a: {RAG_DEFAULT_N_RESULTS}")
-    # NUOVA LOGICA per la lista di modelli con fallback
+    # LOGICA per la lista di modelli con fallback
     # Leggiamo la stringa dal .env, fornendo un default stabile se manca
     _models_str = os.environ.get('LLM_MODELS', "gemini-2.5-pro,gemini-2.5-flash")
     # Puliamo la stringa e la trasformiamo in una lista, rimuovendo eventuali modelli vuoti

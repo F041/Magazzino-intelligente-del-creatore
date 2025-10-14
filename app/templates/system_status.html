@@ -3,8 +3,15 @@
 {% block title %}Stato del Sistema - Magazzino del Creatore{% endblock %}
 
 {% block head_styles %}
-    {# Usiamo gli stessi stili della pagina delle statistiche per coerenza #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/statistics.css') }}">
+    {# --- INIZIO BLOCCO CORRETTO --- #}
+    {# Definiamo una variabile CSS. Questo è pulito e non dà errori nell'editor. #}
+    <style>
+        :root {
+            --quota-percentage-width: {{ stats_data.get('youtube_quota', {}).get('percentage', 0) }}%;
+        }
+    </style>
+    {# --- FINE BLOCCO CORRETTO --- #}
 {% endblock %}
 
 {% block content %}
@@ -25,7 +32,9 @@
     {% if stats_data.error %}
         <div class="error-message">{{ stats_data.error }}</div>
     {% else %}
-        {# Qui incolleremo il blocco HTML che toglieremo da statistics.html #}
+        
+
+
         {% if stats_data.db_status %}
         <div class="stat-card db-status-card" style="margin-top: 20px;">
             <h3><i class="fas fa-database fa-fw"></i> Stato database</h3>
@@ -58,7 +67,6 @@
                         </span>
                     </div>
                 </div>
-
                 <div class="db-status-section">
                     <h4>Oggetti</h4>
                     <div class="metrics-row">
@@ -81,9 +89,46 @@
             </div>
         </div>
         {% endif %}
-    {% endif %}
 
-        {# --- CARD PER LO SCHEDULER --- #}
+        <!-- TODO: fix def _get_youtube_quota_info():
+                {% if stats_data.youtube_quota %}
+        <div class="stat-card" style="margin-top: 20px;">
+            <h3><i class="fab fa-youtube fa-fw" style="color: #FF0000;"></i> Stato quota servizio YouTube</h3>
+            
+            {% if stats_data.youtube_quota.error %}
+                <div class="error-message" style="margin-bottom: 0;">
+                    {{ stats_data.youtube_quota.error | safe }}
+                </div>
+            {% else %}
+                {% set quota = stats_data.youtube_quota %}
+                <div class="metrics-row">
+                    <span class="metric-label">Quota utilizzata oggi:</span>
+                    <span class="metric-value" style="font-size: 1.1rem;">
+                        {{ quota.usage | default(0) | int }} / {{ quota.limit | default(10000) | int }} unità
+                    </span>
+                </div>
+                
+                <div class="progress-bar-container" style="margin-top: 10px; height: 12px; background-color: #e9ecef; border-radius: 6px; overflow: hidden;">
+                    <div class="progress-bar" style="width: var(--quota-percentage-width); height: 100%; background: linear-gradient(90deg, #4895ef, #4361ee); transition: width 0.5s ease;"></div>
+                </div>
+                <div style="text-align: right; font-size: 1.2rem; font-weight: bold; margin-top: 5px; color: var(--color-primary);">
+                    {{ quota.percentage | default(0) }}%
+                </div>
+
+                <small style="color: var(--color-text-light); margin-top: 15px; display: block;">
+                    La quota si azzera ogni giorno intorno alle <strong>{{ quota.resets_at | default('N/D') }}</strong>.
+                    <span class="info-tooltip">
+                        <i class="fas fa-info-circle"></i>
+                        <span class="tooltip-text">
+                            La quota giornaliera standard è di 10.000 unità. Operazioni come la ricerca di un canale costano circa 100 unità, mentre il recupero dei sottotitoli costa circa 50 unità.
+                        </span>
+                    </span>
+                </small>
+            {% endif %}
+        </div>
+        {% endif %}
+        -->
+
         {% if stats_data.scheduler_status %}
         <div class="stat-card" style="margin-top: 20px;">
             <h3><i class="fas fa-clock fa-fw"></i> Stato processi automatici</h3>
@@ -93,31 +138,27 @@
                     {{ stats_data.scheduler_status.next_run }}
                 </span>
             </div>
-            {# Potremmo aggiungere qui l'esito dell'ultima esecuzione in futuro #}
         </div>
         {% endif %}
 
-        {# ---  CARD PER LA RAM --- #}
         {% if stats_data.ram_status %}
         <div class="stat-card" style="margin-top: 20px;">
             <h3><i class="fas fa-memory fa-fw"></i> Utilizzo memoria (RAM)</h3>
-            
             <div class="metrics-row">
                 <span class="metric-label">Consumo attuale dell'applicazione:</span>
                 <span class="metric-value" style="font-size: 1.5rem; color: var(--color-secondary);">
                     {{ stats_data.ram_status.app_memory_mb }} MB
                 </span>
             </div>
-
             <small style="color: var(--color-text-light); margin-top: 15px; display: block;">
                 Questo è il consumo di memoria RAM del solo processo del Magazzino.
             </small>
         </div>
         {% endif %}
 
+    {% endif %} 
 {% endblock %}
 
 {% block scripts %}
     {{ super() }}
-    {# Eventuali script specifici per questa pagina andranno qui in futuro #}
 {% endblock %}

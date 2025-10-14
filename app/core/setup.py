@@ -250,7 +250,6 @@ def init_db(config):
                 is_active BOOLEAN DEFAULT TRUE,      -- Opzionale: per poter revocare una chiave
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE -- Se elimino l'utente, cancella le sue chiavi
             )''')
-        logger.debug("Tabella 'api_keys' verificata/creata.")
 
         # --- Tabella per Canali YouTube Monitorati ---
         cursor.execute('''
@@ -267,7 +266,6 @@ def init_db(config):
                 -- Assicura che un utente monitori un canale solo una volta
                 UNIQUE (user_id, channel_id)
             )''')
-        logger.info("Tabella 'monitored_youtube_channels' verificata/creata.")
 
         # Tabella per Feed RSS Monitorati
         cursor.execute('''
@@ -283,8 +281,7 @@ def init_db(config):
                  -- Assicura che un utente monitori un feed solo una volta
                 UNIQUE (user_id, feed_url)
             )''')
-        logger.info("Tabella 'monitored_rss_feeds' verificata/creata.")
-
+        
         # --- Tabella per le Impostazioni Utente ---
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_settings (
@@ -314,9 +311,6 @@ def init_db(config):
             logger.info("Colonna 'wikipedia_enabled' aggiunta a 'user_settings'.")
         except sqlite3.OperationalError:
             logger.debug("Colonna 'wikipedia_enabled' già presente in 'user_settings'.")
-        logger.info("Tabella 'user_settings' verificata/creata.")
-
-
 
         # --- Tabella per Statistiche Pre-Calcolate (Caching) ---
         cursor.execute('''
@@ -329,7 +323,6 @@ def init_db(config):
                 last_calculated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )''')
-        logger.info("Tabella 'content_stats' per il caching delle statistiche verificata/creata.")
 
 
         # --- Tabella per Log delle Domande ---
@@ -340,8 +333,6 @@ def init_db(config):
                 query_text TEXT NOT NULL,           -- La domanda effettiva dell'utente finale
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )''')
-        logger.info("Tabella 'query_logs' per le domande degli utenti verificata/creata.")
-
 
         # --- Aggiunta colonne per Personalizzazione ---
         try:

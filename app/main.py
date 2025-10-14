@@ -8,6 +8,7 @@ from datetime import datetime
 import uuid
 import zipfile
 import time
+import requests
 import sys 
 import shutil
 import atexit
@@ -422,6 +423,48 @@ def create_app(config_object=AppConfig):
         except Exception as e:
             logger.exception("Errore durante fetch_token in /oauth2callback.")
             return jsonify({'success': False, 'error_code': 'OAUTH_TOKEN_FETCH_FAILED', 'message': f"Token fetch error: {str(e)}"}), 500
+        
+    @app.route('/revoke-google-token', methods=['POST'])
+    @login_required
+    def revoke_google_token():
+        """
+        Endpoint sicuro (POST) che revoca il token OAuth lato Google
+        e cancella il file token locale. Utile per forzare un nuovo flow OAuth.
+        """
+        # Solo admin / proprietario dovrebbero avere accesso; qui usiamo @login_required
+        token_path = current_app.config.get('TOKEN_PATH')
+        if not token_path or not os.path.exists(token_path):
+            return jsonify({'success': False, 'message': 'Token non trovato sul server.'}), 404
+
+        # Carichiamo il token per revocarlo (se è un token OAuth2)
+        try:
+            with open(token_path, 'r') as f:
+                data = json.load(f)
+                access_token = data.get('token') or data.get('access_token') or data.get('token_info', {}).get('access_token')
+        except Exception:
+            access_token = None
+
+        # Tentiamo di revocarlo (se abbiamo l'access_token)
+        if access_token:
+            try:
+                resp = requests.post('https://oauth2.googleapis.com/revoke', params={'token': access_token}, timeout=10)
+                logger.info(f"Revoca token Google: status={resp.status_code}")
+            except Exception as e:
+                logger.warning(f"Errore chiamando endpoint revoke: {e}")
+
+        # Rimuoviamo il file del token
+        try:
+            os.remove(token_path)
+        except Exception as e:
+            logger.error(f"Impossibile cancellare token file {token_path}: {e}")
+            return jsonify({'success': False, 'message': 'Impossibile eliminare il file del token sul server.'}), 500
+
+        # Risposta: token cancellato, vai ad autorizzare
+        return jsonify({
+            'success': True,
+            'message': 'Token revocato ed eliminato. Per favore ri-autorizza l\'applicazione.',
+            'reauthorize_url': url_for('authorize', _external=True)
+        })
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():

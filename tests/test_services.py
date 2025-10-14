@@ -10,6 +10,7 @@ from app.services.embedding.gemini_embedding import split_text_into_chunks
 from app.api.routes.documents import extract_text_from_file # Assumendo sia qui
 from app.services.transcripts.youtube_transcript import TranscriptService
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+from app.services.transcripts.youtube_transcript_unofficial_library import UnofficialTranscriptService
 
 # --- Test per split_text_into_chunks ---
 
@@ -221,3 +222,49 @@ def test_get_gemini_embeddings_handles_rate_limit_and_fails_gracefully(monkeypat
     # La cosa più importante: verifichiamo che abbia provato più volte!
     # La nostra funzione è impostata per fare 5 tentativi (retries=5)
     assert mock_genai.embed_content.call_count == 5
+
+def test_unofficial_transcript_service_chooses_correct_strategy(monkeypatch):
+    """
+    TEST: Verifica che UnofficialTranscriptService usi la strategia giusta
+    a seconda che 'list_transcripts' sia disponibile o meno.
+    """
+    # --- SCENARIO 1: La libreria è MODERNA (ha 'list_transcripts') ---
+    
+    # 1. ARRANGE (Scenario 1)
+    # Creiamo una finta classe YouTubeTranscriptApi che HA il metodo list_transcripts
+    mock_api_moderna = MagicMock()
+    mock_transcript_list_obj = MagicMock()
+    mock_transcript_obj = MagicMock(is_generated=False, language_code='it')
+    mock_transcript_obj.fetch.return_value = [{'text': 'testo moderno'}]
+    mock_transcript_list_obj.find_transcript.return_value = mock_transcript_obj
+    mock_api_moderna.list_transcripts.return_value = mock_transcript_list_obj
+    
+    # Sostituiamo la vera classe con la nostra finta versione moderna
+    monkeypatch.setattr('app.services.transcripts.youtube_transcript_unofficial_library.YouTubeTranscriptApi', mock_api_moderna)
+    
+    # 2. ACT (Scenario 1)
+    result_moderno = UnofficialTranscriptService.get_transcript('video1')
+    
+    # 3. ASSERT (Scenario 1)
+    assert result_moderno['text'] == 'testo moderno'
+    assert result_moderno['type'] == 'manual' # Ha dedotto correttamente il tipo
+    mock_api_moderna.list_transcripts.assert_called_once() # Ha usato il metodo giusto
+    assert not hasattr(mock_api_moderna, 'get_transcript') or mock_api_moderna.get_transcript.call_count == 0 # Non ha usato il fallback
+
+    # --- SCENARIO 2: La libreria è VECCHIA (NON ha 'list_transcripts') ---
+    
+    # 1. ARRANGE (Scenario 2)
+    # Creiamo una finta classe YouTubeTranscriptApi che NON HA il metodo list_transcripts
+    mock_api_vecchia = MagicMock(spec=['get_transcript']) # `spec` forza l'errore se si chiama un metodo non definito qui
+    mock_api_vecchia.get_transcript.return_value = [{'text': 'testo vecchio'}]
+    
+    # Sostituiamo la vera classe con la nostra finta versione vecchia
+    monkeypatch.setattr('app.services.transcripts.youtube_transcript_unofficial_library.YouTubeTranscriptApi', mock_api_vecchia)
+
+    # 2. ACT (Scenario 2)
+    result_vecchio = UnofficialTranscriptService.get_transcript('video2')
+    
+    # 3. ASSERT (Scenario 2)
+    assert result_vecchio['text'] == 'testo vecchio'
+    assert result_vecchio['type'] == 'unknown' # Ha usato correttamente il valore di fallback
+    mock_api_vecchia.get_transcript.assert_called_once() # Ha usato il metodo di fallbackp
