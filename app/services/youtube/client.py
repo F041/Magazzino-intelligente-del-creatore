@@ -34,17 +34,15 @@ class YouTubeClient:
     def extract_channel_info(self, url_or_id: str) -> str:
         """Estrae l'ID del canale da vari formati di URL"""
         try:
-            # Se è già un ID del canale
             if url_or_id.startswith('UC'):
                 return url_or_id
 
-            # Estrai l'handle o l'ID dal URL
             patterns = [
-                r'youtube\.com/channel/(UC[\w-]+)',  # Pattern per ID canale
-                r'youtube\.com/@([\w-]+)',           # Pattern per handle
-                r'youtube\.com/user/([\w-]+)',       # Pattern per username legacy
-                r'youtube\.com/c/([\w-]+)',          # Pattern per nome personalizzato
-                r'@([\w-]+)'                         # Pattern per handle diretto
+                r'youtube\.com/channel/(UC[\w-]+)',
+                r'youtube\.com/@([\w-]+)',
+                r'youtube\.com/user/([\w-]+)',
+                r'youtube\.com/c/([\w-]+)',
+                r'@([\w-]+)'
             ]
 
             for pattern in patterns:
@@ -54,13 +52,9 @@ class YouTubeClient:
                     if identifier.startswith('UC'):
                         return identifier
                     else:
-                        # Per gli handle moderni (@username), usa la ricerca
                         try:
                             request = self.youtube.search().list(
-                                part='snippet',
-                                q=identifier,
-                                type='channel',
-                                maxResults=1
+                                part='snippet', q=identifier, type='channel', maxResults=1
                             )
                             response = request.execute()
                             if response['items']:
@@ -68,11 +62,9 @@ class YouTubeClient:
                         except Exception as e:
                             logger.warning(f"Error finding channel by handle: {str(e)}")
                             
-                        # Prova con il metodo legacy per username
                         try:
                             request = self.youtube.channels().list(
-                                part='id',
-                                forUsername=identifier
+                                part='id', forUsername=identifier
                             )
                             response = request.execute()
                             if response['items']:
@@ -87,12 +79,10 @@ class YouTubeClient:
 
     def get_channel_videos_and_total_count(self, channel_id: str) -> Tuple[List[Video], int]:
         """
-        Recupera TUTTI i video di un canale, gestendo la paginazione, e restituisce anche il conteggio totale.
-        OTTIMIZZATO per ridurre il consumo di quota.
+        Recupera TUTTI i video di un canale, gestendo la paginazione e gli errori di quota.
         """
         all_videos = []
         next_page_token = None
-        max_results_per_page = 50
         total_results = 0
 
         logger.info(f"Inizio recupero video per canale {channel_id}.")
@@ -103,7 +93,7 @@ class YouTubeClient:
                 request = self.youtube.search().list(
                     part='id,snippet',
                     channelId=channel_id,
-                    maxResults=max_results_per_page,
+                    maxResults=50,
                     type='video',
                     order='date',
                     pageToken=next_page_token
@@ -129,16 +119,31 @@ class YouTubeClient:
                 next_page_token = response.get('nextPageToken')
                 if not next_page_token:
                     break
-
+            
             logger.info(f"Recupero video completato. Trovati: {len(all_videos)} video.")
             return all_videos, total_results
 
+        except HttpError as e:
+            # --- INIZIO BLOCCO DI GESTIONE ERRORE ---
+            # Controlliamo specificamente se l'errore è un 403 per quota esaurita.
+            if e.resp.status == 403 and 'quotaExceeded' in str(e):
+                logger.error(f"QUOTA API YOUTUBE SUPERATA durante il recupero della lista video per il canale {channel_id}.")
+                # Rilanciamo l'eccezione, così il chiamante sa esattamente cosa è successo
+                # e non riceve una lista vuota.
+                raise e
+            else:
+                # Se è un altro errore HTTP, lo logghiamo e lo rilanciamo.
+                logger.exception(f"Errore HTTP durante il recupero dei video del canale {channel_id}: {str(e)}")
+                raise e
+            # --- FINE BLOCCO DI GESTIONE ERRORE ---
+        
         except Exception as e:
-            logger.exception(f"Errore durante il recupero dei video del canale {channel_id}: {str(e)}")
-            return all_videos, total_results
+            logger.exception(f"Errore generico durante il recupero dei video del canale {channel_id}: {str(e)}")
+            # Anche in caso di altri errori, è meglio rilanciare l'eccezione
+            raise e
+
 
     def get_video_details(self, video_id: str) -> Video:
-        """Recupera i dettagli di un singolo video"""
         try:
             request = self.youtube.videos().list(
                 part='snippet,contentDetails,statistics',
@@ -151,16 +156,14 @@ class YouTubeClient:
 
             item = response['items'][0]
             
-            # --- BLOCCO CORRETTO ---
             video = Video(
                 video_id=video_id,
                 title=html.unescape(item['snippet']['title']),
                 url=f"https://www.youtube.com/watch?v={video_id}",
-                channel_id=item['snippet']['channelId'], # <-- Corretto: leggiamo l'ID dalla risposta
+                channel_id=item['snippet']['channelId'],
                 published_at=item['snippet']['publishedAt'],
                 description=html.unescape(item['snippet']['description'])
             )
-            # --- FINE BLOCCO CORRETTO ---
             return video
 
         except Exception as e:
@@ -168,10 +171,6 @@ class YouTubeClient:
             raise 
 
     def get_transcript_by_api(self, video_id: str, preferred_languages: list = ['it', 'en']) -> Optional[Dict[str, str]]:
-        """
-        Recupera una trascrizione usando l'API ufficiale di YouTube.
-        Cerca nelle lingue preferite e gestisce l'errore di quota con dei tentativi.
-        """
         logger.info(f"[API Ufficiale] Avvio recupero trascrizione per video ID: {video_id}")
         
         retries = 3
@@ -193,7 +192,6 @@ class YouTubeClient:
                     available_tracks[lang] = {'id': track_id, 'type': track_type}
                 
                 if not available_tracks:
-                    logger.warning(f"[API Ufficiale] Nessuna traccia di sottotitoli trovata per {video_id}.")
                     return {'error': 'NO_TRANSCRIPT_FOUND', 'message': 'Nessuna traccia (manuale o auto) disponibile.'}
 
                 track_to_download = None
@@ -202,14 +200,12 @@ class YouTubeClient:
                     if lang_code in available_tracks:
                         track_to_download = available_tracks[lang_code]
                         found_lang = lang_code
-                        logger.info(f"[API Ufficiale] Trovata traccia preferita '{found_lang}' (Tipo: {track_to_download['type']}).")
                         break
                 
                 if not track_to_download:
                     first_lang = next(iter(available_tracks))
                     track_to_download = available_tracks[first_lang]
                     found_lang = first_lang
-                    logger.info(f"[API Ufficiale] Nessuna lingua preferita. Uso fallback: '{found_lang}' (Tipo: {track_to_download['type']}).")
 
                 download_request = self.youtube.captions().download(
                     id=track_to_download['id'],
@@ -222,7 +218,6 @@ class YouTubeClient:
                 text_no_html = re.sub(r'<[^>]+>', '', text_no_ts)
                 clean_text = ' '.join(text_no_html.strip().split())
 
-                logger.info(f"[API Ufficiale] Trascrizione scaricata e pulita per {video_id} (lingua: {found_lang}).")
                 return {
                     'text': clean_text,
                     'language': found_lang,
@@ -230,25 +225,21 @@ class YouTubeClient:
                 }
 
             except HttpError as e:
-                if e.status_code == 403 and 'quotaExceeded' in str(e):
-                    logger.warning(f"[API Ufficiale] Quota YouTube superata (tentativo {attempt + 1}/{retries}). Attendo {delay} secondi...")
+                if e.resp.status == 403 and 'quotaExceeded' in str(e):
                     if attempt < retries - 1:
                         time.sleep(delay)
                         delay *= 2 
                         continue
                     else:
-                        logger.error(f"[API Ufficiale] Quota superata anche dopo {retries} tentativi. Mi arrendo per questo video.")
                         return {'error': 'QUOTA_EXCEEDED', 'message': f'Quota API di YouTube superata.'}
                 
                 error_str = str(e).lower()
                 if 'disabled' in error_str or 'forbidden' in error_str:
-                    logger.warning(f"[API Ufficiale] Le trascrizioni sono disabilitate per {video_id}.")
                     return {'error': 'TRANSCRIPTS_DISABLED', 'message': 'Le trascrizioni sono disabilitate per questo video.'}
                 
                 raise e
             
             except Exception as e:
-                logger.error(f"[API Ufficiale] Errore imprevisto durante il recupero trascrizione per {video_id}: {e}", exc_info=True)
                 return {'error': 'UNKNOWN_API_ERROR', 'message': f'Errore API YouTube: {str(e)[:150]}...'}
 
         return {'error': 'MAX_RETRIES_REACHED', 'message': 'Raggiunto numero massimo di tentativi senza successo.'}

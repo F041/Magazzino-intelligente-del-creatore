@@ -15,6 +15,7 @@ from app.services.embedding.embedding_service import generate_embeddings
 from app.core.youtube_processor import _background_channel_processing
 from app.utils import build_full_config_for_background_process 
 from app.services.chunking.agentic_chunker import chunk_text_agentically 
+from app.main import load_credentials
 
 
 # --- Import Servizi e Moduli App ---
@@ -125,8 +126,7 @@ def reprocess_single_video(video_id):
     Forza il riprocessamento completo di un singolo video (verifica utente,
     trascrizione, chunking, embedding, pulizia ChromaDB, upsert ChromaDB, update SQLite).
     """
-    with current_app.app_context():
-        from app.main import load_credentials
+    with current_app.app_context():        
         credentials = load_credentials()
         if not credentials or not credentials.valid:
             logger.warning(f"Tentativo di riprocessare {video_id} senza credenziali valide.")
@@ -226,7 +226,7 @@ def reprocess_single_video(video_id):
                 # --- 5. Chunking, Embedding, Chroma ---
         chunks = []
         if final_status == 'processing_embedding' and transcript_text:
-            # --- NUOVA LOGICA DI CHUNKING CONDIZIONALE ---
+            # --- LOGICA DI CHUNKING CONDIZIONALE ---
             use_agentic_chunking = str(core_config.get('USE_AGENTIC_CHUNKING', 'False')).lower() == 'true'
             chunk_size = core_config.get('DEFAULT_CHUNK_SIZE_WORDS', 300)
             chunk_overlap = core_config.get('DEFAULT_CHUNK_OVERLAP_WORDS', 50)
@@ -240,7 +240,6 @@ def reprocess_single_video(video_id):
             else:
                 logger.info(f"[Reprocess Single] [{video_id}] Esecuzione CHUNKING CLASSICO.")
                 chunks = split_text_into_chunks(transcript_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-            # --- FINE NUOVA LOGICA ---
 
             if not chunks:
                 final_status = 'completed'
@@ -696,4 +695,3 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
     
     logger.info(f"[_reindex_video_from_db][{video_id}] Re-indicizzazione terminata con stato: {final_status}")
     return final_status
-

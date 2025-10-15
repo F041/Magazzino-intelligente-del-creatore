@@ -1,4 +1,4 @@
-  document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", function () {
     // --- CHIAVI E LOGICA ACCORDION (CON MEMORIA) ---
     const ACCORDION_STORAGE_KEY = "magazzino_active_accordion";
     const accordionItems = document.querySelectorAll(".accordion-item");
@@ -138,23 +138,33 @@
       if (scheduleYoutubeBtn) scheduleYoutubeBtn.style.display = "none";
       if (scheduleRssBtn) scheduleRssBtn.style.display = "none";
     }
-    function updateAsyncStatusUI(message, statusClass, progressPercent = null) {
-        if (!statusDivAsync || !statusMessageSpanAsync) return;
+    
+    function updateAsyncStatusUI(message, statusClass, progressPercent = null, isIndeterminate = false) {
+            if (!statusDivAsync || !statusMessageSpanAsync) return;
 
-        statusDivAsync.style.display = "block";
-        statusDivAsync.className = statusClass; // Applica la classe per il colore (success/error)
-        
-        // Aggiorna il messaggio di testo
-        statusMessageSpanAsync.innerHTML = message;
+            statusDivAsync.style.display = "block";
+            statusDivAsync.className = statusClass;
+            
+            statusMessageSpanAsync.innerHTML = message;
 
-        // Gestione della BARRA GRAFICA
-        if (progressPercent !== null && progressBarContainerAsync && progressBarAsync) {
-            progressBarContainerAsync.style.display = "block";
-            progressBarAsync.style.width = `${progressPercent}%`;
-        } else if (progressBarContainerAsync) {
-            progressBarContainerAsync.style.display = "none";
+            if (progressBarContainerAsync && progressBarAsync) {
+                progressBarContainerAsync.style.display = "block";
+                
+                if (isIndeterminate) {
+                    // Se è indeterminato, mettiamo la barra al 100% e aggiungiamo l'animazione
+                    progressBarAsync.style.width = `100%`;
+                    progressBarAsync.classList.add('progress-bar-indeterminate');
+                } else {
+                    // Altrimenti, comportamento normale
+                    progressBarAsync.classList.remove('progress-bar-indeterminate');
+                    if (progressPercent !== null) {
+                        progressBarAsync.style.width = `${progressPercent}%`;
+                    } else {
+                        progressBarContainerAsync.style.display = "none";
+                    }
+                }
+            }
         }
-    }
 
     // --- FUNZIONI CRONOMETRO ---
     function startTimer() {
@@ -194,7 +204,7 @@
         resetAsyncStatusUI();
         updateAsyncStatusUI(
           'Avvio elaborazione canale... <span class="loading-spinner"></span>',
-          "success-message"
+          "info-message"
         );
         processBtnYoutube.textContent = "Elaborazione...";
         try {
@@ -240,7 +250,7 @@
         resetAsyncStatusUI();
         updateAsyncStatusUI(
           'Avvio elaborazione RSS... <span class="loading-spinner"></span>',
-          "success-message"
+          "info-message"
         );
         processRssBtn.textContent = "Processo...";
         try {
@@ -270,93 +280,78 @@
       });
     }
 
-    // --- FUNZIONE DI POLLING ---
+    // --- FUNZIONE DI POLLING (VERSIONE CORRETTA) ---
     function startProgressPolling(type) {
       clearInterval(progressInterval);
       currentPollingType = type;
-      progressInterval = setInterval(() => checkProgress(type), 2000);
+      progressInterval = setInterval(() => checkProgress(type), 1500); // Leggermente più veloce
     }
-async function checkProgress(type) {
-      const endpoint =
-        type === "youtube" ? "/api/videos/progress" : "/api/rss/progress";
-      try {
-        const response = await fetch(endpoint);
-        const progressData = await response.json();
-        if (progressData.is_processing) {
-          let msg = progressData.message || "Elaborazione in corso...";
-          let perc = null;
-          if (
-            type === "youtube" &&
-            progressData.current_video &&
-            progressData.current_video.total > 0
-          ) {
-            const current = progressData.current_video.index || 0;
-            const total = progressData.current_video.total;
-            perc = Math.round((current / total) * 100);
-            msg = `(${current}/${total}) ${
-              progressData.current_video.title || "video..."
-            }`;
-          }
-          // --- INIZIO CODICE DA AGGIUNGERE ---
-          else if (
-            type === "rss" &&
-            progressData.page_total_articles &&
-            progressData.page_total_articles > 0
-          ) {
-            const current = progressData.page_processed_articles || 0;
-            const total = progressData.page_total_articles;
-            perc = Math.round((current / total) * 100);
-            // Il messaggio viene già aggiornato, quindi non lo tocchiamo,
-            // calcoliamo solo la percentuale.
-            msg = progressData.message;
-          }
-          // --- FINE CODICE DA AGGIUNGERE ---
-          updateAsyncStatusUI(
-            `${msg} <span class="loading-spinner"></span>`,
-            "success-message",
-            perc
-          );
-        } else {
-          clearInterval(progressInterval);
-          stopTimer();
-          if (window.setAppStatus) window.setAppStatus("idle");
-          const finalMessage =
-            progressData.message || "Elaborazione completata.";
-          const finalStatusClass = progressData.error
-            ? "error-message"
-            : "success-message";
-          // --- INIZIO RIGA MODIFICATA ---
-          const finalPerc = (type === "youtube" || type === "rss") && !progressData.error ? 100 : null;
-          // --- FINE RIGA MODIFICATA ---
-          updateAsyncStatusUI(
-            progressData.error || finalMessage,
-            finalStatusClass,
-            finalPerc
-          );
+    
+    async function checkProgress(type) {
+        const endpoint = type === "youtube" ? "/api/videos/progress" : "/api/rss/progress";
+        try {
+            const response = await fetch(endpoint);
+            const progressData = await response.json();
 
-          if (finalStatusClass === "success-message") {
-            setTimeout(() => {
-              window.location.reload();
-            }, 1500); 
-          } else {
+            if (progressData.is_processing) {
+                // --- NUOVA LOGICA ---
+                // Se il backend ci dice che è un passo indeterminato, mostriamo la barra animata.
+                if (progressData.indeterminate_step) {
+                    updateAsyncStatusUI(
+                        `${progressData.message} <span class="loading-spinner"></span>`, 
+                        "info-message", 
+                        null, // La percentuale non serve
+                        true  // Attiva la barra animata!
+                    );
+                } else {
+                    // Altrimenti, procediamo con la logica normale della percentuale.
+                    let msg = progressData.message || "Elaborazione in corso...";
+                    let perc = null;
+                    if (type === "youtube" && progressData.current_video && progressData.current_video.total > 0) {
+                        const current = progressData.current_video.index || 0;
+                        const total = progressData.current_video.total;
+                        perc = Math.round((current / total) * 100);
+                        // Usiamo il messaggio del backend se disponibile, altrimenti creiamo il nostro
+                        msg = progressData.message || `(${current}/${total}) ${progressData.current_video.title || "video..."}`;
+                    } else if (type === "rss" && progressData.page_total_articles && progressData.page_total_articles > 0) {
+                        const current = progressData.page_processed_articles || 0;
+                        const total = progressData.page_total_articles;
+                        perc = Math.round((current / total) * 100);
+                        msg = progressData.message;
+                    }
+                    updateAsyncStatusUI(
+                        `${msg} <span class="loading-spinner"></span>`, 
+                        "info-message", // Usiamo 'info' per coerenza
+                        perc
+                    );
+                }
+            } else {
+                // Logica di fine processo (invariata)
+                clearInterval(progressInterval);
+                stopTimer();
+                if (window.setAppStatus) window.setAppStatus("idle");
+                const finalMessage = progressData.message || "Elaborazione completata.";
+                const finalStatusClass = progressData.error ? "error-message" : "success-message";
+                const finalPerc = !progressData.error ? 100 : null;
+                updateAsyncStatusUI(progressData.error || finalMessage, finalStatusClass, finalPerc);
+                if (finalStatusClass === "success-message") {
+                    setTimeout(() => { window.location.reload(); }, 1500);
+                } else {
+                    enableAllForms();
+                }
+            }
+        } catch (error) {
+            clearInterval(progressInterval);
+            stopTimer();
+            if (window.setAppStatus) window.setAppStatus("idle");
+            updateAsyncStatusUI("Errore nel controllo dello stato.", "error-message");
             enableAllForms();
-          }
+            if (type === "youtube") processBtnYoutube.textContent = "Processa Video";
+            if (type === "rss") processRssBtn.textContent = "Processa Feed";
+            currentPollingType = null;
         }
-      } catch (error) {
-        clearInterval(progressInterval);
-        stopTimer();
-        if (window.setAppStatus) window.setAppStatus("idle");
-        updateAsyncStatusUI(
-          "Errore nel controllo dello stato.",
-          "error-message"
-        );
-        enableAllForms();
-        if (type === "youtube")
-          processBtnYoutube.textContent = "Processa Video";
-        if (type === "rss") processRssBtn.textContent = "Processa Feed";
-        currentPollingType = null;
-      }
     }
+
 
     // --- GESTIONE DOCUMENTI ---
     if (uploadDocBtnDocs) {
@@ -370,7 +365,7 @@ async function checkProgress(type) {
           formData.append("documents", file);
         }
         docUploadStatusDocs.innerHTML = `Caricamento... <span class="loading-spinner"></span>`;
-        docUploadStatusDocs.className = "info-message"; // Usiamo 'info' per il caricamento
+        docUploadStatusDocs.className = "info-message";
         docUploadStatusDocs.style.display = "block";
         uploadDocBtnDocs.disabled = true;
         
@@ -384,19 +379,16 @@ async function checkProgress(type) {
           if (response.ok && data.success) {
             docUploadStatusDocs.textContent = data.message + " La pagina si ricaricherà a breve.";
             docUploadStatusDocs.className = "success-message";
-            // --- NUOVA LOGICA DI REFRESH ---
             setTimeout(() => {
                 window.location.reload();
-            }, 2000); // Attendi 2 secondi prima di ricaricare
+            }, 2000);
           } else {
             throw new Error(data.message || 'Errore durante l\'upload.');
           }
         } catch (error) {
           docUploadStatusDocs.textContent = `Errore: ${error.message}`;
           docUploadStatusDocs.className = "error-message";
-          uploadDocBtnDocs.disabled = false; // Riabilita il pulsante solo in caso di errore
-        } finally {
-          // Non svuotiamo più i campi qui, tanto la pagina si ricaricherà
+          uploadDocBtnDocs.disabled = false;
         }
       });
     }

@@ -5,10 +5,10 @@ from flask import url_for
 from app.api.models.video import Video
 
 # Funzioni helper (invariate)
-def login_test_user_for_videos(client, app, monkeypatch, email="videouser@example.com"):
+def login_test_user_for_videos(client, app, monkeypatch, email="videouser@example.com", password="password"):
     monkeypatch.setenv("ALLOWED_EMAILS", email)
-    client.post(url_for('register'), data={'email': email, 'password': 'password', 'confirm_password': 'password'})
-    client.post(url_for('login'), data={'email': email, 'password': 'password'})
+    client.post(url_for('register'), data={'email': email, 'password': password, 'confirm_password': password})
+    client.post(url_for('login'), data={'email': email, 'password': password})
     user_id = None
     with app.app_context():
         conn = sqlite3.connect(app.config['DATABASE_FILE'])
@@ -51,11 +51,12 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
     mock_chunks = ["Trascrizione aggiornata."]
     mock_embeddings = [[0.5] * 768]
     
-    path_load_credentials = 'app.main.load_credentials'
-    path_get_video_details = 'app.api.routes.videos.YouTubeClient.get_video_details'
-    path_transcript_service = 'app.api.routes.videos.TranscriptService.get_transcript'
+    # Definiamo i path di TUTTE le funzioni e classi che dobbiamo "ingannare"
+    path_load_credentials = 'app.api.routes.videos.load_credentials'
+    path_youtube_client_class = 'app.api.routes.videos.YouTubeClient' # Corretto il path
+    path_transcript_service_get_transcript = 'app.api.routes.videos.TranscriptService.get_transcript' # Corretto il path
     path_split_chunks = 'app.api.routes.videos.split_text_into_chunks'
-    path_generate_embeddings = 'app.api.routes.videos.generate_embeddings'
+    path_generate_embeddings = 'app.api.routes.videos.generate_embeddings' # Corretto il path
     path_agentic_chunker = 'app.api.routes.videos.chunk_text_agentically'
     
     mock_valid_credentials = MagicMock(valid=True)
@@ -64,13 +65,17 @@ def test_reprocess_single_video_success(client, app, monkeypatch):
     mock_chroma_client.get_or_create_collection.return_value = mock_chroma_collection
 
     with patch(path_load_credentials, return_value=mock_valid_credentials), \
-         patch(path_get_video_details, return_value=mock_video_model), \
-         patch(path_transcript_service, return_value=mock_transcript_result), \
+         patch(path_youtube_client_class) as MockYouTubeClient, \
+         patch(path_transcript_service_get_transcript, return_value=mock_transcript_result), \
          patch(path_split_chunks, return_value=mock_chunks), \
          patch(path_generate_embeddings, return_value=mock_embeddings), \
          patch(path_agentic_chunker, return_value=mock_chunks), \
          patch.dict(app.config, {'CHROMA_CLIENT': mock_chroma_client}):
         
+        # Configura il mock di YouTubeClient
+        mock_yt_client_instance = MockYouTubeClient.return_value
+        mock_yt_client_instance.get_video_details.return_value = mock_video_model
+
         # 2. ACT
         response = client.post(url_for('videos.reprocess_single_video', video_id=video_id))
 

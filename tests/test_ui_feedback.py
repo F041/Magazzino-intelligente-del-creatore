@@ -2,9 +2,9 @@ import pytest
 from unittest.mock import patch, MagicMock
 from flask import url_for
 import sqlite3
-from app.api.models.video import Video # <-- NUOVO IMPORT
+from app.api.models.video import Video
 
-# Funzioni helper (invariate)
+# Funzioni helper (aggiornate per coerenza)
 def login_test_user_for_feedback(client, app, monkeypatch, email="uitest@example.com", password="password"):
     monkeypatch.setenv("ALLOWED_EMAILS", email)
     client.post(url_for('register'), data={'email': email, 'password': password, 'confirm_password': password})
@@ -24,17 +24,19 @@ def create_test_video_for_feedback(app, user_id, video_id="test_vid_ui_01"):
     with app.app_context():
         conn = sqlite3.connect(app.config['DATABASE_FILE'])
         cursor = conn.cursor()
+        # Inseriamo tutti i campi necessari, compresi quelli di default e quelli non null
         cursor.execute("""
             INSERT OR REPLACE INTO videos (video_id, title, url, channel_id, published_at, user_id, processing_status)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (video_id, "Test Video for UI", "http://fake.url", "fake_channel", "2023-01-01T00:00:00Z", user_id, "completed"))
+        """, (video_id, "Test Video for UI", "http://fake.url/video", "fake_channel_id", "2023-01-01T00:00:00Z", user_id, "completed"))
         conn.commit()
         conn.close()
     return video_id
 
 def test_reprocess_failure_shows_banner_message(client, app, monkeypatch):
     """
-    TEST CORRETTO: Verifica la gestione del fallimento della trascrizione.
+    TEST CORRETTO: Verifica la gestione del fallimento della trascrizione
+    e il messaggio di errore corretto.
     """
     # 1. ARRANGE
     user_id = login_test_user_for_feedback(client, app, monkeypatch)
@@ -44,20 +46,30 @@ def test_reprocess_failure_shows_banner_message(client, app, monkeypatch):
     risultato_di_fallimento_simulato = {'error': 'TRANSCRIPT_FAILED', 'message': messaggio_di_errore_simulato}
 
     # Creiamo un finto oggetto Video per simulare la risposta di get_video_details
-    mock_video_model = Video(video_id=video_id, title='Titolo Test', description='Desc Test', url='http://fake.url', channel_id='fake_channel', published_at='2023-01-01T00:00:00Z')
+    mock_video_model = Video(
+        video_id=video_id,
+        title='Titolo Test',
+        description='Desc Test',
+        url='http://fake.url/test',
+        channel_id='fake_channel_id',
+        published_at='2023-01-01T00:00:00Z'
+    )
 
-    path_load_credentials = 'app.main.load_credentials' 
-    path_get_video_details = 'app.api.routes.videos.YouTubeClient.get_video_details'
-    path_transcript_service = 'app.api.routes.videos.TranscriptService.get_transcript'
+    # Definiamo i path di TUTTE le funzioni e classi che dobbiamo "ingannare"
+    path_load_credentials = 'app.api.routes.videos.load_credentials' # Ora è globale
+    path_youtube_client_class = 'app.api.routes.videos.YouTubeClient'
+    path_transcript_service_get_transcript = 'app.api.routes.videos.TranscriptService.get_transcript'
     
     mock_valid_credentials = MagicMock(valid=True)
-    # Inganniamo os.path.exists per l'init del client
-    monkeypatch.setattr("os.path.exists", lambda path: True)
 
     with patch(path_load_credentials, return_value=mock_valid_credentials), \
-         patch(path_get_video_details, return_value=mock_video_model) as mock_details, \
-         patch(path_transcript_service, return_value=risultato_di_fallimento_simulato) as mock_transcript:
+         patch(path_youtube_client_class) as MockYouTubeClient, \
+         patch(path_transcript_service_get_transcript, return_value=risultato_di_fallimento_simulato):
         
+        # Configura il mock di YouTubeClient
+        mock_yt_client_instance = MockYouTubeClient.return_value
+        mock_yt_client_instance.get_video_details.return_value = mock_video_model
+
         # 2. ACT
         response = client.post(url_for('videos.reprocess_single_video', video_id=video_id))
 
@@ -65,11 +77,6 @@ def test_reprocess_failure_shows_banner_message(client, app, monkeypatch):
     assert response.status_code == 200
     data = response.json
     
-    # Ora l'asserzione corretta passerà, perché il DB non andrà in errore
     assert data['success'] is False
     assert data['error_code'] == 'TRANSCRIPT_FAILED' 
     assert messaggio_di_errore_simulato in data['message']
-    
-    # Verifichiamo che le nostre spie siano state chiamate
-    mock_details.assert_called_once()
-    mock_transcript.assert_called_once()

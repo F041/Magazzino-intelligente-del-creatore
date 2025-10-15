@@ -620,38 +620,67 @@ def create_app(config_object=AppConfig):
     def my_videos():
         db_path = current_app.config.get('DATABASE_FILE')
         app_mode = current_app.config.get('APP_MODE', 'single')
-
         current_user_id = current_user.id if current_user.is_authenticated else None
 
         if app_mode == 'saas' and not current_user_id:
-             # Questo non dovrebbe succedere a causa di @login_required, ma per sicurezza
-             logger.error("/my-videos: Modalità SAAS ma utente non autenticato (questo è strano).")
              flash("Errore: Utente non identificato.", "error")
              return redirect(url_for('login'))
-        elif app_mode == 'saas':
-             logger.info(f"/my-videos: Modalità SAAS, filtro per user '{current_user_id}'")
-        else:
-             logger.info(f"/my-videos: Modalità SINGLE, mostro tutti i video.")
-             current_user_id = None # Assicura sia None in single mode per la query
 
-        videos_from_db = []
+        videos_with_stats = []
         try:
-            if not db_path: raise ValueError("Percorso DB non configurato")
-            conn = sqlite3.connect(db_path); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
             sql_query = 'SELECT * FROM videos'
             params = []
             if app_mode == 'saas':
                 sql_query += ' WHERE user_id = ?'
-                params.append(current_user_id) # Usa l'ID reale
+                params.append(current_user_id)
             sql_query += ' ORDER BY published_at DESC'
+            
             cursor.execute(sql_query, tuple(params))
             videos_from_db = cursor.fetchall()
             conn.close()
-            logger.info(f"/my-videos: Recuperati {len(videos_from_db)} video dal DB.")
+
+            chroma_client = current_app.config.get('CHROMA_CLIENT')
+            base_collection_name = current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
+            collection_name = f"{base_collection_name}_{current_user_id}" if app_mode == 'saas' else base_collection_name
+            
+            video_collection = None
+            try:
+                if chroma_client:
+                    video_collection = chroma_client.get_collection(name=collection_name)
+            except Exception as e:
+                logger.warning(f"Collezione Chroma '{collection_name}' non trovata: {e}")
+
+            for video_row in videos_from_db:
+                video_dict = dict(video_row)
+                fragment_count = 0
+                if video_collection:
+                    try:
+                        # --- INIZIO DELLA CORREZIONE ---
+                        # Usiamo .get() che è più robusto, chiedendo solo gli ID per efficienza.
+                        results = video_collection.get(
+                            where={"video_id": video_dict['video_id']},
+                            include=[]  # Non ci serve il contenuto, solo contare
+                        )
+                        # Il conteggio è la lunghezza della lista di ID restituiti.
+                        fragment_count = len(results.get('ids', []))
+                        # --- FINE DELLA CORREZIONE ---
+                    except Exception as e_count:
+                        logger.error(f"Errore nel contare i frammenti per video {video_dict['video_id']}: {e_count}")
+                
+                video_dict['fragment_count'] = fragment_count
+                videos_with_stats.append(video_dict)
+            
+            logger.info(f"/my-videos: Recuperati {len(videos_with_stats)} video e contati i loro frammenti.")
+
         except (sqlite3.Error, ValueError) as e:
             logger.error(f"Errore lettura DB per /my-videos: {e}")
+
         return render_template('my_videos.html',
-                           videos=videos_from_db,
+                           videos=videos_with_stats,
                            config=current_app.config)
 
     @app.route('/my-documents')

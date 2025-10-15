@@ -714,7 +714,6 @@ label {
     align-items: center;
     flex-wrap: wrap;
     box-shadow: var(--box-shadow-sm);
-    justify-content: space-between; /* Spinge i gruppi ai lati opposti */
     gap: 20px; /* Spazio tra i gruppi quando vanno a capo */
 }
 
@@ -989,8 +988,12 @@ label {
 
 .action-group {
     display: flex;
-    flex-direction: column; /* Mette il testo sotto al bottone */
-    align-items: flex-start; /* Allinea a sinistra */
+    align-items: center; /* Allinea verticalmente il testo al bottone */
+    gap: 10px; /* Aggiunge un po' di spazio tra bottone e testo */
+}
+
+.action-panel .delete-btn {
+    margin-left: auto;
 }
 
 .table-responsive-wrapper .data-table {
@@ -998,4 +1001,36 @@ label {
     box-shadow: none;
     border: none;
     border-radius: 0;
+}
+
+/* Stili per barra di avanzamento indeterminata (animata) */
+.progress-bar-indeterminate {
+    background-size: 2rem 2rem;
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+    from { background-position: 2rem 0; }
+    to { background-position: 0 0; }
+}
+
+/* ==========================================================================
+   Correzioni Responsive Aggiuntive
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .action-panel {
+    flex-direction: column; /* Impila gli elementi verticalmente */
+    align-items: stretch;   /* Fa in modo che i figli occupino tutta la larghezza */
+  }
+
+  .action-panel .delete-btn {
+    margin-left: 0; /* Rimuove il margine automatico che non serve più in verticale */
+  }
+
+  .action-group {
+      justify-content: center; /* Centra il bottone e il testo quando vanno a capo */
+      flex-wrap: wrap;
+  }
 }

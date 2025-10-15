@@ -1,5 +1,16 @@
 {% extends "base.html" %} {% block title %}I tuoi video - Magazzino del
-Creatore{% endblock %} {% block content %}
+Creatore{% endblock %} {% block head_styles %}
+<style>
+  .data-table td:first-child a {
+    display: inline-block;
+    max-width: 350px; /* Larghezza massima per il titolo */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle; /* Allinea meglio il testo se va a capo */
+  }
+</style>
+{% endblock %} {% block content %}
 <h1>I tuoi video salvati ({{ videos|length }})</h1>
 
 <div class="action-panel">
@@ -33,11 +44,12 @@ Creatore{% endblock %} {% block content %}
     <thead>
       <tr>
         <th>Titolo</th>
-        <th>Data Pubblicazione</th>
+        <th>Data pubblicazione</th>
         <th>Stato</th>
-        <th>Tipo Sottotitoli</th>
+        <th>Tipo sottotitoli</th>
         <th>Lingua</th>
-        <th>Anteprima Trascrizione</th>
+        <th>Anteprima trascrizione</th>
+        <th>Frammenti testo</th>
         <th>Azioni</th>
       </tr>
     </thead>
@@ -83,6 +95,9 @@ Creatore{% endblock %} {% block content %}
           {% endif %}
         </td>
         <td>
+          {{ video.fragment_count | default('N/D') }}
+        </td>
+        <td>
           <button
             class="action-btn reprocess-btn"
             data-video-id="{{ video.video_id | trim | escape }}"
@@ -94,7 +109,7 @@ Creatore{% endblock %} {% block content %}
       </tr>
       {% else %}
       <tr>
-        <td colspan="7" class="no-items-message">
+        <td colspan="8" class="no-items-message">
           Nessun video trovato nel database.<br />
           Vai su <a href="{{ url_for('data_entry') }}">Ingresso Dati</a> per
           processare un canale.
@@ -245,7 +260,7 @@ Creatore{% endblock %} {% block content %}
             showNotification(data.message, "success");
             document.querySelector(
               ".data-table tbody"
-            ).innerHTML = `<tr><td colspan="7" class="no-items-message">Nessun video da mostrare.</td></tr>`;
+            ).innerHTML = `<tr><td colspan="8" class="no-items-message">Nessun video da mostrare.</td></tr>`;
             deleteAllBtn.textContent = "Eliminati";
           } else {
             throw new Error(data.message);

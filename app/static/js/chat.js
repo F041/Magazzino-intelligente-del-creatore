@@ -212,11 +212,11 @@ function updateUIState() {
 
             const metricsToggle = document.createElement('button');
             metricsToggle.classList.add('metrics-toggle');
-            metricsToggle.textContent = 'Dettagli Performance ▼';
+            metricsToggle.textContent = 'Dettagli prestazioni ▼';
             metricsToggle.addEventListener('click', function() {
                 const isHidden = metricsContainer.style.display === 'none';
                 metricsContainer.style.display = isHidden ? 'block' : 'none';
-                metricsToggle.textContent = `Dettagli Performance ${isHidden ? '▲' : '▼'}`;
+                metricsToggle.textContent = `Dettagli prestazioni ${isHidden ? '▲' : '▼'}`;
             });
 
             function createMetricRow(label, value, totalDuration = null, barColor = 'var(--color-primary)') {
