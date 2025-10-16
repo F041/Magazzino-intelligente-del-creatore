@@ -1,3 +1,5 @@
+# FILE: app/core/youtube_processor.py
+
 import logging
 import sqlite3
 import threading
@@ -152,7 +154,6 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                 video_data_dict = video_model.model_dump()
                 video_data_dict.update({'transcript': transcript_text, 'transcript_language': transcript_lang, 'captions_type': transcript_type, 'processing_status': current_video_status, 'user_id': user_id})
                 processed_videos_data_for_db.append(video_data_dict)
-                time.sleep(1)
 
             if processed_videos_data_for_db:
                 sql_insert = ''' INSERT OR REPLACE INTO videos (video_id, title, url, channel_id, published_at, description, transcript, transcript_language, captions_type, user_id, processing_status, added_at ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) '''
@@ -176,6 +177,7 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
     status_lock = threading.Lock()
     thread_final_message = "Elaborazione terminata."
     job_success = False
+    error_code_to_frontend = None # <-- NUOVA VARIABILE
 
     with status_lock:
         status_dict.update(initial_status)
@@ -226,11 +228,18 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
             else:
                  thread_final_message = "Si sono verificati errori durante il processo. Controllare i log."
 
+        # --- INIZIO BLOCCO MODIFICATO ---
+        except google_exceptions.ResourceExhausted as e_quota:
+            logger.error(f"BACKGROUND THREAD YT: QUOTA API ESAURITA! Dettagli: {e_quota}")
+            thread_final_message = "Limite richieste API raggiunto. Per canali grandi, considera di usare l'automazione per processare i contenuti un po' alla volta."
+            error_code_to_frontend = 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE' # <-- CODICE SPECIALE
+            job_success = False
+        # --- FINE BLOCCO MODIFICATO ---
         except Exception as e_thread:
             logger.exception(f"BACKGROUND THREAD YT: ERRORE CRITICO.")
             error_text = str(e_thread).lower()
-            if 'forbidden' in error_text or '403' in error_text or 'quotaexceeded' in error_text:
-                thread_final_message = "Errore Quota API: hai esaurito le richieste giornaliere a YouTube. Riprova domani."
+            if 'forbidden' in error_text or '403' in error_text:
+                thread_final_message = "Errore Quota/Permessi API: hai esaurito le richieste giornaliere a YouTube o i permessi non sono sufficienti. Riprova domani o ri-autorizza l'applicazione."
             else:
                 thread_final_message = f"Errore critico: {e_thread}"
             job_success = False
@@ -240,4 +249,11 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
                 status_dict['current_video'] = None
                 status_dict['message'] = thread_final_message
                 status_dict['indeterminate_step'] = False
+                # Aggiungiamo il nostro nuovo codice di errore se presente
+                if error_code_to_frontend:
+                    status_dict['error'] = thread_final_message # Manteniamo il messaggio per la UI
+                    status_dict['error_code'] = error_code_to_frontend # Aggiungiamo il codice
+                elif not job_success:
+                    status_dict['error'] = thread_final_message
+
             logger.info(f"BACKGROUND THREAD YT: Terminato. Successo: {job_success}. Messaggio: {thread_final_message}")

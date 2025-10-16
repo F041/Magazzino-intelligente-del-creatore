@@ -1,3 +1,5 @@
+// FILE: app/static/js/data_entry.js
+
 document.addEventListener("DOMContentLoaded", function () {
     // --- CHIAVI E LOGICA ACCORDION (CON MEMORIA) ---
     const ACCORDION_STORAGE_KEY = "magazzino_active_accordion";
@@ -334,6 +336,19 @@ document.addEventListener("DOMContentLoaded", function () {
                 const finalStatusClass = progressData.error ? "error-message" : "success-message";
                 const finalPerc = !progressData.error ? 100 : null;
                 updateAsyncStatusUI(progressData.error || finalMessage, finalStatusClass, finalPerc);
+                
+                // --- INIZIO BLOCCO MODIFICATO ---
+                if (progressData.error_code === 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE') {
+                    if (currentPollingType === 'youtube' && scheduleYoutubeBtn && lastProcessedYoutubeUrl) {
+                        scheduleYoutubeBtn.setAttribute('data-url', lastProcessedYoutubeUrl);
+                        scheduleYoutubeBtn.style.display = 'inline-flex';
+                    } else if (currentPollingType === 'rss' && scheduleRssBtn && lastProcessedRssUrl) {
+                        scheduleRssBtn.setAttribute('data-url', lastProcessedRssUrl);
+                        scheduleRssBtn.style.display = 'inline-flex';
+                    }
+                }
+                // --- FINE BLOCCO MODIFICATO ---
+                
                 if (finalStatusClass === "success-message") {
                     setTimeout(() => { window.location.reload(); }, 1500);
                 } else {

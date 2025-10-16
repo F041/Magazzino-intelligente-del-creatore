@@ -1,8 +1,11 @@
+# FILE: tests/test_ui_feedback.py
+
 import pytest
 from unittest.mock import patch, MagicMock
 from flask import url_for
 import sqlite3
 from app.api.models.video import Video
+from google.api_core import exceptions as google_exceptions # Importiamo l'eccezione da simulare
 
 # Funzioni helper (aggiornate per coerenza)
 def login_test_user_for_feedback(client, app, monkeypatch, email="uitest@example.com", password="password"):
@@ -80,3 +83,52 @@ def test_reprocess_failure_shows_banner_message(client, app, monkeypatch):
     assert data['success'] is False
     assert data['error_code'] == 'TRANSCRIPT_FAILED' 
     assert messaggio_di_errore_simulato in data['message']
+
+def test_youtube_processing_handles_quota_error_correctly(client, app, monkeypatch):
+    """
+    Verifica che il processo di analisi di un canale YouTube, quando incontra un errore di quota API,
+    termini correttamente e imposti l'error_code 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE'.
+    """
+    # 1. ARRANGE: Prepariamo l'ambiente
+    login_test_user_for_feedback(client, app, monkeypatch)
+    
+    # --- CORREZIONE QUI ---
+    # Il path corretto è dove la funzione viene CERCATA, cioè in app.main
+    path_load_credentials = 'app.main.load_credentials'
+    path_yt_client_class = 'app.core.youtube_processor.YouTubeClient'
+
+    # Creiamo le nostre "spie" (mocks)
+    mock_valid_credentials = MagicMock(valid=True)
+    mock_yt_client_instance = MagicMock()
+    
+    # --- LA SIMULAZIONE CHIAVE ---
+    # Istruiamo la spia a generare l'errore di quota esaurita quando viene chiamata
+    mock_yt_client_instance.get_channel_videos_and_total_count.side_effect = google_exceptions.ResourceExhausted("Simulated Google API Quota Exceeded")
+
+    # Applichiamo le nostre spie al codice reale
+    with patch(path_load_credentials, return_value=mock_valid_credentials), \
+         patch(path_yt_client_class, return_value=mock_yt_client_instance):
+
+        # 2. ACT: Avviamo il processo che fallirà
+        response_start = client.post(
+            url_for('videos.process_channel'),
+            json={'channel_url': 'https://www.youtube.com/channel/testchannel'}
+        )
+        assert response_start.status_code == 202 # L'avvio del thread ha successo
+
+        # Attendiamo un istante per dare tempo al thread in background di eseguire e fallire
+        import time
+        time.sleep(1) 
+
+        # Ora chiediamo lo stato finale del processo
+        response_progress = client.get(url_for('videos.get_progress'))
+
+    # 3. ASSERT: Verifichiamo il risultato
+    assert response_progress.status_code == 200
+    progress_data = response_progress.json
+    
+    assert progress_data['is_processing'] is False
+    assert progress_data['error'] is not None # Deve esserci un messaggio di errore
+    # La verifica più importante: il codice di errore è quello che abbiamo definito
+    assert progress_data['error_code'] == 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE'
+    assert "Limite richieste API raggiunto" in progress_data['message']
