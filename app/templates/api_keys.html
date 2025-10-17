@@ -146,6 +146,7 @@ get_flashed_messages(with_categories=true) %} {% if messages %}
 </div>
 
 {% endblock %} {% block scripts %}
+{{ super() }}
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const apiKeyList = document.getElementById("api-key-list");
@@ -201,13 +202,16 @@ get_flashed_messages(with_categories=true) %} {% if messages %}
         const keyItemDiv = document.getElementById(`key-item-${keyId}`);
         if (!keyId || !keyItemDiv) return;
 
-        if (
-          !confirm(
-            "Sei sicuro di voler eliminare definitivamente questa chiave API?"
-          )
-        ) {
-          return;
+        // --- INIZIO BLOCCO MODIFICATO ---
+        const userConfirmed = await showConfirmModal(
+            "Conferma eliminazione",
+            "Sei sicuro di voler eliminare definitivamente questa chiave API? L'azione è irreversibile."
+        );
+        
+        if (!userConfirmed) {
+            return; // L'utente ha annullato, quindi interrompiamo la funzione
         }
+        // --- FINE BLOCCO MODIFICATO ---
 
         targetButton.disabled = true;
         targetButton.textContent = "...";

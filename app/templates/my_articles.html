@@ -11,12 +11,11 @@
             <span>Scarica contenuto articoli (.txt) </span>
         </a>
         <span style="font-size: 0.9em; color: var(--color-text-light);">(Solo articoli 'completed')</span>
-        {% if config.APP_MODE == 'saas' %}
+        {% if config.APP_MODE == 'saas' and articles %} <!-- saas non mi convince, perché era stato inserito? -->
             <button id="delete-all-articles-btn" class="action-btn delete-btn" style="margin-left: auto;">
                 <i class="fas fa-trash-alt fa-fw"></i>
                 <span>Elimina tutti</span>
             </button>
-            <!-- CORREZIONE: Loader nascosto di default -->
             <span id="delete-all-articles-loader" class="action-loader" style="display: none;">(eliminazione...)</span>
         {% endif %}
     </div>

@@ -26,7 +26,7 @@ Creatore{% endblock %} {% block head_styles %}
       >(Solo video 'completed')</span
     >
   </div>
-  {% if config.APP_MODE == 'saas' %}
+  {% if config.APP_MODE == 'saas' and videos %}
   <button
     id="delete-all-videos-btn"
     class="action-btn delete-btn"
@@ -158,7 +158,6 @@ Creatore{% endblock %} {% block head_styles %}
 
         if (!videoId || !statusCell) return;
 
-        // --- MODIFICA 1: Imposta stato "processing" ---
         if (window.setAppStatus) window.setAppStatus("processing");
         showOverlay("Riprocessamento del video in corso...");
 
@@ -172,10 +171,8 @@ Creatore{% endblock %} {% block head_styles %}
         });
 
         hideOverlay();
-        // --- MODIFICA 2: Ripristina stato "idle" ---
         if (window.setAppStatus) window.setAppStatus("idle");
 
-        // ... (il resto della logica per gestire la risposta rimane invariato) ...
         if (response.status === 401) {
           const data = await response.json();
           const userConfirmed = await showConfirmModal(
@@ -201,7 +198,7 @@ Creatore{% endblock %} {% block head_styles %}
           }
 
           showNotification(data.message || "Operazione completata.", "success");
-          // ---  BLOCCO PER AGGIORNAMENTO DINAMICO UI ---
+          // ---   AGGIORNAMENTO DINAMICO UI ---
           if (data.success && data.updated_metadata) {
             const videoRow = document.getElementById(`video-row-${videoId}`);
             if (videoRow) {

@@ -564,6 +564,34 @@
             window.setAppStatus("processing");
           }
         };
+
+        // ---   BLOCCO PER PREVENIRE DOPPIO SUBMIT ---
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            // Troviamo il pulsante di submit all'interno del form che è stato inviato
+            const submitButton = form.querySelector('button[type="submit"]');
+
+            // Applichiamo la logica solo se troviamo un pulsante di submit
+            // e se il form non ha un attributo "data-no-disable" (per future eccezioni)
+            if (submitButton && !form.hasAttribute('data-no-disable')) {
+                // Disabilitiamo il pulsante
+                submitButton.disabled = true;
+                
+                // Cambiamo il testo per dare un feedback
+                // Cerchiamo l'icona e il testo per modificarli in modo intelligente
+                const icon = submitButton.querySelector('i');
+                const textSpan = submitButton.querySelector('span');
+
+                if (icon) {
+                    icon.className = 'fas fa-spinner fa-spin'; // Sostituisce l'icona con uno spinner
+                }
+                if (textSpan) {
+                    textSpan.textContent = 'Salvataggio...'; // Cambia il testo
+                } else {
+                    submitButton.textContent = 'Salvataggio...'; // Fallback se non c'è uno span
+                }
+            }
+        });
       })();
     </script>
     {% endblock %}
