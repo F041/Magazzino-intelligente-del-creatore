@@ -8,36 +8,15 @@
 
 # Magazzino del Creatore
 
-Un'applicazione per creare una base di conoscenza interrogabile a partire dai contenuti di un creator (video YouTube, documenti, articoli RSS), utilizzando Flask per il backend, ChromaDB come database vettoriale e un LLM a scelta (Google Gemini o un modello locale tramite Ollama) per la generazione di risposte (architettura RAG).
-
-**Modalità Operative (`APP_MODE`)**
-
-L'applicazione supporta due modalità operative principali, configurabili tramite la variabile `APP_MODE` nel file `.env`:
-
-*   **`APP_MODE=single`:**
-    *   Ideale per uso personale o singolo creator.
-    *   Tutti i dati (SQLite e ChromaDB) sono condivisi in un unico set di tabelle/collezioni.
-    *   Non richiede autenticazione utente specifica per l'accesso ai dati (solo l'autenticazione Google iniziale per le API).
-*   **`APP_MODE=saas`:**
-    *   Progettata per supportare potenzialmente più utenti con dati isolati.
-    *   **Attualmente implementata con autenticazione utente basata su Email/Password via Flask-Login** per l'interfaccia web Flask.
-    *   I dati in SQLite (video, documenti, articoli) sono associati a un `user_id`.
-    *   Le collezioni in ChromaDB vengono create dinamicamente per ogni utente (es. `video_transcripts_userid`).
-    *   L'accesso alle API richiede un'**API Key** specifica dell'utente.
-
-**Stato Attuale Modalità `saas` (Importante):**
-*   L'autenticazione utente Flask (registrazione/login) è funzionante.
-*   L'isolamento dei dati in SQLite e ChromaDB per utente è implementato.
-*   È stato aggiunto un sistema di gestione delle **API Key** (generazione/eliminazione) tramite l'interfaccia Flask (`/keys/manage`).
-*   L'API di ricerca (`/api/search/`) ora richiede una `X-API-Key` valida nell'header per autenticare le richieste provenienti da applicazioni esterne (come Telegram) e associarle all'utente corretto.
+Un'applicazione multi-utente per creare una base di conoscenza interrogabile a partire dai contenuti di un creator (video YouTube, documenti, articoli RSS). Utilizza Flask per il backend, ChromaDB come database vettoriale e un LLM a scelta (Google Gemini o un modello locale tramite Ollama) per la generazione di risposte (architettura RAG). Ogni utente registrato ha un proprio "magazzino" di dati isolato e sicuro.
 
 
 ## Caratteristiche Principali
 
-*   **Autenticazione Utente (Modalità `saas`):**
+*   **Autenticazione Utente:**
     *   Registrazione e Login sicuri basati su Email/Password (Flask-Login), con una **lista di invitati** opzionale (`ALLOWED_EMAILS`) per limitare chi può creare un account.
     *   Gestione sessioni utente per l'interfaccia web Flask.
-*   **Gestione API Key (Modalità `saas`):**
+*   **Gestione API Key:**
     *   Interfaccia web (`/keys/manage`) per utenti loggati per generare, visualizzare ed eliminare chiavi API personali.
     *   Le API critiche (es. `/api/search/`) sono protette e richiedono una chiave API valida per identificare l'utente.
 *   **Chunking Intelligente (Agentic Chunking):** (Opzionale) Possibilità di utilizzare un modello AI per suddividere i testi in modo semantico, preservando il contesto ed evitando tagli bruschi. Migliora la qualità dei dati per la ricerca RAG.
@@ -58,14 +37,14 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
 *   **Gestione Documenti:**
     *   Upload di file PDF, DOCX, TXT tramite interfaccia web (`/data-entry`).
     *   Conversione automatica in Markdown (`.md`).
-    *   Salvataggio file e registrazione nel DB (associato all'utente in `saas`).
+    *   Salvataggio file e registrazione nel DB (associato all'utente).
     *   Indicizzazione automatica all'upload (chunking, embedding, salvataggio in ChromaDB).
     *   Interfaccia web (`/my-documents`) per visualizzare e **eliminare** documenti (elimina file, record SQLite e chunk da ChromaDB).
 *   **Gestione Articoli RSS:**
     *   Parsing di feed RSS/Atom tramite URL.
     *   Estrazione contenuto articoli (con fallback a scraping basico).
     *   Salvataggio contenuto in file `.txt`.
-    *   Registrazione nel DB (associato all'utente in `saas`).
+    *   Registrazione nel DB (associato all'utente).
     *   Indicizzazione automatica all'aggiunta (chunking, embedding, salvataggio in ChromaDB).
     *   **Elaborazione Asincrona con Feedback:** Anche il parsing dei feed RSS viene eseguito in background, con messaggi di stato che informano l'utente sull'articolo e sulla pagina in elaborazione.
     *   Interfaccia web (`/my-articles`) per visualizzare e scaricare il contenuto di tutti gli articoli.
@@ -78,27 +57,27 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
 *   **Pipeline di Indicizzazione:**
     *   **Suddivisione Testi (Chunking) Flessibile:** I contenuti vengono suddivisi in pezzi (chunk). Di base, viene usato un metodo a dimensione fissa. Attivando l'opzione **Agentic Chunking**, il sistema utilizza un LLM per trovare i punti di rottura logici nel testo. **Questa funzionalità, ora applicata a tutte le sorgenti (video, documenti, articoli), include un fallback automatico al metodo classico in caso di errori API (es. quote esaurite), garantendo che l'indicizzazione vada sempre a buon fine.**
     *   **Generazione Embedding:** Per ogni chunk viene generato un embedding (es. con Google Gemini `text-embedding-004`) che ne rappresenta il significato vettoriale.
-    *   Memorizza metadati e contenuti/trascrizioni in SQLite (con `user_id` in `saas`).
-    *   Memorizza embedding vettoriali in **collezioni ChromaDB dedicate per tipo di contenuto e per utente** (in `saas`).
-    *   Ottimizzato (per i video) per evitare di riprocessare contenuti già presenti nel DB *per l'utente specifico* (in `saas`).
+    *   Memorizza metadati e contenuti/trascrizioni in SQLite (con `user_id`).
+    *   Memorizza embedding vettoriali in **collezioni ChromaDB dedicate per tipo di contenuto e per utente**.
+    *   Ottimizzato (per i video) per evitare di riprocessare contenuti già presenti nel DB *per l'utente specifico*.
     *   Pulsante "(Ri)Processa" sempre visibile in `/my-videos` per forzare la re-indicizzazione.
 *   **Ricerca Semantica e Generazione (RAG) Multi-Sorgente:**
     *   **Architettura a 2 Fasi (Retrieve & Re-rank):** Per massimizzare la pertinenza, la ricerca non si affida solo alla somiglianza vettoriale.
         *   **Fase 1 (Recupero Ampio):** Utilizza ChromaDB per recuperare un set allargato di chunk (`N=50`) potenzialmente rilevanti.
         *   **Fase 2 (Ri-classificazione Intelligente):** I chunk recuperati vengono analizzati e ri-ordinati da un modello di re-ranking avanzato (tramite API di **Cohere**), che identifica con precisione chirurgica i passaggi più pertinenti alla domanda specifica.
-    *   API `/api/search/` protetta da API Key, JWT, o sessione di login (in `saas`).
+    *   API `/api/search/` protetta da API Key, JWT, o sessione di login.
     *   Identifica l'utente dalla chiave API o dalla sessione.
     *   Genera embedding per la query utente.
     *   Genera una risposta con Google Gemini (usando i modelli scelti dall'utente) basata esclusivamente sui **chunk ri-classificati e più pertinenti**.
 *   **Interfacce Utente:**
     *   **Backend & Gestione (Flask):** Interfaccia web (`http://localhost:5000`) per:
-        *   Registrazione/Login utente (`saas`).
+        *   Registrazione/Login utente.
         *   Autenticazione Google OAuth (per API YouTube).
-        *   Gestione Chiavi API (`/keys/manage`) (`saas`).
+        *   Gestione Chiavi API (`/keys/manage`).
         *   **UX a "Rivelazione Progressiva":** Al primo accesso, l'utente viene guidato verso l'azione fondamentale ("Ingresso Dati"). Le funzionalità avanzate (Chat, Automazioni, API) si sbloccano automaticamente solo dopo aver caricato i primi contenuti, creando un'esperienza più pulita e meno opprimente.
         *   Gestione contenuti tramite un'interfaccia a pannelli espandibili (accordion).
         *   Visualizzazione contenuti (`/my-videos`, `/my-documents`, `/my-articles`) con azioni (Riprocessa, Elimina).
-        *   Pulsante "Elimina Tutti" per video e articoli (in `/my-videos`, `/my-articles`) (`saas`).
+        *   Pulsante "Elimina Tutti" per video e articoli (in `/my-videos`, `/my-articles`).
     *   **Chat Interattiva (Flask):**
         *   Pagina dedicata (`/chat`) integrata nell'interfaccia Flask (richiede login).
         *   Permette di interrogare la base di conoscenza (video, documenti, articoli indicizzati per l'utente).
@@ -193,7 +172,6 @@ L'applicazione supporta due modalità operative principali, configurabili tramit
             *   **Nota:** Queste variabili impostano solo la pianificazione di **default al primo avvio**. Successivamente, la frequenza dei controlli viene gestita dalla pagina "Automazioni".
     *   **Verifica e configura attentamente le altre variabili nel `.env`:**
         *   `GOOGLE_CLIENT_SECRETS_FILE` dovrebbe già essere `data/client_secrets.json`.
-        *   `APP_MODE`: Imposta a `single` per un uso personale self-hosted (raccomandato), o a `saas` se intendi gestire più account all'interno della tua istanza.
         *   `FLASK_ENV` e `FLASK_DEBUG`: Per produzione, imposta `FLASK_ENV=production` e `FLASK_DEBUG=0`. Per sviluppo/test, puoi usare `development` e `1`.
         *   `OAUTHLIB_INSECURE_TRANSPORT=1`: **IMPORTANTE:** Lascia `1` SOLO se accedi all'app tramite `http://localhost` o un IP senza HTTPS durante lo sviluppo. **Se deployi in produzione con HTTPS (es. tramite Cloudflare Tunnel o un reverse proxy come Nginx), DEVI impostarlo a `0`**, altrimenti il flusso OAuth potrebbe fallire o essere insicuro.
         *   **`ANONYMIZED_TELEMETRY=False`**: Aggiungi questa riga al tuo file `.env`. Disabilita l'invio di dati di telemetria da parte di ChromaDB, il che può prevenire errori di inizializzazione se il container ha problemi a contattare i server di telemetria o se mancano dipendenze specifiche per la telemetria nell'immagine Docker.
@@ -433,7 +411,7 @@ Dopo aver modificato una logica di base (come l'algoritmo di chunking) o per cor
 python scripts/reindex_content.py --email tua_email@esempio.com --type videos
 ```
 
-## Utilizzo (Modalità `saas`)
+## Utilizzo
 
 1.  **Registrazione/Login Flask:** Apri `http://localhost:5000`. Registra un nuovo utente o effettua il login.
 2.  **Autenticazione Google:** Se necessario, completa il flusso di login Google per autorizzare l'API YouTube.
@@ -452,7 +430,6 @@ python scripts/reindex_content.py --email tua_email@esempio.com --type videos
 
 ## Note Importanti
 
-*   **Cambio `APP_MODE`:** Passare da `single` a `saas` o viceversa **richiede la re-indicizzazione** di tutti i contenuti per popolare le collezioni ChromaDB corrette per la nuova modalità. Usa i pulsanti "Riprocessa" o implementa uno script/bottone di re-indicizzazione di massa.
 *   **Sicurezza:** Non committare `.env`, `client_secrets.json`, `token.pickle`, `*.db`, `data/`. La `FLASK_SECRET_KEY` deve essere robusta. `OAUTHLIB_INSECURE_TRANSPORT=1` solo per sviluppo. Le API Key sono sensibili.
 
 ## Deploy Rapido
@@ -493,6 +470,7 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
 *   **Attuale implementazione si basa su SQLite**
     *   SQLite gestisce le operazioni di scrittura in modo sequenziale (una alla volta). In scenari con un'alta concorrenza - ad esempio, 3 o più utenti che avviano processi di indicizzazione contemporaneamente, o uno scheduler che scrive mentre un utente carica un documento - si potrebbero verificare errori di database is locked.
     *   PostgreSQL risolve questo problema
+    *   Per questo converebbe usare il servizio solo per un utente, oppure multi-utente con solo un utente con lo scheduler attivo. O comunque accordando gli utenti sull'orario in cui impostato lo scheduler.  
 
 *   **Superamento Limiti Quota API (es. Google Gemini):**
     *   Operazioni che richiedono un gran numero di chiamate API in poco tempo, come la re-indicizzazione di massa (`scripts/reindex_content.py`) o il primo caricamento di centinaia di documenti con l'**Agentic Chunking** attivo, possono esaurire la quota gratuita offerta dai fornitori di modelli AI (es. 50 richieste al giorno per Google Gemini 2.5-pro, 250 per 2.5-flash).

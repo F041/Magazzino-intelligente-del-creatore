@@ -151,6 +151,8 @@ def test_youtube_processor_core_logic(app, monkeypatch):
     mock_chunks = ['Questa e la trascrizione del video nuovo.']
     mock_embeddings = [[0.1]*768]
     
+    # TODO: pulire da 'saas'
+
     mock_core_config = {**app.config, 'APP_MODE': 'saas', 'CHROMA_CLIENT': MagicMock(), 'VIDEO_COLLECTION_NAME': 'video_transcripts'}
     mock_chroma_collection = MagicMock()
     mock_core_config['CHROMA_CLIENT'].get_or_create_collection.return_value = mock_chroma_collection

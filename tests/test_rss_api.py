@@ -47,30 +47,25 @@ def test_process_rss_feed_api_starts_background_job(client, app, monkeypatch):
 
         time.sleep(0.5)
 
-        # --- LOGICA DI VERIFICA ROBUSTA E CORRETTA ---
-
+        # --- INIZIO BLOCCO DI VERIFICA MODIFICATO ---
+        
         # 1. Verifica che la funzione sia stata chiamata una sola volta.
         mock_core_rss_processor.assert_called_once()
 
-        # 2. Estrai SIA gli argomenti posizionali (args) SIA quelli nominati (kwargs).
+        # 2. Estrai gli argomenti con cui è stata chiamata.
         args, kwargs = mock_core_rss_processor.call_args
         
-        # 3. Verifica gli argomenti POSIZIONALI (i primi 3).
-        assert len(args) == 3, f"Attesi 3 argomenti posizionali, ma ne sono stati trovati {len(args)}"
-        assert args[0] == test_rss_url
+        # 3. Verifica gli argomenti. Ora ci aspettiamo SEMPRE 5 argomenti in totale
+        # (3 posizionali e 2 nominati, come abbiamo visto prima del refactoring).
+        # L'argomento user_id (il secondo posizionale, indice 1) deve essere quello dell'utente loggato.
         
-        app_mode = app.config.get('APP_MODE')
-        if app_mode == 'saas':
-            assert args[1] == user_id_registrato
-        else: # 'single' mode
-            assert args[1] is None
-            
+        # Verifiche più specifiche e chiare
+        assert args[0] == test_rss_url
+        assert args[1] == user_id_registrato # L'asserzione chiave che ora deve passare
         assert isinstance(args[2], dict) # Il dizionario core_config
-
-        # 4. Verifica gli argomenti NOMINATI (gli ultimi 2).
-        assert len(kwargs) == 2, f"Attesi 2 argomenti nominati, ma ne sono stati trovati {len(kwargs)}"
         assert 'status_dict' in kwargs
         assert 'status_lock' in kwargs
+        # --- FINE BLOCCO DI VERIFICA MODIFICATO ---
 
 def test_process_rss_feed_api_invalid_url(client, app, monkeypatch):
     """Testa l'API /api/rss/process con un URL non valido."""

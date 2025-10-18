@@ -19,6 +19,8 @@ from app.services.chunking.agentic_chunker import chunk_text_agentically
 from google.api_core import exceptions as google_exceptions
 from .rss import _index_article
 
+# TODO: pulire da 'saas'
+
 logger = logging.getLogger(__name__)
 connectors_bp = Blueprint('connectors', __name__)
 

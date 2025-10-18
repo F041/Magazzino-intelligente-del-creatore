@@ -48,16 +48,8 @@ def process_channel():
     status_lock = threading.Lock()
 
     logger.info("Richiesta ricevuta per processare canale (avvio thread).")
-    app_mode = current_app.config.get('APP_MODE', 'single')
-
-    # --- OTTIENI USER ID REALE ---
-    current_user_id = None
-    if app_mode == 'saas':
-        if not current_user.is_authenticated: return jsonify({'success': False, 'error_code': 'AUTH_REQUIRED'}), 401
-        current_user_id = current_user.id
-        logger.info(f"Richiesta processo canale per utente '{current_user_id}'")
-    else:
-         logger.info("Richiesta processo canale in modalità SINGLE.")
+    current_user_id = current_user.id
+    logger.info(f"Richiesta processo canale per utente '{current_user_id}'")
 
     # --- CONTROLLO SE GIÀ IN ELABORAZIONE ---
     with status_lock:
@@ -137,24 +129,16 @@ def reprocess_single_video(video_id):
                 'message': 'Autorizzazione Google richiesta.',
                 'redirect_url': '/authorize' # Scriviamo l'URL direttamente, più robusto in contesti API
                 }), 401 # 401 Unauthorized è il codice HTTP corretto
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    logger.info(f"[Reprocess Single] Richiesta per video ID: {video_id} (Modalità: {app_mode})")
-
-    # --- Ottieni User ID ---
-    current_user_id = None
-    if app_mode == 'saas':
-        if not current_user.is_authenticated: return jsonify({'success': False, 'error_code': 'AUTH_REQUIRED'}), 401
-        current_user_id = current_user.id
-        logger.info(f"[Reprocess Single] [{video_id}] Riprocessamento per utente '{current_user_id}'")
+    
+    logger.info(f"[Reprocess Single] Richiesta per video ID: {video_id}")
+    current_user_id = current_user.id
+    logger.info(f"[Reprocess Single] [{video_id}] Riprocessamento per utente '{current_user_id}'")
 
     # --- Variabili Locali ---
     final_status = 'pending'
     message = f"Inizio riprocessamento {video_id}"
     transcript_text, transcript_lang, transcript_type = None, None, None
     conn_sqlite = None
-    chroma_collection_to_use = None
-    collection_name_for_log = "N/A"
-    update_db_success = False # Flag per tracciare successo scrittura finale DB
 
     try:
         # --- 1. Setup Configurazione ---
@@ -177,13 +161,8 @@ def reprocess_single_video(video_id):
         conn_sqlite = sqlite3.connect(db_path_sqlite)
         cursor_sqlite = conn_sqlite.cursor()
 
-        sql_check_owner = "SELECT video_id FROM videos WHERE video_id = ?"
-        params_check_owner = [video_id]
-        if app_mode == 'saas':
-            sql_check_owner += " AND user_id = ?"
-            params_check_owner.append(current_user_id)
-
-        cursor_sqlite.execute(sql_check_owner, tuple(params_check_owner))
+        sql_check_owner = "SELECT video_id FROM videos WHERE video_id = ? AND user_id = ?"
+        cursor_sqlite.execute(sql_check_owner, (video_id, current_user_id))
         video_exists_for_user = cursor_sqlite.fetchone()
 
         if not video_exists_for_user:
@@ -253,16 +232,16 @@ def reprocess_single_video(video_id):
                         logger.error(f"[{video_id}] Fallimento generazione/corrispondenza embedding.")
                     else:
                         logger.info(f"[{video_id}] Embedding OK. Preparazione per ChromaDB...")
-                        collection_name_for_log = f"{base_video_collection_name}_{current_user_id}" if app_mode == 'saas' else base_video_collection_name
-                        chroma_collection_to_use = chroma_client.get_or_create_collection(name=collection_name_for_log)
-                        logger.info(f"[{video_id}] Uso collezione Chroma: '{collection_name_for_log}'")
+                        collection_name = f"{base_video_collection_name}_{current_user_id}"
+                        video_collection = chroma_client.get_or_create_collection(name=collection_name)
+                        logger.info(f"[{video_id}] Uso collezione Chroma: '{collection_name}'")
                         
-                        chroma_collection_to_use.delete(where={"video_id": video_id})
+                        video_collection.delete(where={"video_id": video_id})
                         logger.info(f"[{video_id}] Vecchi chunk per il video eliminati da Chroma.")
                         
                         ids_upsert = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
-                        metadatas_upsert = [{'video_id': video_id, 'channel_id': video_meta_dict['channel_id'], 'video_title': video_meta_dict['title'], 'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 'language': transcript_lang, 'caption_type': transcript_type, **({"user_id": current_user_id} if app_mode == 'saas' else {})} for i in range(len(chunks))]
-                        chroma_collection_to_use.upsert(ids=ids_upsert, embeddings=embeddings, metadatas=metadatas_upsert, documents=chunks)
+                        metadatas_upsert = [{'video_id': video_id, 'channel_id': video_meta_dict['channel_id'], 'video_title': video_meta_dict['title'], 'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 'language': transcript_lang, 'caption_type': transcript_type, 'user_id': current_user_id} for i in range(len(chunks))]
+                        video_collection.upsert(ids=ids_upsert, embeddings=embeddings, metadatas=metadatas_upsert, documents=chunks)
                         logger.info(f"[{video_id}] Upsert di {len(chunks)} nuovi chunk in Chroma OK.")
                         final_status = 'completed'
                 except Exception as e_embed_chroma:
@@ -272,13 +251,12 @@ def reprocess_single_video(video_id):
         # Pulizia Chroma se trascrizione vuota
         if final_status == 'completed' and not chunks:
             try:
-                collection_name_for_log = f"{base_video_collection_name}_{current_user_id}" if app_mode == 'saas' else base_video_collection_name
-                chroma_collection_to_use = chroma_client.get_or_create_collection(name=collection_name_for_log)
-                chroma_collection_to_use.delete(where={"video_id": video_id})
+                collection_name = f"{base_video_collection_name}_{current_user_id}"
+                video_collection = chroma_client.get_or_create_collection(name=collection_name)
+                video_collection.delete(where={"video_id": video_id})
                 logger.info(f"[{video_id}] Pulizia ChromaDB eseguita per video senza nuovi chunk.")
             except Exception as e_chroma_clean:
                 logger.error(f"[{video_id}] Errore durante pulizia Chroma per video senza chunk: {e_chroma_clean}")
-        # Altri casi (es. trascrizione fallita) mantengono lo stato già impostato
 
         # --- 6. Aggiornamento Finale SQLite ---
         logger.info(f"[Reprocess Single] [{video_id}] Aggiornamento finale DB. Stato: {final_status}")
@@ -356,13 +334,6 @@ def get_progress():
 @videos_bp.route('/all', methods=['DELETE'])
 @login_required
 def delete_all_user_videos():
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    logger.info(f"Richiesta DELETE /all ricevuta (Modalità: {app_mode})")
-
-    if app_mode != 'saas':
-        # ... (return errore modalità non valida) ...
-        return jsonify({'success': False, 'error_code': 'INVALID_MODE', 'message': 'Questa operazione è permessa solo in modalità SAAS.'}), 403
-
     current_user_id = current_user.id
     logger.info(f"Avvio eliminazione di massa video per utente: {current_user_id}")
 
@@ -506,7 +477,6 @@ def process_video():
         else:
             # Questo blocco gestisce TUTTI i casi di fallimento (None o dizionario di errore)
             current_video_status = 'failed_transcript'
-            transcript_errors += 1
             # Logghiamo il messaggio di errore specifico se presente
             if transcript_result and transcript_result.get('message'):
                 logger.warning(f"[CORE YT Process] [{video_id}] Trascrizione fallita. Motivo: {transcript_result['message']}")
@@ -517,18 +487,9 @@ def process_video():
 @videos_bp.route('/download_all_transcripts', methods=['GET'])
 @login_required
 def download_all_transcripts():
-    app_mode = current_app.config.get('APP_MODE', 'single')
     db_path = current_app.config.get('DATABASE_FILE')
-    logger.info(f"Richiesta download trascrizioni (Modalità: {app_mode})")
-
-    # --- OTTIENI USER ID REALE (se SAAS) ---
-    current_user_id = None
-    if app_mode == 'saas':
-        # Già protetto da @login_required, ma verifichiamo per sicurezza
-        if not current_user.is_authenticated: return jsonify({'success': False, 'error_code': 'AUTH_REQUIRED'}), 401
-        current_user_id = current_user.id
-        logger.info(f"Download trascrizioni per utente '{current_user_id}'")
-
+    current_user_id = current_user.id
+    logger.info(f"Richiesta download trascrizioni per utente '{current_user_id}'")
 
     if not db_path:
         logger.error("Percorso DATABASE_FILE non configurato per download trascrizioni.")
@@ -544,16 +505,9 @@ def download_all_transcripts():
         conn.row_factory = sqlite3.Row # Per accedere per nome colonna
         cursor = conn.cursor()
 
-        # --- QUERY CON FILTRO USER_ID SE SAAS ---
-        sql_query = "SELECT video_id, title, transcript FROM videos WHERE processing_status = 'completed' AND transcript IS NOT NULL"
-        params = []
-        if app_mode == 'saas':
-           sql_query += " AND user_id = ?" # Aggiungi filtro
-           params.append(current_user_id) # Usa ID REALE
-        sql_query += " ORDER BY published_at"
-
-        logger.info(f"Esecuzione query per trascrizioni (Filtro Utente: {'Sì' if app_mode=='saas' else 'No'})...")
-        cursor.execute(sql_query, tuple(params))
+        sql_query = "SELECT video_id, title, transcript FROM videos WHERE processing_status = 'completed' AND transcript IS NOT NULL AND user_id = ? ORDER BY published_at"
+        logger.info(f"Esecuzione query per trascrizioni per utente {current_user_id}...")
+        cursor.execute(sql_query, (current_user_id,))
 
         # Scrivi nel buffer di testo
         for row in cursor.fetchall():
@@ -582,7 +536,7 @@ def download_all_transcripts():
          return jsonify({'success': False, 'error': 'Unexpected error retrieving transcripts.'}), 500
 
     # Prepara la risposta come file TXT
-    output_filename = f"transcripts_{current_user_id if app_mode=='saas' else 'all'}.txt"
+    output_filename = f"transcripts_{current_user_id}.txt"
     file_content = all_transcripts_content.getvalue()
     all_transcripts_content.close()
 
@@ -597,7 +551,6 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
     Re-indicizza un singolo video. Ora gestisce correttamente gli errori di rate limit
     e il context delle variabili locali dopo un'eccezione.
     """
-    app_mode = core_config.get('APP_MODE', 'single')
     logger.info(f"[_reindex_video_from_db][{video_id}] Avvio re-indicizzazione per utente: {user_id}")
     
     final_status = 'failed_reindex_init'
@@ -618,10 +571,8 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
         video_meta_dict = dict(video_data)
         transcript_text = video_meta_dict.get('transcript')
         
-        # --- INIZIO CORREZIONE: Inizializziamo le variabili qui, in modo sicuro ---
         transcript_lang = video_meta_dict.get('transcript_language')
         transcript_type = video_meta_dict.get('captions_type')
-        # --- FINE CORREZIONE ---
 
         if not transcript_text or not transcript_text.strip():
             logger.info(f"[_reindex_video_from_db][{video_id}] Trascrizione non trovata nel DB. Tento il download.")
@@ -632,8 +583,8 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
 
                 if transcript_result and not transcript_result.get('error'):
                     transcript_text = transcript_result['text']
-                    transcript_lang = transcript_result['language'] # Aggiorniamo le variabili
-                    transcript_type = transcript_result['type']     # Aggiorniamo le variabili
+                    transcript_lang = transcript_result['language']
+                    transcript_type = transcript_result['type']
                     cursor.execute("UPDATE videos SET transcript = ?, transcript_language = ?, captions_type = ? WHERE video_id = ?", (transcript_text, transcript_lang, transcript_type, video_id))
                 else:
                     final_status = 'failed_transcript'; cursor.execute("UPDATE videos SET processing_status = ? WHERE video_id = ?", (final_status, video_id)); return final_status
@@ -660,13 +611,15 @@ def _reindex_video_from_db(video_id: str, conn: sqlite3.Connection, user_id: Opt
             embeddings = generate_embeddings(chunks, user_settings=core_config, task_type=TASK_TYPE_DOCUMENT)
             if embeddings and len(embeddings) == len(chunks):
                 ids_upsert = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
+                # --- INIZIO BLOCCO CORRETTO ---
                 metadatas_upsert = [{
                     'video_id': video_id, 'video_title': video_meta_dict['title'], 'channel_id': video_meta_dict['channel_id'],
                     'published_at': str(video_meta_dict['published_at']), 'chunk_index': i, 
-                    'language': transcript_lang, # Ora questa variabile esiste sempre
-                    'caption_type': transcript_type, # Ora questa variabile esiste sempre
+                    'language': transcript_lang,
+                    'caption_type': transcript_type,
                     'user_id': user_id
                 } for i in range(len(chunks))]
+                # --- FINE BLOCCO CORRETTO ---
                 
                 video_collection.upsert(ids=ids_upsert, embeddings=embeddings, metadatas=metadatas_upsert, documents=chunks)
                 final_status = 'completed'

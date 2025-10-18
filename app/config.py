@@ -54,10 +54,6 @@ class BaseConfig:
 
     # --- Impostazioni Generali App ---
     INTERNAL_API_KEY = os.environ.get('INTERNAL_API_KEY')
-    APP_MODE = os.environ.get('APP_MODE', 'single').lower()
-    # Validazione APP_MODE
-    if APP_MODE not in ['single', 'saas']:
-        raise ValueError(f"Valore APP_MODE non valido nel file .env: '{APP_MODE}'. Usare 'single' o 'saas'.")
     VIDEO_COLLECTION_NAME = "video_transcripts" # Nome collezione ChromaDB
     DOCUMENT_COLLECTION_NAME = "document_content" # Potremmo usarlo per Chroma in futuro
     ARTICLE_COLLECTION_NAME = "article_content"
@@ -185,7 +181,7 @@ class TestConfig(DevelopmentConfig):
         return os.path.join(self._TEST_BASE_DIR, 'test_client_secrets.json')
 
 
-    APP_MODE = 'single'
+    # APP_MODE = 'single' # Rimuoviamo anche questo per coerenza
     # Per disabilitare lo scheduler, modifica create_app in main.py
     # per non avviarlo se app.config['TESTING'] è True.
 

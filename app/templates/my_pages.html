@@ -6,14 +6,13 @@
     <h1>Le tue pagine importate ({{ pages|length }})</h1>
 
     <div class="action-panel">
-        {# NUOVO PULSANTE DOWNLOAD #}
         <a href="{{ url_for('connectors.download_all_pages') }}" class="action-btn success-btn">
             <i class="fas fa-download fa-fw"></i>
             <span>Scarica contenuto pagine (.txt)</span>
         </a>
         <span style="font-size: 0.9em; color: var(--color-text-light);">(Solo pagine 'completed')</span>
 
-        {% if config.APP_MODE == 'saas' and pages %}
+        {% if pages %}
             <button id="delete-all-pages-btn" class="action-btn delete-btn" style="margin-left: auto;">
                 <i class="fas fa-trash-alt fa-fw"></i>
                 <span>Elimina tutte</span>

@@ -36,12 +36,7 @@ def format_sse_event(data_dict: dict, event_type: str = 'status') -> str:
 def require_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        app_mode = current_app.config.get('APP_MODE', 'single')
-        if app_mode == 'single':
-            logger.debug("Decoratore @require_api_key: Modalità SINGLE. Accesso consentito.")
-            return f(*args, **kwargs)
-
-        logger.debug("Decoratore @require_api_key: Modalità SAAS. Controllo autenticazione...")
+        logger.debug("Decoratore @require_api_key: Controllo autenticazione...")
 
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -296,7 +291,6 @@ def handle_search_request(*args, **kwargs):
                  final_payload.update({'error_code': 'SERVER_CONFIG_ERROR', 'message': 'Servizio Embedding non disponibile.'})
                  raise RuntimeError("Servizio Embedding non disponibile")
 
-            app_mode = current_app.config.get('APP_MODE', 'single')
             user_id_to_use = kwargs.get('api_user_id_override') or (current_user.id if current_user.is_authenticated else None)
             logger.info(f"ID utente identificato per la ricerca: {user_id_to_use}")
             
@@ -361,7 +355,7 @@ def handle_search_request(*args, **kwargs):
 
             all_results_combined = []
             for coll_type, base_name in base_names.items():
-                coll_name = f"{base_name}_{user_id_to_use}" if app_mode == 'saas' and user_id_to_use else base_name
+                coll_name = f"{base_name}_{user_id_to_use}" if user_id_to_use else base_name
                 try:
                     collection_instance = chroma_client.get_collection(name=coll_name)
                     logger.info(f"Querying {coll_type} collection ('{coll_name}') con n_results={n_results}") # Aggiungiamo un log per chiarezza                    

@@ -197,38 +197,25 @@ def create_app(config_object=AppConfig):
         logger.critical(f"Fallimento inizializzazione DB/Directory: {e}", exc_info=True)
         sys.exit(1)
 
-    # Inizializzazione ChromaDB Client e Collezioni (Logica Esistente)
-    # ... (Il tuo codice per inizializzare chroma_client e le collezioni in base a APP_MODE) ...
+    # --- INIZIO BLOCCO SEMPLIFICATO ---
     try:
         chroma_path = app.config['CHROMA_PERSIST_PATH']
-        app_mode = app.config.get('APP_MODE', 'single')
-        logger.info(f"Inizializzazione ChromaDB client: path={chroma_path} | APP_MODE='{app_mode}'")
+        logger.info(f"Inizializzazione ChromaDB client: path={chroma_path}")
         chroma_client = chromadb.PersistentClient(path=chroma_path)
         app.config['CHROMA_CLIENT'] = chroma_client
-
-        if app_mode == 'single':
-             # ... (logica get_or_create per collezioni single mode) ...
-             video_collection_name = app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
-             doc_collection_name = app.config.get('DOCUMENT_COLLECTION_NAME', 'document_content')
-             article_collection_name = app.config.get('ARTICLE_COLLECTION_NAME', 'article_content')
-             try: app.config['CHROMA_VIDEO_COLLECTION'] = chroma_client.get_or_create_collection(name=video_collection_name); logger.info(f"Collezione VIDEO '{video_collection_name}' pronta.")
-             except Exception as e: logger.error(f"Errore collezione VIDEO: {e}"); app.config['CHROMA_VIDEO_COLLECTION'] = None
-             try: app.config['CHROMA_DOC_COLLECTION'] = chroma_client.get_or_create_collection(name=doc_collection_name); logger.info(f"Collezione DOC '{doc_collection_name}' pronta.")
-             except Exception as e: logger.error(f"Errore collezione DOC: {e}"); app.config['CHROMA_DOC_COLLECTION'] = None
-             try: app.config['CHROMA_ARTICLE_COLLECTION'] = chroma_client.get_or_create_collection(name=article_collection_name); logger.info(f"Collezione ARTICLE '{article_collection_name}' pronta.")
-             except Exception as e: logger.error(f"Errore collezione ARTICLE: {e}"); app.config['CHROMA_ARTICLE_COLLECTION'] = None
-        elif app_mode == 'saas':
-             logger.info("Modalità SAAS: Collezioni Chroma gestite dalle API per utente.")
-             app.config['CHROMA_VIDEO_COLLECTION'] = None
-             app.config['CHROMA_DOC_COLLECTION'] = None
-             app.config['CHROMA_ARTICLE_COLLECTION'] = None
-        # ... (eventuali verifiche aggiuntive) ...
+        logger.info("Modalità multi-utente: Collezioni Chroma gestite dinamicamente per utente.")
+        # Non creiamo più collezioni globali qui
+        app.config['CHROMA_VIDEO_COLLECTION'] = None
+        app.config['CHROMA_DOC_COLLECTION'] = None
+        app.config['CHROMA_ARTICLE_COLLECTION'] = None
     except Exception as e:
         logger.exception("Errore CRITICO durante inizializzazione ChromaDB.")
         app.config['CHROMA_CLIENT'] = None
         app.config['CHROMA_VIDEO_COLLECTION'] = None
         app.config['CHROMA_DOC_COLLECTION'] = None
         app.config['CHROMA_ARTICLE_COLLECTION'] = None
+    # --- FINE BLOCCO SEMPLIFICATO ---
+
     # Inizializza Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
@@ -619,10 +606,9 @@ def create_app(config_object=AppConfig):
     @login_required
     def my_videos():
         db_path = current_app.config.get('DATABASE_FILE')
-        app_mode = current_app.config.get('APP_MODE', 'single')
-        current_user_id = current_user.id if current_user.is_authenticated else None
+        current_user_id = current_user.id
 
-        if app_mode == 'saas' and not current_user_id:
+        if not current_user_id:
              flash("Errore: Utente non identificato.", "error")
              return redirect(url_for('login'))
 
@@ -632,20 +618,14 @@ def create_app(config_object=AppConfig):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            sql_query = 'SELECT * FROM videos'
-            params = []
-            if app_mode == 'saas':
-                sql_query += ' WHERE user_id = ?'
-                params.append(current_user_id)
-            sql_query += ' ORDER BY published_at DESC'
-            
-            cursor.execute(sql_query, tuple(params))
+            sql_query = 'SELECT * FROM videos WHERE user_id = ? ORDER BY published_at DESC'
+            cursor.execute(sql_query, (current_user_id,))
             videos_from_db = cursor.fetchall()
             conn.close()
 
             chroma_client = current_app.config.get('CHROMA_CLIENT')
             base_collection_name = current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
-            collection_name = f"{base_collection_name}_{current_user_id}" if app_mode == 'saas' else base_collection_name
+            collection_name = f"{base_collection_name}_{current_user_id}"
             
             video_collection = None
             try:
@@ -659,15 +639,11 @@ def create_app(config_object=AppConfig):
                 fragment_count = 0
                 if video_collection:
                     try:
-                        # --- INIZIO DELLA CORREZIONE ---
-                        # Usiamo .get() che è più robusto, chiedendo solo gli ID per efficienza.
                         results = video_collection.get(
                             where={"video_id": video_dict['video_id']},
-                            include=[]  # Non ci serve il contenuto, solo contare
+                            include=[]
                         )
-                        # Il conteggio è la lunghezza della lista di ID restituiti.
                         fragment_count = len(results.get('ids', []))
-                        # --- FINE DELLA CORREZIONE ---
                     except Exception as e_count:
                         logger.error(f"Errore nel contare i frammenti per video {video_dict['video_id']}: {e_count}")
                 
@@ -687,13 +663,8 @@ def create_app(config_object=AppConfig):
     @login_required
     def my_documents():
         """Mostra la pagina con l'elenco dei documenti caricati."""
-        app_mode = current_app.config.get('APP_MODE', 'single') # Leggi APP_MODE
-        current_user_id = current_user.id if current_user.is_authenticated else None
-
-        if app_mode == 'saas' and not current_user_id:
-             return redirect(url_for('login'))
-        elif app_mode == 'saas': logger.info(f"/my-documents: Modalità SAAS, filtro per user '{current_user_id}'")
-        else: logger.info(f"/my-documents: Modalità SINGLE, mostro tutti i documenti."); current_user_id = None
+        current_user_id = current_user.id
+        logger.info(f"/my-documents: Filtro per utente '{current_user_id}'")
 
         documents_from_db = []
         db_path = current_app.config.get('DATABASE_FILE')
@@ -702,13 +673,8 @@ def create_app(config_object=AppConfig):
         else:
             try:
                 conn = sqlite3.connect(db_path); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
-                sql_query = 'SELECT doc_id, original_filename, uploaded_at, processing_status, filesize FROM documents'
-                params = []
-                if app_mode == 'saas':
-                    sql_query += ' WHERE user_id = ?'
-                    params.append(current_user_id)
-                sql_query += ' ORDER BY uploaded_at DESC'
-                cursor.execute(sql_query, tuple(params))
+                sql_query = 'SELECT doc_id, original_filename, uploaded_at, processing_status, filesize FROM documents WHERE user_id = ? ORDER BY uploaded_at DESC'
+                cursor.execute(sql_query, (current_user_id,))
                 documents_from_db = cursor.fetchall()
                 conn.close()
                 logger.info(f"/my-documents: Recuperati {len(documents_from_db)} documenti dal DB.")
@@ -720,11 +686,7 @@ def create_app(config_object=AppConfig):
     @app.route('/my-articles')
     @login_required
     def my_articles():
-        app_mode = current_app.config.get('APP_MODE', 'single')
-        current_user_id = current_user.id if current_user.is_authenticated else None
-
-        if app_mode == 'saas' and not current_user_id:
-            return redirect(url_for('login'))
+        current_user_id = current_user.id
 
         articles_from_db = []
         db_path = current_app.config.get('DATABASE_FILE')
@@ -736,25 +698,15 @@ def create_app(config_object=AppConfig):
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
-                sql_query = 'SELECT * FROM articles'
-                params = []
-                if app_mode == 'saas':
-                    sql_query += ' WHERE user_id = ?'
-                    params.append(current_user_id)
-                sql_query += ' ORDER BY added_at DESC'
+                sql_query = 'SELECT * FROM articles WHERE user_id = ? ORDER BY added_at DESC'
+                cursor.execute(sql_query, (current_user_id,))
                 
-                cursor.execute(sql_query, tuple(params))
-                
-                # --- LOGICA OTTIMIZZATA ---
-                # 1. Recupera tutti i dati dal DB in una sola volta
                 all_rows = cursor.fetchall()
-                conn.close() # Chiudiamo subito la connessione al DB
+                conn.close()
 
-                # 2. Ora cicliamo sui dati in memoria per generare l'anteprima
                 for row in all_rows:
                     article_dict = dict(row)
                     content = article_dict.get('content', '')
-                    # Crea un'anteprima prendendo i primi 200 caratteri
                     article_dict['content_preview'] = (content[:200] if content else '')
                     articles_from_db.append(article_dict)
 
@@ -767,11 +719,7 @@ def create_app(config_object=AppConfig):
     @app.route('/my-pages')
     @login_required
     def my_pages():
-        app_mode = current_app.config.get('APP_MODE', 'single')
-        current_user_id = current_user.id if current_user.is_authenticated else None
-
-        if app_mode == 'saas' and not current_user_id:
-            return redirect(url_for('login'))
+        current_user_id = current_user.id
 
         pages_from_db = []
         db_path = current_app.config.get('DATABASE_FILE')
@@ -783,23 +731,15 @@ def create_app(config_object=AppConfig):
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
-                sql_query = 'SELECT * FROM pages'
-                params = []
-                if app_mode == 'saas':
-                    sql_query += ' WHERE user_id = ?'
-                    params.append(current_user_id)
-                sql_query += ' ORDER BY added_at DESC'
-                
-                cursor.execute(sql_query, tuple(params))
+                sql_query = 'SELECT * FROM pages WHERE user_id = ? ORDER BY added_at DESC'
+                cursor.execute(sql_query, (current_user_id,))
 
-                # --- LOGICA OTTIMIZZATA ---
                 all_rows = cursor.fetchall()
-                conn.close() # Chiudi subito la connessione al DB
+                conn.close() 
 
                 for row in all_rows:
                     page_dict = dict(row)
                     content = page_dict.get('content', '')
-                    # Crea un'anteprima prendendo i primi 200 caratteri
                     page_dict['content_preview'] = (content[:200] if content else '')
                     pages_from_db.append(page_dict)
                 
