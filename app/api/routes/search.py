@@ -355,14 +355,18 @@ def handle_search_request(*args, **kwargs):
 
             all_results_combined = []
             for coll_type, base_name in base_names.items():
-                coll_name = f"{base_name}_{user_id_to_use}" if user_id_to_use else base_name
+                if not user_id_to_use:
+                    logger.warning(f"Impossibile eseguire la ricerca per {coll_type}: User ID mancante.")
+                    continue
+
+                coll_name = f"{base_name}_{user_id_to_use}"
                 try:
                     collection_instance = chroma_client.get_collection(name=coll_name)
-                    logger.info(f"Querying {coll_type} collection ('{coll_name}') con n_results={n_results}") # Aggiungiamo un log per chiarezza                    
+                    logger.info(f"Querying {coll_type} collection ('{coll_name}') con n_results={n_results}")
                     
                     results = collection_instance.query(
                         query_embeddings=[query_embedding], 
-                        n_results=n_results, # Assicuriamoci che questo parametro sia sempre qui!
+                        n_results=n_results,
                         include=['documents', 'metadatas', 'distances']
                     )
                     

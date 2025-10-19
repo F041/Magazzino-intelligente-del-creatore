@@ -19,8 +19,6 @@ from app.services.chunking.agentic_chunker import chunk_text_agentically
 from google.api_core import exceptions as google_exceptions
 from .rss import _index_article
 
-# TODO: pulire da 'saas'
-
 logger = logging.getLogger(__name__)
 connectors_bp = Blueprint('connectors', __name__)
 
@@ -33,8 +31,11 @@ wp_sync_status = {
 wp_sync_lock = threading.Lock() # Un "semaforo" per evitare che più processi scrivano qui contemporaneamente
 
 def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] = None, core_config: Optional[dict] = None) -> str:
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    logger.info(f"[_index_page][{page_id}] Avvio indicizzazione reale (Modalità: {app_mode}, UserID: {user_id})")
+    logger.info(f"[_index_page][{page_id}] Avvio indicizzazione per UserID: {user_id}")
+
+    if not user_id:
+        logger.error(f"[_index_page][{page_id}] Tentativo di indicizzare senza User ID. Operazione annullata.")
+        return 'failed_user_id_missing'
 
     final_status = 'failed_indexing'
     cursor = conn.cursor()
@@ -50,7 +51,7 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
         if not chroma_client:
             raise RuntimeError("Client ChromaDB non trovato.")
         
-        collection_name = f"{base_page_collection_name}_{user_id}" if app_mode == 'saas' else base_page_collection_name
+        collection_name = f"{base_page_collection_name}_{user_id}"
         page_collection = chroma_client.get_or_create_collection(name=collection_name)
         
         cursor.execute("SELECT content, title, page_url FROM pages WHERE page_id = ?", (page_id,))
@@ -91,7 +92,7 @@ def _index_page(page_id: str, conn: sqlite3.Connection, user_id: Optional[str] =
                 metadatas = [{
                     "page_id": page_id, "page_title": title, "page_url": page_url,
                     "chunk_index": i, "source_type": "page",
-                    **({"user_id": user_id} if app_mode == 'saas' and user_id else {})
+                    "user_id": user_id
                 } for i in range(len(chunks))]
                 
                 page_collection.upsert(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=chunks)
@@ -130,8 +131,11 @@ def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Op
     """
     Elimina completamente una pagina: record DB e chunk da ChromaDB.
     """
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    logger.info(f"[_delete_page][{page_id}] Avvio eliminazione permanente (UserID: {user_id}).")
+    logger.info(f"[_delete_page][{page_id}] Avvio eliminazione permanente per UserID: {user_id}.")
+    if not user_id:
+        logger.error(f"[_delete_page][{page_id}] Tentativo di eliminare senza User ID. Annullato.")
+        return False
+
     cursor = conn.cursor()
 
     try:
@@ -139,8 +143,7 @@ def _delete_page_permanently(page_id: str, conn: sqlite3.Connection, user_id: Op
         try:
             chroma_client = current_app.config.get('CHROMA_CLIENT')
             base_page_collection_name = "page_content"
-            collection_name = f"{base_page_collection_name}_{user_id}" if app_mode == 'saas' else base_page_collection_name
-            # Usiamo get_collection. Se non esiste, solleverà un'eccezione che gestiremo.
+            collection_name = f"{base_page_collection_name}_{user_id}" # Logica semplificata
             page_collection = chroma_client.get_collection(name=collection_name)
             
             chunks_to_delete = page_collection.get(where={"page_id": page_id})
@@ -170,8 +173,11 @@ def _delete_article_permanently(article_id: str, conn: sqlite3.Connection, user_
     """
     Elimina completamente un articolo: record DB, chunk da ChromaDB e statistiche.
     """
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    logger.info(f"[_delete_article][{article_id}] Avvio eliminazione permanente (UserID: {user_id}).")
+    logger.info(f"[_delete_article][{article_id}] Avvio eliminazione permanente per UserID: {user_id}.")
+    if not user_id:
+        logger.error(f"[_delete_article][{article_id}] Tentativo di eliminare senza User ID. Annullato.")
+        return False
+
     cursor = conn.cursor()
 
     try:
@@ -179,7 +185,7 @@ def _delete_article_permanently(article_id: str, conn: sqlite3.Connection, user_
         try:
             chroma_client = current_app.config.get('CHROMA_CLIENT')
             base_article_collection_name = current_app.config.get('ARTICLE_COLLECTION_NAME', 'article_content')
-            collection_name = f"{base_article_collection_name}_{user_id}" if app_mode == 'saas' else base_article_collection_name
+            collection_name = f"{base_article_collection_name}_{user_id}"
             
             article_collection = chroma_client.get_collection(name=collection_name)
             
@@ -478,9 +484,6 @@ def get_wordpress_sync_progress():
 @connectors_bp.route('/pages/all', methods=['DELETE'])
 @login_required
 def delete_all_user_pages():
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    if app_mode != 'saas':
-        return jsonify({'success': False, 'message': 'Operazione permessa solo in modalità SAAS.'}), 403
     user_id = current_user.id
     logger.info(f"Avvio eliminazione di massa delle pagine per l'utente: {user_id}")
 
@@ -518,10 +521,6 @@ def delete_all_user_pages():
 @connectors_bp.route('/pages/<string:page_id>', methods=['DELETE'])
 @login_required
 def delete_single_page(page_id):
-    app_mode = current_app.config.get('APP_MODE', 'single')
-    if app_mode != 'saas':
-        return jsonify({'success': False, 'message': 'Operazione permessa solo in modalità SAAS.'}), 403
-    
     user_id = current_user.id
     logger.info(f"Richiesta eliminazione singola pagina ID: {page_id} per utente: {user_id}")
 
@@ -554,11 +553,10 @@ def delete_single_page(page_id):
 @connectors_bp.route('/pages/download_all', methods=['GET'])
 @login_required
 def download_all_pages():
-    app_mode = current_app.config.get('APP_MODE', 'single')
     db_path = current_app.config.get('DATABASE_FILE')
-    logger.info(f"Richiesta download contenuto pagine (Modalità: {app_mode})")
+    logger.info(f"Richiesta download contenuto pagine")
 
-    current_user_id = current_user.id if app_mode == 'saas' else None
+    current_user_id = current_user.id
 
     if not db_path:
         return jsonify({'success': False, 'error': 'Server configuration error.'}), 500
@@ -571,13 +569,10 @@ def download_all_pages():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        sql_query = "SELECT page_id, title, page_url, content FROM pages WHERE processing_status = 'completed' AND content IS NOT NULL"
-        params = []
-        if app_mode == 'saas':
-            sql_query += " AND user_id = ?"
-            params.append(current_user_id)
+        sql_query = "SELECT page_id, title, page_url, content FROM pages WHERE processing_status = 'completed' AND content IS NOT NULL AND user_id = ?"
+        params = (current_user_id,)
         
-        cursor.execute(sql_query, tuple(params))
+        cursor.execute(sql_query, params)
 
         for row in cursor.fetchall():
             content = row['content']
@@ -595,7 +590,7 @@ def download_all_pages():
         if conn: conn.close()
         return jsonify({'success': False, 'error': 'Database error.'}), 500
 
-    output_filename = f"pages_{current_user_id if app_mode=='saas' else 'all'}.txt"
+    output_filename = f"pages_{current_user_id}.txt"
     file_content = all_pages_content.getvalue()
     all_pages_content.close()
 

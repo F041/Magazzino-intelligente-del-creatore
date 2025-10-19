@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_config: dict, videos_from_yt_models: list, status_dict: dict, use_official_api_only: bool = False) -> dict:
     logger.info(f"[CORE YT Process] Avvio per channel_id={channel_id}, user_id={user_id}, Solo API Ufficiale: {use_official_api_only}")
+    
+    if not user_id:
+        logger.error("[CORE YT Process] Errore critico: User ID non fornito. Operazione annullata.")
+        return {"success": False, "error": "User ID mancante."}
+
     overall_success = False
     conn_sqlite = None
     processed_videos_data_for_db = []
@@ -34,7 +39,6 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
     transcript_errors, embedding_errors, chroma_errors, generic_errors = 0, 0, 0, 0
 
     try:
-        app_mode = core_config.get('APP_MODE')
         token_path = core_config.get('TOKEN_PATH')
         db_path_sqlite = core_config.get('DATABASE_FILE')
         base_video_collection_name = core_config.get('VIDEO_COLLECTION_NAME')
@@ -46,13 +50,8 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
         cursor_sqlite = conn_sqlite.cursor()
         
         existing_video_ids = set()
-        sql_check_existing = "SELECT video_id FROM videos WHERE channel_id = ?"
-        params_check_existing = [channel_id]
-        if app_mode == 'saas':
-            if not user_id: raise ValueError("User ID mancante")
-            sql_check_existing += " AND user_id = ?"
-            params_check_existing.append(user_id)
-        cursor_sqlite.execute(sql_check_existing, tuple(params_check_existing))
+        sql_check_existing = "SELECT video_id FROM videos WHERE channel_id = ? AND user_id = ?"
+        cursor_sqlite.execute(sql_check_existing, (channel_id, user_id))
         existing_video_ids = {row[0] for row in cursor_sqlite.fetchall()}
         
         videos_to_process_models = [v for v in videos_from_yt_models if v.video_id not in existing_video_ids]
@@ -66,14 +65,13 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
             logger.info("[CORE YT Process] Nessun nuovo video da processare."); overall_success = True
         else:
             chroma_collection_for_upsert = None
-            if app_mode == 'single':
-                chroma_collection_for_upsert = core_config.get('CHROMA_VIDEO_COLLECTION')
-            elif app_mode == 'saas':
-                user_video_collection_name = f"{base_video_collection_name}_{user_id}"
-                try:
-                    chroma_collection_for_upsert = chroma_client_from_core_config.get_or_create_collection(name=user_video_collection_name)
-                except Exception: pass
-            
+            user_video_collection_name = f"{base_video_collection_name}_{user_id}"
+            try:
+                chroma_collection_for_upsert = chroma_client_from_core_config.get_or_create_collection(name=user_video_collection_name)
+            except Exception as e:
+                logger.error(f"Impossibile creare/accedere alla collezione ChromaDB '{user_video_collection_name}': {e}")
+                raise RuntimeError(f"Errore ChromaDB: {e}")
+
             youtube_client = YouTubeClient(token_file=token_path)
 
             for index, video_model in enumerate(videos_to_process_models, 1):
@@ -89,7 +87,6 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                 current_video_status = 'pending'
                 
                 try:
-                    # ... (logica trascrizione invariata) ...
                     transcript_result = None
                     if use_official_api_only:
                         transcript_result = TranscriptService.get_transcript(video_id, youtube_client=youtube_client)
@@ -142,7 +139,7 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                         
                         if embeddings and len(embeddings) == len(chunks):
                             ids = [f"{video_id}_chunk_{i}" for i in range(len(chunks))]
-                            metadatas = [{"video_id": video_id, "channel_id": video_model.channel_id, "video_title": video_model.title, "published_at": str(video_model.published_at), "chunk_index": i, "language": transcript_lang, "caption_type": transcript_type, **({"user_id": user_id} if app_mode == 'saas' else {}) } for i in range(len(chunks))]
+                            metadatas = [{"video_id": video_id, "channel_id": video_model.channel_id, "video_title": video_model.title, "published_at": str(video_model.published_at), "chunk_index": i, "language": transcript_lang, "caption_type": transcript_type, "user_id": user_id } for i in range(len(chunks))]
                             chroma_collection_for_upsert.upsert(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=chunks)
                             current_video_status = 'completed'
                         else:

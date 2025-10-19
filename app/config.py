@@ -180,12 +180,6 @@ class TestConfig(DevelopmentConfig):
              raise ValueError("_TEST_BASE_DIR non è stato impostato. Assicurati che la fixture di test lo imposti.")
         return os.path.join(self._TEST_BASE_DIR, 'test_client_secrets.json')
 
-
-    # APP_MODE = 'single' # Rimuoviamo anche questo per coerenza
-    # Per disabilitare lo scheduler, modifica create_app in main.py
-    # per non avviarlo se app.config['TESTING'] è True.
-
-
 # Dizionario per selezionare la configurazione
 config_by_name = dict(
     development=DevelopmentConfig,

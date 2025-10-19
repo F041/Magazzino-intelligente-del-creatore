@@ -22,7 +22,10 @@ def _get_random_chunks_from_collections(user_id, config, sample_size=20):
         logger.warning("Chroma Client non disponibile per il recupero dei chunk.")
         return []
 
-    app_mode = config.get('APP_MODE', 'single')
+    if not user_id:
+        logger.error("Tentativo di recuperare chunk per idee senza un user_id.")
+        return []
+
     all_chunks = []
     
     # Nomi base delle collezioni
@@ -34,7 +37,7 @@ def _get_random_chunks_from_collections(user_id, config, sample_size=20):
     }
 
     for base_name in base_names.values():
-        collection_name = f"{base_name}_{user_id}" if app_mode == 'saas' else base_name
+        collection_name = f"{base_name}_{user_id}"
         try:
             collection = chroma_client.get_collection(name=collection_name)
             # Il metodo .get() di ChromaDB recupera i dati. Usiamo include=["documents"]

@@ -11,9 +11,6 @@ from app.core.setup import load_credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# TODO: pulire da 'saas'
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -234,14 +231,13 @@ def get_system_stats():
             
             chroma_client = current_app.config.get('CHROMA_CLIENT')
             if chroma_client:
-                app_mode = current_app.config.get('APP_MODE', 'single')
                 total_chunks = 0
                 base_names = {
                     "VIDEO": "video_transcripts", "DOCUMENT": "document_content",
                     "ARTICLE": "article_content", "PAGE": "page_content"
                 }
                 for base_name in base_names.values():
-                    coll_name = f"{base_name}_{user_id}" if app_mode == 'saas' else base_name
+                    coll_name = f"{base_name}_{user_id}"
                     try:
                         collection = chroma_client.get_collection(name=coll_name)
                         total_chunks += collection.count()

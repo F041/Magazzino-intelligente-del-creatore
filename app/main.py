@@ -31,8 +31,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # --- Import Google Auth/API ---
 from google_auth_oauthlib.flow import Flow
 
-# Non importare google_exceptions qui se non serve direttamente in main.py
-
 # --- Import Altri Moduli ---
 import chromadb
 from dotenv import load_dotenv # Utile caricarlo anche qui all'inizio
@@ -197,14 +195,14 @@ def create_app(config_object=AppConfig):
         logger.critical(f"Fallimento inizializzazione DB/Directory: {e}", exc_info=True)
         sys.exit(1)
 
-    # --- INIZIO BLOCCO SEMPLIFICATO ---
     try:
         chroma_path = app.config['CHROMA_PERSIST_PATH']
         logger.info(f"Inizializzazione ChromaDB client: path={chroma_path}")
         chroma_client = chromadb.PersistentClient(path=chroma_path)
         app.config['CHROMA_CLIENT'] = chroma_client
-        logger.info("Modalità multi-utente: Collezioni Chroma gestite dinamicamente per utente.")
-        # Non creiamo più collezioni globali qui
+        logger.info("Sempre in modalità multi-utente: Collezioni Chroma gestite dinamicamente per utente.")
+        
+        # Le collezioni globali sono sempre None, perché vengono create dinamicamente per ogni utente.
         app.config['CHROMA_VIDEO_COLLECTION'] = None
         app.config['CHROMA_DOC_COLLECTION'] = None
         app.config['CHROMA_ARTICLE_COLLECTION'] = None
@@ -214,7 +212,6 @@ def create_app(config_object=AppConfig):
         app.config['CHROMA_VIDEO_COLLECTION'] = None
         app.config['CHROMA_DOC_COLLECTION'] = None
         app.config['CHROMA_ARTICLE_COLLECTION'] = None
-    # --- FINE BLOCCO SEMPLIFICATO ---
 
     # Inizializza Flask-Login
     login_manager = LoginManager()
