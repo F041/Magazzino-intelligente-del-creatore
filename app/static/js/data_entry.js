@@ -289,31 +289,27 @@ document.addEventListener("DOMContentLoaded", function () {
       progressInterval = setInterval(() => checkProgress(type), 1500); // Leggermente più veloce
     }
     
-    async function checkProgress(type) {
+async function checkProgress(type) {
         const endpoint = type === "youtube" ? "/api/videos/progress" : "/api/rss/progress";
         try {
             const response = await fetch(endpoint);
             const progressData = await response.json();
 
             if (progressData.is_processing) {
-                // --- NUOVA LOGICA ---
-                // Se il backend ci dice che è un passo indeterminato, mostriamo la barra animata.
                 if (progressData.indeterminate_step) {
                     updateAsyncStatusUI(
                         `${progressData.message} <span class="loading-spinner"></span>`, 
                         "info-message", 
-                        null, // La percentuale non serve
-                        true  // Attiva la barra animata!
+                        null,
+                        true
                     );
                 } else {
-                    // Altrimenti, procediamo con la logica normale della percentuale.
                     let msg = progressData.message || "Elaborazione in corso...";
                     let perc = null;
                     if (type === "youtube" && progressData.current_video && progressData.current_video.total > 0) {
                         const current = progressData.current_video.index || 0;
                         const total = progressData.current_video.total;
                         perc = Math.round((current / total) * 100);
-                        // Usiamo il messaggio del backend se disponibile, altrimenti creiamo il nostro
                         msg = progressData.message || `(${current}/${total}) ${progressData.current_video.title || "video..."}`;
                     } else if (type === "rss" && progressData.page_total_articles && progressData.page_total_articles > 0) {
                         const current = progressData.page_processed_articles || 0;
@@ -323,36 +319,38 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
                     updateAsyncStatusUI(
                         `${msg} <span class="loading-spinner"></span>`, 
-                        "info-message", // Usiamo 'info' per coerenza
+                        "info-message",
                         perc
                     );
                 }
             } else {
-                // Logica di fine processo (invariata)
                 clearInterval(progressInterval);
                 stopTimer();
                 if (window.setAppStatus) window.setAppStatus("idle");
-                const finalMessage = progressData.message || "Elaborazione completata.";
-                const finalStatusClass = progressData.error ? "error-message" : "success-message";
-                const finalPerc = !progressData.error ? 100 : null;
-                updateAsyncStatusUI(progressData.error || finalMessage, finalStatusClass, finalPerc);
-                
-                // --- INIZIO BLOCCO MODIFICATO ---
-                if (progressData.error_code === 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE') {
-                    if (currentPollingType === 'youtube' && scheduleYoutubeBtn && lastProcessedYoutubeUrl) {
-                        scheduleYoutubeBtn.setAttribute('data-url', lastProcessedYoutubeUrl);
-                        scheduleYoutubeBtn.style.display = 'inline-flex';
-                    } else if (currentPollingType === 'rss' && scheduleRssBtn && lastProcessedRssUrl) {
-                        scheduleRssBtn.setAttribute('data-url', lastProcessedRssUrl);
-                        scheduleRssBtn.style.display = 'inline-flex';
+
+                if (progressData.error) {
+                    // Controlliamo se c'è un codice di errore specifico
+                    if (progressData.error_code === 'REAUTH_REQUIRED') {
+                        // Se l'errore è di autenticazione, mostriamo il link!
+                        const finalMessage = `${progressData.error} <a href="/authorize" class="action-btn" style="margin-left: 15px;">Ri-autorizza con Google</a>`;
+                        updateAsyncStatusUI(finalMessage, "error-message", null);
+                    } else if (progressData.error_code === 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE') {
+                        // Gestiamo il caso della quota come prima
+                        updateAsyncStatusUI(progressData.error, "error-message", null);
+                        if (currentPollingType === 'youtube' && scheduleYoutubeBtn && lastProcessedYoutubeUrl) {
+                            scheduleYoutubeBtn.setAttribute('data-url', lastProcessedYoutubeUrl);
+                            scheduleYoutubeBtn.style.display = 'inline-flex';
+                        }
+                    } else {
+                        // Per tutti gli altri errori, mostriamo solo il messaggio
+                        updateAsyncStatusUI(progressData.error, "error-message", null);
                     }
-                }
-                // --- FINE BLOCCO MODIFICATO ---
-                
-                if (finalStatusClass === "success-message") {
-                    setTimeout(() => { window.location.reload(); }, 1500);
+                    enableAllForms(); // Riabilita i form in caso di errore
                 } else {
-                    enableAllForms();
+                    // Caso di successo (invariato)
+                    const finalMessage = progressData.message || "Elaborazione completata.";
+                    updateAsyncStatusUI(finalMessage, "success-message", 100);
+                    setTimeout(() => { window.location.reload(); }, 1500);
                 }
             }
         } catch (error) {

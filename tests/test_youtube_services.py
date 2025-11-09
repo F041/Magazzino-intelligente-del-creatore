@@ -95,38 +95,82 @@ def test_youtube_client_extract_channel_info(url_input, expected_id, monkeypatch
     
     assert extracted_id == expected_id
 
-def test_get_channel_videos_handles_pagination_alternative_mock(monkeypatch):
-    mock_response_page1 = {
-        'pageInfo': {'totalResults': 2},
-        'items': [{'id': {'videoId': 'vid1', 'kind': 'youtube#video'}, 'snippet': {'title': 'Video 1', 'publishedAt': '2023-01-01T00:00:00Z', 'description': 'Desc 1'}}],
-        'nextPageToken': 'token_for_page2'
-    }
-    mock_response_page2 = {
-        'pageInfo': {'totalResults': 2},
-        'items': [{'id': {'videoId': 'vid2', 'kind': 'youtube#video'}, 'snippet': {'title': 'Video 2', 'publishedAt': '2023-01-02T00:00:00Z', 'description': 'Desc 2'}}]
+def test_get_channel_videos_handles_pagination_with_playlist_method(monkeypatch):
+    """
+    Testa che il client recuperi correttamente i video da una playlist "Uploads",
+    gestendo la paginazione.
+    """
+    # 1. ARRANGE: Prepariamo le risposte finte che l'API di YouTube darà
+    
+    # Risposta per la chiamata che trova l'ID della playlist
+    mock_channels_response = {
+        'items': [{
+            'contentDetails': {
+                'relatedPlaylists': {
+                    'uploads': 'UU-fake-playlist-id'
+                }
+            }
+        }]
     }
 
+    # Risposta per la prima pagina di video
+    mock_playlist_page1 = {
+        'pageInfo': {'totalResults': 2},
+        'items': [{
+            'snippet': {
+                'title': 'Video 1',
+                'publishedAt': '2023-01-01T00:00:00Z',
+                'description': 'Desc 1',
+                'resourceId': {'kind': 'youtube#video', 'videoId': 'vid1'}
+            }
+        }],
+        'nextPageToken': 'token_pagina_2'
+    }
+    
+    # Risposta per la seconda (e ultima) pagina di video
+    mock_playlist_page2 = {
+        'pageInfo': {'totalResults': 2},
+        'items': [{
+            'snippet': {
+                'title': 'Video 2',
+                'publishedAt': '2023-01-02T00:00:00Z',
+                'description': 'Desc 2',
+                'resourceId': {'kind': 'youtube#video', 'videoId': 'vid2'}
+            }
+        }]
+        # Nessun 'nextPageToken' qui, perché è l'ultima pagina
+    }
+
+    # Creiamo un "attore" (mock) che si fingerà il servizio API di YouTube
     mock_youtube_service = MagicMock()
-    list_method_mock = mock_youtube_service.search.return_value.list
-    list_method_mock.return_value.execute.side_effect = [
-        mock_response_page1, 
-        mock_response_page2
+    
+    # Gli insegnamo come rispondere alle diverse chiamate che il nostro codice farà
+    mock_youtube_service.channels.return_value.list.return_value.execute.return_value = mock_channels_response
+    mock_youtube_service.playlistItems.return_value.list.return_value.execute.side_effect = [
+        mock_playlist_page1,
+        mock_playlist_page2
     ]
 
+    # Sostituiamo il vero 'build' di googleapiclient con il nostro attore
     path_to_build = 'app.services.youtube.client.build'
-    
     with patch(path_to_build, return_value=mock_youtube_service):
+        # Impediamo al client di cercare un vero file di token
         monkeypatch.setattr("app.services.youtube.client.Credentials.from_authorized_user_file", lambda *args, **kwargs: MagicMock())
         monkeypatch.setattr("os.path.exists", lambda path: True)
         
+        # 2. ACT: Creiamo il nostro client e chiamiamo la funzione da testare
         client = YouTubeClient(token_file="dummy_token.json")
         videos, total_count = client.get_channel_videos_and_total_count(channel_id="fake_channel")
 
+    # 3. ASSERT: Verifichiamo che tutto sia andato come previsto
     assert total_count == 2
     assert len(videos) == 2
     assert videos[0].video_id == 'vid1'
     assert videos[1].video_id == 'vid2'
-    assert list_method_mock.return_value.execute.call_count == 2
+    
+    # Verifichiamo che il nostro codice abbia fatto le chiamate giuste
+    mock_youtube_service.channels.return_value.list.assert_called_once()
+    assert mock_youtube_service.playlistItems.return_value.list.return_value.execute.call_count == 2
 
 def test_youtube_processor_core_logic(app, monkeypatch):
     user_id_test = "user_for_processor_test"

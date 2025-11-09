@@ -79,44 +79,57 @@ class YouTubeClient:
 
     def get_channel_videos_and_total_count(self, channel_id: str) -> Tuple[List[Video], int]:
         """
-        Recupera TUTTI i video di un canale, gestendo la paginazione e gli errori di quota.
+        Recupera TUTTI i video di un canale usando il metodo robusto della playlist "Uploads".
         """
         all_videos = []
         next_page_token = None
         total_results = 0
 
-        logger.info(f"Inizio recupero video per canale {channel_id}.")
+        logger.info(f"Inizio recupero video per canale {channel_id} (Metodo Playlist).")
 
         try:
+            # 1. Trova la playlist "Uploads" del canale. Ogni canale ne ha una.
+            channels_response = self.youtube.channels().list(
+                part='contentDetails',
+                id=channel_id
+            ).execute()
+            
+            if not channels_response.get('items'):
+                raise ValueError(f"Canale con ID {channel_id} non trovato.")
+            
+            uploads_playlist_id = channels_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+            logger.info(f"Trovato ID playlist 'Uploads': {uploads_playlist_id}")
+
+            # 2. Scansiona la playlist "Uploads" per recuperare tutti i video.
             while True:
-                logger.debug(f"Recupero pagina video... Token: {next_page_token}")
-                request = self.youtube.search().list(
-                    part='id,snippet',
-                    channelId=channel_id,
+                logger.debug(f"Recupero pagina video dalla playlist... Token: {next_page_token}")
+                playlist_request = self.youtube.playlistItems().list(
+                    part='snippet',
+                    playlistId=uploads_playlist_id,
                     maxResults=50,
-                    type='video',
-                    order='date',
                     pageToken=next_page_token
                 )
-                response = request.execute()
+                playlist_response = playlist_request.execute()
 
                 if next_page_token is None:
-                    total_results = response.get('pageInfo', {}).get('totalResults', 0)
-                    logger.info(f"Conteggio totale video dal canale: {total_results}")
+                    total_results = playlist_response.get('pageInfo', {}).get('totalResults', 0)
+                    logger.info(f"Conteggio totale video dalla playlist: {total_results}")
 
-                for item in response.get('items', []):
-                    if item.get('id', {}).get('kind') == 'youtube#video':
+                for item in playlist_response.get('items', []):
+                    snippet = item.get('snippet', {})
+                    if snippet.get('resourceId', {}).get('kind') == 'youtube#video':
+                        video_id = snippet['resourceId']['videoId']
                         video = Video(
-                            video_id=item['id']['videoId'],
-                            title=html.unescape(item['snippet']['title']),
-                            url=f"https://www.youtube.com/watch?v={item['id']['videoId']}",
+                            video_id=video_id,
+                            title=html.unescape(snippet.get('title', 'Senza Titolo')),
+                            url=f"https://www.youtube.com/watch?v={video_id}",
                             channel_id=channel_id,
-                            published_at=item['snippet']['publishedAt'],
-                            description=html.unescape(item['snippet']['description'])
+                            published_at=snippet.get('publishedAt'),
+                            description=html.unescape(snippet.get('description', ''))
                         )
                         all_videos.append(video)
 
-                next_page_token = response.get('nextPageToken')
+                next_page_token = playlist_response.get('nextPageToken')
                 if not next_page_token:
                     break
             
@@ -124,22 +137,15 @@ class YouTubeClient:
             return all_videos, total_results
 
         except HttpError as e:
-            # --- INIZIO BLOCCO DI GESTIONE ERRORE ---
-            # Controlliamo specificamente se l'errore è un 403 per quota esaurita.
             if e.resp.status == 403 and 'quotaExceeded' in str(e):
                 logger.error(f"QUOTA API YOUTUBE SUPERATA durante il recupero della lista video per il canale {channel_id}.")
-                # Rilanciamo l'eccezione, così il chiamante sa esattamente cosa è successo
-                # e non riceve una lista vuota.
                 raise e
             else:
-                # Se è un altro errore HTTP, lo logghiamo e lo rilanciamo.
                 logger.exception(f"Errore HTTP durante il recupero dei video del canale {channel_id}: {str(e)}")
                 raise e
-            # --- FINE BLOCCO DI GESTIONE ERRORE ---
         
         except Exception as e:
             logger.exception(f"Errore generico durante il recupero dei video del canale {channel_id}: {str(e)}")
-            # Anche in caso di altri errori, è meglio rilanciare l'eccezione
             raise e
 
 

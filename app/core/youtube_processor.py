@@ -184,7 +184,10 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
         try:
             from app.main import load_credentials
             if not load_credentials():
+                # --- INIZIO BLOCCO MODIFICATO ---
+                # Questo è il punto in cui l'errore viene generato. Lo catturiamo qui.
                 raise RuntimeError("Credenziali Google non valide o scadute.")
+                # --- FINE BLOCCO MODIFICATO ---
 
             youtube_client = YouTubeClient(token_file=current_app.config.get('TOKEN_PATH'))
             
@@ -226,10 +229,16 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
                  thread_final_message = "Si sono verificati errori durante il processo. Controllare i log."
 
         # --- INIZIO BLOCCO MODIFICATO ---
+        except RuntimeError as e_runtime:
+            # Catturiamo SPECIFICAMENTE l'errore delle credenziali
+            logger.warning(f"BACKGROUND THREAD YT: Errore di credenziali rilevato: {e_runtime}")
+            thread_final_message = "Autorizzazione Google richiesta per procedere."
+            error_code_to_frontend = 'REAUTH_REQUIRED' # Il nostro "segnale" per il frontend
+            job_success = False
         except google_exceptions.ResourceExhausted as e_quota:
             logger.error(f"BACKGROUND THREAD YT: QUOTA API ESAURITA! Dettagli: {e_quota}")
             thread_final_message = "Limite richieste API raggiunto. Per canali grandi, considera di usare l'automazione per processare i contenuti un po' alla volta."
-            error_code_to_frontend = 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE' # <-- CODICE SPECIALE
+            error_code_to_frontend = 'QUOTA_EXCEEDED_SUGGEST_SCHEDULE'
             job_success = False
         # --- FINE BLOCCO MODIFICATO ---
         except Exception as e_thread:
@@ -246,10 +255,9 @@ def _background_channel_processing(app_context, channel_url: str, user_id: Optio
                 status_dict['current_video'] = None
                 status_dict['message'] = thread_final_message
                 status_dict['indeterminate_step'] = False
-                # Aggiungiamo il nostro nuovo codice di errore se presente
                 if error_code_to_frontend:
-                    status_dict['error'] = thread_final_message # Manteniamo il messaggio per la UI
-                    status_dict['error_code'] = error_code_to_frontend # Aggiungiamo il codice
+                    status_dict['error'] = thread_final_message
+                    status_dict['error_code'] = error_code_to_frontend
                 elif not job_success:
                     status_dict['error'] = thread_final_message
 
