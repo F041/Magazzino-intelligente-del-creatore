@@ -1,6 +1,6 @@
-# FILE: app/services/transcripts/youtube_transcript_unofficial_library.py
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound 
+from app.utils import log_system_alert
 from typing import Optional, Dict
 import xml.etree.ElementTree as ET
 import logging
@@ -84,6 +84,14 @@ class UnofficialTranscriptService:
             error_text = str(e).lower()
             if 'http error 429' in error_text:
                 logger.error(f"[Unofficial Lib] RILEVATO BLOCCO IP (HTTP 429) per il video {video_id}. Dettagli: {e}")
+                                # Usiamo un try/except interno per evitare che un errore di log rompa tutto il flusso
+                try:
+                    log_system_alert(
+                        alert_type='youtube_ip_block', 
+                        message=f"Blocco IP rilevato (429) durante il recupero trascrizione video {video_id}.",
+                        details=str(e)
+                    )
+                except Exception: pass
                 return {'error': 'IP_BLOCKED', 'message': 'YouTube ha temporaneamente bloccato l\'indirizzo IP del server. È necessario usare l\'API ufficiale.'}
             
             logger.error(f"[Unofficial Lib] Errore imprevisto per {video_id}: {e}", exc_info=True)

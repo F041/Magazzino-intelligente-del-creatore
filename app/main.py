@@ -609,51 +609,33 @@ def create_app(config_object=AppConfig):
              flash("Errore: Utente non identificato.", "error")
              return redirect(url_for('login'))
 
-        videos_with_stats = []
+        videos_list = []
         try:
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            sql_query = 'SELECT * FROM videos WHERE user_id = ? ORDER BY published_at DESC'
+            # Ora leggiamo fragment_count DIRETTAMENTE da SQLite. È istantaneo.
+            sql_query = 'SELECT video_id, title, url, published_at, processing_status, captions_type, transcript_language, transcript, fragment_count FROM videos WHERE user_id = ? ORDER BY published_at DESC'
             cursor.execute(sql_query, (current_user_id,))
-            videos_from_db = cursor.fetchall()
+            rows = cursor.fetchall()
             conn.close()
 
-            chroma_client = current_app.config.get('CHROMA_CLIENT')
-            base_collection_name = current_app.config.get('VIDEO_COLLECTION_NAME', 'video_transcripts')
-            collection_name = f"{base_collection_name}_{current_user_id}"
+            # Convertiamo in dizionario (non serve più chiamare ChromaDB qui!)
+            for row in rows:
+                video_dict = dict(row)
+                # Se il campo è NULL (vecchi video), mettiamo 0 o 'N/D'
+                if video_dict.get('fragment_count') is None:
+                     video_dict['fragment_count'] = 0 
+                videos_list.append(video_dict)
             
-            video_collection = None
-            try:
-                if chroma_client:
-                    video_collection = chroma_client.get_collection(name=collection_name)
-            except Exception as e:
-                logger.warning(f"Collezione Chroma '{collection_name}' non trovata: {e}")
-
-            for video_row in videos_from_db:
-                video_dict = dict(video_row)
-                fragment_count = 0
-                if video_collection:
-                    try:
-                        results = video_collection.get(
-                            where={"video_id": video_dict['video_id']},
-                            include=[]
-                        )
-                        fragment_count = len(results.get('ids', []))
-                    except Exception as e_count:
-                        logger.error(f"Errore nel contare i frammenti per video {video_dict['video_id']}: {e_count}")
-                
-                video_dict['fragment_count'] = fragment_count
-                videos_with_stats.append(video_dict)
-            
-            logger.info(f"/my-videos: Recuperati {len(videos_with_stats)} video e contati i loro frammenti.")
+            logger.info(f"/my-videos: Recuperati {len(videos_list)} video da SQLite (ottimizzato).")
 
         except (sqlite3.Error, ValueError) as e:
             logger.error(f"Errore lettura DB per /my-videos: {e}")
 
         return render_template('my_videos.html',
-                           videos=videos_with_stats,
+                           videos=videos_list,
                            config=current_app.config)
 
     @app.route('/my-documents')

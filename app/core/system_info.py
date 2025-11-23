@@ -217,6 +217,30 @@ def get_system_stats():
         
         final_stats['version_status'] = version_stats
 
+                # --- Recupero Avvisi di Sistema ---
+        system_alerts = []
+        try:
+            cursor.execute("SELECT alert_type, message, created_at FROM system_alerts ORDER BY created_at DESC LIMIT 10")
+            rows = cursor.fetchall()
+            for row in rows:
+                # Formattiamo la data in modo più leggibile (es. togliendo i millisecondi se presenti)
+                dt_str = row[2]
+                try:
+                    # Tentativo di parsing per formattazione europea
+                    dt_obj = datetime.strptime(dt_str.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                    dt_str = dt_obj.strftime("%d/%m %H:%M")
+                except: pass
+                
+                system_alerts.append({
+                    'type': row[0],
+                    'message': row[1],
+                    'time': dt_str
+                })
+        except sqlite3.Error as e:
+            logger.warning(f"Impossibile leggere system_alerts: {e}")
+        
+        final_stats['alerts'] = system_alerts
+
         if os.path.exists(db_path):
             db_stats['sqlite_file_size_mb'] = round(os.path.getsize(db_path) / (1024 * 1024), 2)
         

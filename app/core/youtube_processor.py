@@ -148,17 +148,27 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                 except Exception as e_video_proc:
                     current_video_status = 'failed_processing'; generic_errors += 1
 
+                # Calcola il numero di chunk (se esistono, altrimenti 0)
+                count_chunks = len(chunks) if 'chunks' in locals() and chunks else 0
                 video_data_dict = video_model.model_dump()
-                video_data_dict.update({'transcript': transcript_text, 'transcript_language': transcript_lang, 'captions_type': transcript_type, 'processing_status': current_video_status, 'user_id': user_id})
+                video_data_dict.update({
+                    'transcript': transcript_text, 
+                    'transcript_language': transcript_lang, 
+                    'captions_type': transcript_type, 
+                    'processing_status': current_video_status, 
+                    'user_id': user_id,
+                    'fragment_count': count_chunks 
+                })
                 processed_videos_data_for_db.append(video_data_dict)
 
             if processed_videos_data_for_db:
-                sql_insert = ''' INSERT OR REPLACE INTO videos (video_id, title, url, channel_id, published_at, description, transcript, transcript_language, captions_type, user_id, processing_status, added_at ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) '''
-                data_to_insert = [(vd['video_id'], vd['title'], vd['url'], vd['channel_id'], str(vd['published_at']), vd['description'], vd['transcript'], vd['transcript_language'], vd['captions_type'], vd['user_id'], vd.get('processing_status', 'failed')) for vd in processed_videos_data_for_db]
+                # AGGIORNA LA QUERY SQL per includere fragment_count
+                sql_insert = ''' INSERT OR REPLACE INTO videos (video_id, title, url, channel_id, published_at, description, transcript, transcript_language, captions_type, user_id, processing_status, fragment_count, added_at ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP) '''
+                
+                # AGGIORNA I DATI DA INSERIRE aggiungendo vd['fragment_count']
+                data_to_insert = [(vd['video_id'], vd['title'], vd['url'], vd['channel_id'], str(vd['published_at']), vd['description'], vd['transcript'], vd['transcript_language'], vd['captions_type'], vd['user_id'], vd.get('processing_status', 'failed'), vd['fragment_count']) for vd in processed_videos_data_for_db]
+                
                 cursor_sqlite.executemany(sql_insert, data_to_insert)
-                conn_sqlite.commit()
-                saved_ok_count = len(data_to_insert)
-                overall_success = True
     
     except Exception as e:
         logger.error(f"Errore critico in _process_youtube_channel_core: {e}", exc_info=True)

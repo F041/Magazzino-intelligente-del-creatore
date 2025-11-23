@@ -148,3 +148,39 @@ def format_datetime_filter(value, format='%d %b %Y'):
     except (ValueError, TypeError) as e:
         logger.warning(f"Filtro format_date: Impossibile analizzare il valore '{value}'. Errore: {e}")
         return value
+    
+def log_system_alert(alert_type: str, message: str, details: str = None):
+    """
+    Registra un avviso di sistema nel DB e mantiene pulita la tabella
+    conservando solo gli ultimi 50 record (Log Rotation).
+    """
+    try:
+        db_path = current_app.config.get('DATABASE_FILE')
+        if not db_path: return
+
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # 1. Inserisci il nuovo avviso
+        cursor.execute(
+            "INSERT INTO system_alerts (alert_type, message, details) VALUES (?, ?, ?)",
+            (alert_type, message, details)
+        )
+
+        # 2. Pulizia Automatica: Cancella tutto tranne gli ultimi 50 record
+        # Questa query elimina gli ID che NON sono nei top 50 ordinati per data
+        cursor.execute("""
+            DELETE FROM system_alerts 
+            WHERE id NOT IN (
+                SELECT id FROM system_alerts 
+                ORDER BY created_at DESC 
+                LIMIT 50
+            )
+        """)
+        
+        conn.commit()
+        # logger.info(f"System Alert registrato: {alert_type}") # Decommenta se vuoi loggarlo anche su console
+    except Exception as e:
+        logger.error(f"Impossibile registrare system alert: {e}")
+    finally:
+        if conn: conn.close()

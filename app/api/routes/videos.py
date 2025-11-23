@@ -260,12 +260,14 @@ def reprocess_single_video(video_id):
 
         # --- 6. Aggiornamento Finale SQLite ---
         logger.info(f"[Reprocess Single] [{video_id}] Aggiornamento finale DB. Stato: {final_status}")
+        # Calcola i chunk
+        final_fragment_count = len(chunks) if 'chunks' in locals() and chunks else 0
         cursor_sqlite.execute( """
             UPDATE videos
-            SET title = ?, description = ?, transcript = ?, transcript_language = ?, captions_type = ?, processing_status = ?, added_at = CURRENT_TIMESTAMP
+            SET title = ?, description = ?, transcript = ?, transcript_language = ?, captions_type = ?, processing_status = ?, fragment_count = ?, added_at = CURRENT_TIMESTAMP
             WHERE video_id = ?
             """,
-            (video_meta_dict['title'], video_meta_dict['description'], transcript_text, transcript_lang, transcript_type, final_status, video_id)
+            (video_meta_dict['title'], video_meta_dict['description'], transcript_text, transcript_lang, transcript_type, final_status, final_fragment_count, video_id)
         )
         conn_sqlite.commit() # Commit di TUTTE le modifiche DB
         update_db_success = True

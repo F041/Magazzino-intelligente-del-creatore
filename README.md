@@ -464,6 +464,14 @@ Clicca su uno dei bottoni qui sotto per deployare Magazzino del Creatore sulla t
     *   Verifica che l'URI di reindirizzamento configurato nel tuo progetto Google Cloud Console (es. `https://tuodominio.com/oauth2callback`) corrisponda esattamente all'URL esposto pubblicamente dalla tua applicazione.
     *   Se il flusso OAuth non si avvia automaticamente, prova ad accedere alla pagina radice dell'applicazione (es. `https://tuodominio.com/`) e clicca sul link di login con Google, oppure naviga direttamente a `https://tuodominio.com/authorize` una volta per avviare il processo di consenso e la creazione del file `token.pickle` (o `token.json`).
 
+*   **Errore OAuth Critico: `Scope has changed` o `OAUTH_TOKEN_FETCH_FAILED`**
+    *   **Sintomo:** Dopo un aggiornamento dell'applicazione, il login fallisce restituendo un errore che cita un cambiamento degli "Scope" (es. da `youtube.readonly` a una lista più lunga) o impossibile recuperare il token.
+    *   **Causa:** Il codice richiede nuovi permessi (es. per monitorare la quota API), ma Google sta cercando di rinnovare il vecchio token che ha permessi limitati, creando un conflitto.
+    *   **Soluzione (Reset Completo):**
+        1.  Vai su [Permessi Account Google](https://myaccount.google.com/permissions).
+        2.  Trova l'app "Magazzino del Creatore" (o il nome del tuo progetto Google Cloud) e clicca su **"Rimuovi accesso"**.
+        3.  Torna all'applicazione web e visita la pagina `/authorize`. Google ti tratterà come un nuovo utente e ti chiederà di accettare esplicitamente i nuovi permessi. Accetta tutto.
+
 *   **Attenzione: File .env non trovato in /app all'interno dei log del container**
     *   vedi sezione "Configura il File d'Ambiente (`.env`)" sopra
 

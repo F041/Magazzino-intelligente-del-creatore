@@ -152,6 +152,14 @@ def init_db(config):
                 logger.debug("Colonna 'chunking_version' già presente nella tabella 'videos'.")
             else:
                 raise
+        try:
+            cursor.execute("ALTER TABLE videos ADD COLUMN fragment_count INTEGER DEFAULT 0")
+            logger.info("Colonna 'fragment_count' aggiunta alla tabella 'videos'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e).lower():
+                logger.debug("Colonna 'fragment_count' già presente nella tabella 'videos'.")
+            else:
+                raise
 
         # --- Tabella documents ---
         # 1. Crea la tabella SE NON ESISTE
@@ -333,6 +341,17 @@ def init_db(config):
                 query_text TEXT NOT NULL,           -- La domanda effettiva dell'utente finale
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )''')
+        
+        # --- Avvisi di Sistema (System Alerts) ---
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS system_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_type TEXT NOT NULL,           -- Es: 'youtube_ip_block', 'rss_error'
+                message TEXT NOT NULL,              -- Messaggio leggibile
+                details TEXT,                       -- Dettagli tecnici (stack trace o raw error)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )''')
+        logger.info("Tabella 'system_alerts' verificata/creata.")
 
         # --- Aggiunta colonne per Personalizzazione ---
         try:

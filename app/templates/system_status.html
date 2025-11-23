@@ -29,6 +29,41 @@
     </div>
     {% endif %}
 
+    {# --- Problemi di Servizio --- #}
+    {% if stats_data.alerts %}
+    <div class="stat-card" style="margin-top: 20px; border-left: 5px solid var(--color-error);">
+        <h3 style="color: var(--color-error);"><i class="fas fa-exclamation-triangle fa-fw"></i> Problemi recenti di servizio</h3>
+        <p style="font-size: 0.9em; color: var(--color-text-secondary);">Vengono mostrati gli ultimi errori operativi rilevati (es. blocchi IP).</p>
+        
+        <div class="table-responsive-wrapper" style="box-shadow: none; border: none;">
+            <table class="data-table" style="margin-top: 10px;">
+                <thead>
+                    <tr>
+                        <th style="background: #fff;">Data/Ora</th>
+                        <th style="background: #fff;">Tipo</th>
+                        <th style="background: #fff;">Messaggio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in stats_data.alerts %}
+                    <tr>
+                        <td style="white-space: nowrap; font-size: 0.85em; color: var(--color-text-light);">{{ alert.time }}</td>
+                        <td>
+                            {% if alert.type == 'youtube_ip_block' %}
+                                <span class="status-badge status-failed">Blocco IP YouTube</span>
+                            {% else %}
+                                <span class="status-badge status-unknown">{{ alert.type }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.9em;">{{ alert.message }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
     {% if stats_data.error %}
         <div class="error-message">{{ stats_data.error }}</div>
     {% else %}
