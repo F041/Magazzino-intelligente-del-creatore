@@ -173,11 +173,24 @@ def test_get_channel_videos_handles_pagination_with_playlist_method(monkeypatch)
     assert mock_youtube_service.playlistItems.return_value.list.return_value.execute.call_count == 2
 
 def test_youtube_processor_core_logic(app, monkeypatch):
+    """
+    Testa la logica core del processore YouTube, verificando anche che i dati
+    vengano salvati correttamente nel DB (incluso fragment_count).
+    """
     user_id_test = "user_for_processor_test"
     with app.app_context():
         db_path = app.config['DATABASE_FILE']
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
+        
+        # Assicuriamoci che la tabella abbia la colonna 'fragment_count'
+        # Questo è necessario perché l'init_db nel conftest potrebbe aver creato
+        # la tabella prima della modifica al codice di setup.
+        try:
+            cursor.execute("ALTER TABLE videos ADD COLUMN fragment_count INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass # La colonna esiste già, va bene
+
         cursor.execute("DELETE FROM videos WHERE user_id=?", (user_id_test,))
         cursor.execute(
             "INSERT INTO videos (video_id, title, user_id, channel_id, published_at, url, processing_status) VALUES (?,?,?,?,?,?,?)",
@@ -199,6 +212,7 @@ def test_youtube_processor_core_logic(app, monkeypatch):
     mock_chroma_collection = MagicMock()
     mock_core_config['CHROMA_CLIENT'].get_or_create_collection.return_value = mock_chroma_collection
 
+    # Percorsi per il patch
     path_unofficial_transcript = 'app.core.youtube_processor.UnofficialTranscriptService.get_transcript'
     path_official_transcript = 'app.core.youtube_processor.TranscriptService.get_transcript'
     path_youtube_client = 'app.core.youtube_processor.YouTubeClient'
@@ -222,13 +236,17 @@ def test_youtube_processor_core_logic(app, monkeypatch):
                 use_official_api_only=False
             )
 
-    assert result['success'] is True
+    # Verifica successo
+    assert result['success'] is True, f"Process failed: {result}"
     assert result['new_videos_processed'] == 1
+    
+    # Verifica chiamate
     mock_unofficial.assert_called_once_with('vid_nuovo')
     mock_official.assert_not_called()
     mock_core_config['CHROMA_CLIENT'].get_or_create_collection.assert_called_once()
     mock_chroma_collection.upsert.assert_called_once()
     
+    # Verifica salvataggio nel DB
     video_salvato = None
     with app.app_context():
         conn = sqlite3.connect(app.config['DATABASE_FILE'])
@@ -241,3 +259,7 @@ def test_youtube_processor_core_logic(app, monkeypatch):
     assert video_salvato is not None
     assert video_salvato['processing_status'] == 'completed'
     assert video_salvato['transcript'] == 'Questa e la trascrizione del video nuovo.'
+    
+    # Verifica che fragment_count sia stato salvato correttamente
+    # Ci aspettiamo 1 perché mock_chunks ha 1 elemento
+    assert video_salvato['fragment_count'] == 1

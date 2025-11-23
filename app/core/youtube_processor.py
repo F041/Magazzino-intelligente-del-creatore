@@ -169,6 +169,16 @@ def _process_youtube_channel_core(channel_id: str, user_id: Optional[str], core_
                 data_to_insert = [(vd['video_id'], vd['title'], vd['url'], vd['channel_id'], str(vd['published_at']), vd['description'], vd['transcript'], vd['transcript_language'], vd['captions_type'], vd['user_id'], vd.get('processing_status', 'failed'), vd['fragment_count']) for vd in processed_videos_data_for_db]
                 
                 cursor_sqlite.executemany(sql_insert, data_to_insert)
+
+                # Commit delle modifiche al DB in modo che siano visibili anche da altre connessioni/tests
+                conn_sqlite.commit()
+
+                # Conta quanti video sono stati salvati con stato 'completed'
+                saved_ok_count = sum(1 for vd in processed_videos_data_for_db if vd.get('processing_status') == 'completed')
+
+                # Se siamo arrivati qui senza eccezioni, consideriamo il job riuscito
+                overall_success = True
+
     
     except Exception as e:
         logger.error(f"Errore critico in _process_youtube_channel_core: {e}", exc_info=True)
