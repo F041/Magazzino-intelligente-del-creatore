@@ -235,13 +235,15 @@ def upload_documents():
                 file_size = file.tell()
                 file.seek(0)
                 extracted_text = extract_text_from_file(file, original_filename)
+                content_size = len(extracted_text.encode('utf-8')) if extracted_text else 0
 
                 if extracted_text is not None:
                     doc_id = str(uuid.uuid4())
                     try:
+                        # --- content_size alla query e ai valori ---
                         cursor.execute(
-                            "INSERT INTO documents (doc_id, original_filename, content, mimetype, user_id, processing_status, filesize) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (doc_id, original_filename, extracted_text, file.mimetype, current_user_id, 'pending', file_size)
+                            "INSERT INTO documents (doc_id, original_filename, content, mimetype, user_id, processing_status, filesize, content_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            (doc_id, original_filename, extracted_text, file.mimetype, current_user_id, 'pending', file_size, content_size)
                         )
                         indexing_status = _index_document(doc_id, conn, current_user_id, core_config_dict)
 

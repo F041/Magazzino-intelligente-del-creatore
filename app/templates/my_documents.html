@@ -14,7 +14,8 @@
                     <th>Nome Originale</th>
                     <th>Data Caricamento</th>
                     <th>Stato</th>
-                    <th>Dimensione (kB)</th>
+                    <th>Dim. Originale (kB)</th>
+                    <th>Dim. Testo (kB)</th> {# <-- NUOVA COLONNA #}
                     <th>Azioni</th>
                 </tr>
             </thead>
@@ -27,24 +28,30 @@
                         <span class="status-badge status-{{ doc.processing_status | lower | replace('_', '-') }}">{{ doc.processing_status }}</span>
                     </td>
                     <td>
-                        {# La dimensione ora viene dal DB. Se non c'è, mostriamo N/D #}
                         {% if doc.filesize %}
                             {{ "%.1f"|format(doc.filesize / 1024) }}
                         {% else %}
                             N/D
                         {% endif %}
                     </td>
+                    {# --- NUOVO BLOCCO PER LA NUOVA COLONNA --- #}
+                    <td>
+                        {% if doc.content_size is not none %}
+                            {{ "%.1f"|format(doc.content_size / 1024) }}
+                        {% else %}
+                            <span style="color: var(--color-text-light);">N/D</span>
+                        {% endif %}
+                    </td>
                     <td>                                           
                         <button class="action-btn delete-btn" data-doc-id="{{ doc.doc_id }}">
                             Elimina
                         </button>
-                        {# Il loader ora è nascosto di default e non ha testo #}
                         <span class="action-loader delete-loader" style="display: none;"><i class="fas fa-spinner fa-spin"></i></span>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" class="no-items-message">
+                    <td colspan="6" class="no-items-message"> {# <-- AGGIORNATO COLSPAN A 6 #}
                         Nessun documento trovato nel database.<br>
                         Vai su <a href="{{ url_for('data_entry') }}">Ingresso Dati</a> per caricare documenti.
                     </td>
@@ -54,6 +61,7 @@
         </table>
     </div>
 {% endblock %}
+
 
 {% block scripts %}
 {{ super() }} {# Importante per avere la funzione showConfirmModal #}

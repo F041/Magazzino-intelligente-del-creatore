@@ -652,7 +652,8 @@ def create_app(config_object=AppConfig):
         else:
             try:
                 conn = sqlite3.connect(db_path); conn.row_factory = sqlite3.Row; cursor = conn.cursor()
-                sql_query = 'SELECT doc_id, original_filename, uploaded_at, processing_status, filesize FROM documents WHERE user_id = ? ORDER BY uploaded_at DESC'
+                sql_query = 'SELECT doc_id, original_filename, uploaded_at, processing_status, filesize, content_size FROM documents WHERE user_id = ? ORDER BY uploaded_at DESC'
+                
                 cursor.execute(sql_query, (current_user_id,))
                 documents_from_db = cursor.fetchall()
                 conn.close()

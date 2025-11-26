@@ -181,6 +181,16 @@ def init_db(config):
             else:
                 raise
 
+        # --- Aggiunta colonna content_size ---
+        try:
+            cursor.execute("ALTER TABLE documents ADD COLUMN content_size INTEGER")
+            logger.info("Colonna 'content_size' aggiunta alla tabella 'documents'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e).lower():
+                logger.debug("Colonna 'content_size' già presente nella tabella 'documents'.")
+            else:
+                raise
+
         # --- Tabella articles ---
         # 1. Crea la tabella SE NON ESISTE
         cursor.execute('''

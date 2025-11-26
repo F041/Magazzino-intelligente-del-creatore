@@ -36,7 +36,7 @@ Un'applicazione multi-utente per creare una base di conoscenza interrogabile a p
     *   **Feedback di Avanzamento:** La pagina "Ingresso Dati" mostra lo stato e l'avanzamento in tempo reale (con una barra di progresso e un cronometro) dell'elaborazione. Al termine, un messaggio chiaro distingue tra l'aggiunta di nuovi video e il caso in cui il canale sia già aggiornato. La pagina si ricarica automaticamente per mostrare i nuovi contenuti.
 *   **Gestione Documenti:**
     *   Upload di file PDF, DOCX, TXT tramite interfaccia web (`/data-entry`).
-    *   Conversione automatica in Markdown (`.md`).
+    *   Conversione automatica in testo puro. **Nota:** Per mantenere il servizio leggero e facile da installare (evitando dipendenze pesanti come Pandoc), il sistema estrae il solo contenuto testuale dai documenti, perdendo parte della formattazione originale come titoli, grassetti o elenchi. Questo garantisce massima compatibilità e un'impronta minima sul server.
     *   Salvataggio file e registrazione nel DB (associato all'utente).
     *   Indicizzazione automatica all'upload (chunking, embedding, salvataggio in ChromaDB).
     *   Interfaccia web (`/my-documents`) per visualizzare e **eliminare** documenti (elimina file, record SQLite e chunk da ChromaDB).
