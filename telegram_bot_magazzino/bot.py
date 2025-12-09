@@ -180,8 +180,16 @@ async def handle_question(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     except requests.exceptions.HTTPError as http_err:
         try: await thinking_message.delete()
         except: pass
-        logger.error(f"Errore HTTP: {http_err.response.status_code} - {http_err.response.text[:200]}")
-        await update.message.reply_text(f"Oops! Problema ({http_err.response.status_code}) contattando il Magazzino.")
+        
+        status_code = http_err.response.status_code
+        logger.error(f"Errore HTTP: {status_code}")
+
+        if status_code == 429:
+            await update.message.reply_text("⏳ <b>Troppe richieste!</b>\nGoogle Gemini è sovraccarico (limiti del piano gratuito). Riprova tra un minuto.", parse_mode='HTML')
+        elif status_code == 401:
+            await update.message.reply_text("⛔ <b>Non autorizzato.</b>\nLa chiave API del bot non è valida o è stata revocata.", parse_mode='HTML')
+        else:
+            await update.message.reply_text(f"Oops! Problema tecnico ({status_code}) col Magazzino.")
     except requests.exceptions.RequestException as req_err: # Include ConnectionError, Timeout, etc.
         try: await thinking_message.delete()
         except: pass

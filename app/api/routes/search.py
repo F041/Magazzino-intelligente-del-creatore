@@ -501,22 +501,46 @@ def handle_search_request(*args, **kwargs):
             logger.info(f"Generazione LLM completata in {performance_metrics['llm_generation_duration_ms']}ms con il modello '{successful_model}'.") # <-- RIGA AGGIUNTA
 
             if not llm_success and last_error:
-                error_code_llm = 'LLM_GENERATION_FAILED'; message_llm = f'Errore LLM dopo aver provato i modelli disponibili: {last_error}'
-                if llm_provider == 'google': # Applica questa logica solo se l'errore proviene da Google
-                    if isinstance(last_error, (google_exceptions.NotFound, google_exceptions.PermissionDenied)):
+                error_code_llm = 'LLM_GENERATION_FAILED'
+                message_llm = f'Errore LLM: {last_error}'
+                
+                # Gestione Specifica Google
+                if llm_provider == 'google':
+                    # Cattura esplicita ResourceExhausted (Quota superata)
+                    if isinstance(last_error, google_exceptions.ResourceExhausted):
+                        error_code_llm = 'API_RATE_LIMIT_EXCEEDED'
+                        message_llm = 'Quota Google Gemini esaurita (Free Tier). Riprova tra qualche minuto.'
+                        logger.warning("Quota Google Esaurita rilevata nel backend.")
+                    
+                    elif isinstance(last_error, (google_exceptions.NotFound, google_exceptions.PermissionDenied)):
                         error_code_llm = 'LLM_MODEL_NOT_AVAILABLE'
-                        message_llm = 'Nessuno dei modelli configurati è risultato accessibile o disponibile.'
+                        message_llm = 'Modello non accessibile o errato.'
+                    
                     elif isinstance(last_error, google_exceptions.GoogleAPIError):
+                        # Fallback per altri errori Google
                         status_code = getattr(last_error, "code", 0)
-                        error_message_from_api = str(last_error)
-                        if status_code == 429 or "429" in error_message_from_api:
+                        if status_code == 429:
                             error_code_llm = 'API_RATE_LIMIT_EXCEEDED'
-                            message_llm = 'Limite di richieste API di Google raggiunto per tutti i modelli.'
+                            message_llm = 'Troppe richieste a Google.'
                         else:
-                            error_code_llm = 'API_ERROR_GENERATION'; message_llm = f'Errore API Google LLM ({status_code}).'
-                logger.error(f"{error_code_llm}: {message_llm}")
-                final_payload.update({'error_code': error_code_llm, 'message': message_llm});
-                raise last_error
+                            error_code_llm = 'API_ERROR_GENERATION'
+                            message_llm = f'Errore API Google ({status_code}).'
+
+                logger.error(f"Errore Finale LLM: {error_code_llm} - {message_llm}")
+                
+                # Aggiorna il payload
+                final_payload.update({
+                    'success': False,
+                    'error_code': error_code_llm, 
+                    'message': message_llm
+                })
+                
+                # IMPORTANTE: Non rilanciare l'eccezione se è un Rate Limit, 
+                # così possiamo restituire il JSON pulito invece di far crashare Flask con 500.
+                if error_code_llm == 'API_RATE_LIMIT_EXCEEDED':
+                    return final_payload, 429
+                
+                raise last_error # Per altri errori gravi, lascia che vada in eccezione
 
             if not llm_success and llm_answer and llm_answer.startswith("BLOCKED:"):
                 final_payload.update({
@@ -552,8 +576,22 @@ def handle_search_request(*args, **kwargs):
             yield format_sse_event(search_result_payload, event_type=event_type_final)
         return Response(stream_with_context(generate_events_sse()), mimetype='text/event-stream')
     else:
-        search_result_payload = execute_search_logic(**kwargs)
-        status_code = 200 if search_result_payload.get('success') else 500
-        if search_result_payload.get('error_code') in ['VALIDATION_ERROR', 'INVALID_CONTENT_TYPE']: status_code = 400
-        if search_result_payload.get('error_code') in ['UNAUTHORIZED', 'INVALID_TOKEN']: status_code = 401
+        # Eseguiamo la logica
+        result = execute_search_logic(**kwargs)
+
+        # Se il risultato è una tupla (dati, status_code), usiamoli direttamente.
+        # Questo accade quando abbiamo catturato l'errore di quota (429).
+        if isinstance(result, tuple):
+            search_result_payload, status_code = result
+        else:
+            # Altrimenti è il comportamento standard (solo dizionario)
+            search_result_payload = result
+            status_code = 200 if search_result_payload.get('success') else 500
+            
+            # Gestione codici errore standard
+            if search_result_payload.get('error_code') in ['VALIDATION_ERROR', 'INVALID_CONTENT_TYPE']: 
+                status_code = 400
+            if search_result_payload.get('error_code') in ['UNAUTHORIZED', 'INVALID_TOKEN']: 
+                status_code = 401
+        
         return jsonify(search_result_payload), status_code

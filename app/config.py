@@ -61,7 +61,7 @@ class BaseConfig:
 
 
     # --- Impostazioni Embedding ---
-    GEMINI_EMBEDDING_MODEL = "models/text-embedding-004"
+    GEMINI_EMBEDDING_MODEL = "models/gemini-embedding-001"
     DEFAULT_CHUNK_SIZE_WORDS = 300
     DEFAULT_CHUNK_OVERLAP_WORDS = 50
 
