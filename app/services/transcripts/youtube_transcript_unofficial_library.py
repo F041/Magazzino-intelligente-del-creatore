@@ -56,8 +56,7 @@ class UnofficialTranscriptService:
             # Scarica i dati della trascrizione
             transcript_pieces = transcript_to_fetch.fetch()
             
-            # --- CORREZIONE DEFINITIVA QUI ---
-            # Usiamo piece.text (accesso all'attributo) invece di piece['text'] (accesso al dizionario)
+            # Usiamo piece.text (accesso all'attributo) invece di piece['text']
             full_transcript_text = " ".join(piece.text for piece in transcript_pieces)
             
             caption_type = 'manual' if not transcript_to_fetch.is_generated else 'auto'
@@ -82,17 +81,24 @@ class UnofficialTranscriptService:
             
         except Exception as e:
             error_text = str(e).lower()
-            if 'http error 429' in error_text:
-                logger.error(f"[Unofficial Lib] RILEVATO BLOCCO IP (HTTP 429) per il video {video_id}. Dettagli: {e}")
-                                # Usiamo un try/except interno per evitare che un errore di log rompa tutto il flusso
+            # AGGIORNAMENTO CRITICO: Riconoscimento esteso dei messaggi di blocco IP/Cloud
+            is_ip_blocked = (
+                'http error 429' in error_text or 
+                'blocking requests from your ip' in error_text or
+                'cloud provider' in error_text or
+                'bot detection' in error_text
+            )
+            
+            if is_ip_blocked:
+                logger.warning(f"[Unofficial Lib] RILEVATO BLOCCO IP/CLOUD per il video {video_id}. Questo è normale su VPS. Passo all'API Ufficiale.")
                 try:
                     log_system_alert(
                         alert_type='youtube_ip_block', 
-                        message=f"Blocco IP rilevato (429) durante il recupero trascrizione video {video_id}.",
-                        details=str(e)
+                        message=f"Blocco IP rilevato su video {video_id}. Passaggio automatico ad API Ufficiale.",
+                        details=str(e)[:200]
                     )
                 except Exception: pass
-                return {'error': 'IP_BLOCKED', 'message': 'YouTube ha temporaneamente bloccato l\'indirizzo IP del server. È necessario usare l\'API ufficiale.'}
+                return {'error': 'IP_BLOCKED', 'message': 'YouTube ha bloccato l\'IP (normale su VPS). Necessario fallback API ufficiale.'}
             
             logger.error(f"[Unofficial Lib] Errore imprevisto per {video_id}: {e}", exc_info=True)
             return {'error': 'UNKNOWN_ERROR', 'message': f'Errore imprevisto: {e}'}

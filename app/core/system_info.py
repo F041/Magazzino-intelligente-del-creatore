@@ -13,6 +13,47 @@ from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
 
+def _get_youtube_auth_status():
+    """
+    Verifica se il token è valido e A CHI appartiene (utile per debug Brand Account).
+    """
+    try:
+        credentials = load_credentials()
+        if not credentials or not credentials.valid:
+            return {
+                'status': 'missing', 
+                'message': 'Token non trovato o invalido.',
+                'channel_title': 'N/D'
+            }
+
+        # Proviamo a fare una chiamata reale "Chi sono io?"
+        service = build('youtube', 'v3', credentials=credentials)
+        response = service.channels().list(part='snippet', mine=True).execute()
+        
+        if response.get('items'):
+            channel_title = response['items'][0]['snippet']['title']
+            channel_id = response['items'][0]['id']
+            return {
+                'status': 'valid',
+                'message': 'Token attivo e funzionante.',
+                'channel_title': channel_title,
+                'channel_id': channel_id
+            }
+        else:
+            # Token valido ma nessun canale associato (es. account Google senza canale YouTube creato)
+            return {
+                'status': 'warning',
+                'message': 'Token valido, ma nessun canale YouTube associato a questo account Google.',
+                'channel_title': 'Nessun Canale'
+            }
+
+    except Exception as e:
+        logger.error(f"Errore verifica token YouTube: {e}")
+        return {
+            'status': 'error',
+            'message': f"Errore API: {str(e)}",
+            'channel_title': 'Errore'
+        }
 
 def _get_youtube_quota_info():
     """
@@ -283,6 +324,9 @@ def get_system_stats():
                 db_stats['sqlite_table_counts'][table_name] = "N/D"
         
         final_stats['db_status'] = db_stats
+
+        final_stats['youtube_quota'] = _get_youtube_quota_info()
+        final_stats['youtube_auth'] = _get_youtube_auth_status()
         
         final_stats['youtube_quota'] = _get_youtube_quota_info()
 

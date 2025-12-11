@@ -18,6 +18,56 @@
     <h1>Stato del sistema</h1>
     <p>Questo è il cruscotto tecnico del tuo Magazzino. Qui puoi monitorare le risorse utilizzate e lo stato dei processi automatici.</p>
 
+    {% if stats_data.youtube_auth %}
+    <div class="stat-card" style="margin-top: 20px; border-left: 5px solid {{ 'var(--color-success)' if stats_data.youtube_auth.status == 'valid' else 'var(--color-error)' }};">
+        <h3><i class="fab fa-youtube fa-fw"></i> Autenticazione YouTube</h3>
+        
+        <div class="metrics-row">
+            <span class="metric-label">Stato token:</span>
+            <span class="metric-value">
+                {% if stats_data.youtube_auth.status == 'valid' %}
+                    <span class="status-badge status-completed">ATTIVO</span>
+                {% elif stats_data.youtube_auth.status == 'missing' %}
+                    <span class="status-badge status-failed">MANCANTE</span>
+                {% else %}
+                    <span class="status-badge status-failed">ERRORE</span>
+                {% endif %}
+            </span>
+        </div>
+
+        <div class="metrics-row">
+            <span class="metric-label">Collegato come:</span>
+            <span class="metric-value" style="font-size: 1.2rem; color: var(--color-primary);">
+                {{ stats_data.youtube_auth.channel_title }}
+            </span>
+        </div>
+        
+        {% if stats_data.youtube_auth.status == 'valid' %}
+            <p style="font-size: 0.9em; color: var(--color-text-light); margin-top: 10px;">
+                <i class="fas fa-check-circle"></i> ID Canale: <code>{{ stats_data.youtube_auth.channel_id }}</code>
+            </p>
+            <p style="font-size: 0.85em; color: var(--color-text-secondary); background: #fff3cd; padding: 10px; border-radius: 5px;">
+                <strong>Nota Importante:</strong> Se questo non è il nome del tuo canale Brand ma il tuo nome personale (e hai errori 403), devi ri-autenticarti selezionando l'account corretto.
+            </p>
+        {% endif %}
+
+        {% if stats_data.youtube_auth.status != 'valid' %}
+            <div style="margin-top: 15px;">
+                <a href="{{ url_for('authorize') }}" class="action-btn">
+                    <i class="fab fa-google"></i> Ri-autentica ora
+                </a>
+            </div>
+        {% endif %}
+        
+        {% if stats_data.youtube_auth.message and stats_data.youtube_auth.status != 'valid' %}
+            <div class="error-message" style="margin-top: 10px; margin-bottom: 0;">
+                {{ stats_data.youtube_auth.message }}
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {# --- FINE NUOVO BLOCCO --- #}
+
     {% if stats_data.version_status %}
     <div class="stat-card" style="margin-top: 20px;">
         <div class="metrics-row">
