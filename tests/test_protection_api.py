@@ -206,3 +206,34 @@ def test_live_restore_simulation(app):
         assert cursor.fetchone() is None
         
         conn.close()
+
+def test_background_reindex_documents_passes_core_config(app, monkeypatch):
+    from app.api.routes import protection
+
+    user_id = "user-reindex-doc-test"
+    with app.app_context():
+        conn = sqlite3.connect(app.config['DATABASE_FILE'])
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO documents (doc_id, original_filename, content, user_id, processing_status) VALUES (?, ?, ?, ?, ?)",
+            ("doc-reindex-1", "doc.txt", "contenuto", user_id, "pending")
+        )
+        conn.commit()
+        conn.close()
+
+    captured = {}
+
+    def fake_index_document(doc_id, conn, passed_user_id, core_config):
+        captured['doc_id'] = doc_id
+        captured['user_id'] = passed_user_id
+        captured['core_config'] = core_config
+        return 'completed'
+
+    monkeypatch.setattr('app.api.routes.protection._index_document', fake_index_document)
+    monkeypatch.setattr('app.utils.build_full_config_for_background_process', lambda uid: {'TEST_KEY': uid})
+
+    protection._background_reindex_all_content(app.app_context(), user_id)
+
+    assert captured['doc_id'] == 'doc-reindex-1'
+    assert captured['user_id'] == user_id
+    assert captured['core_config'] == {'TEST_KEY': user_id}

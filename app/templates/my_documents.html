@@ -117,7 +117,7 @@
                         // Controlla se la tabella è vuota dopo l'eliminazione
                         const tbody = document.querySelector('#documents-container tbody');
                         if (tbody && tbody.children.length === 0) {
-                            tbody.innerHTML = `<tr><td colspan="5" class="no-items-message">Nessun documento rimasto.</td></tr>`;
+                            tbody.innerHTML = `<tr><td colspan="6" class="no-items-message">Nessun documento rimasto.</td></tr>`;
                         }
                     } else {
                         throw new Error(data.message || `Errore ${response.status}`);
