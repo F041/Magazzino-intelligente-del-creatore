@@ -92,7 +92,7 @@ def _background_reindex_all_content(app_context, user_id: str):
                     processed_count += 1
                     reindex_status['processed_items'] = processed_count
                     reindex_status['message'] = f"Re-indicizzazione documenti ({processed_count}/{total_items})..."
-                _index_document(item_id, conn, user_id)
+                _index_document(item_id, conn, user_id, core_config_dict)
                 conn.commit()
 
             # --- Processo Articoli ---
